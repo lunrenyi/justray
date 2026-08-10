@@ -1,0 +1,84 @@
+package daemon
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
+	"time"
+)
+
+type Client struct{ socket string }
+
+func NewClient(socket string) *Client { return &Client{socket} }
+
+func (c *Client) dial() (net.Conn, error) {
+	conn, err := net.DialTimeout("unix", c.socket, 3*time.Second)
+	if err != nil {
+		return nil, fmt.Errorf("no daemon on %s", c.socket)
+	}
+	return conn, nil
+}
+
+func call[T any](c *Client, method string, args Args) (T, error) {
+	var out T
+
+	conn, err := c.dial()
+	if err != nil {
+		return out, err
+	}
+	defer conn.Close()
+	conn.SetDeadline(time.Now().Add(idle))
+
+	if err := json.NewEncoder(conn).Encode(Req{method, args}); err != nil {
+		return out, fmt.Errorf("%s: %w", method, err)
+	}
+	var resp Resp
+	if err := json.NewDecoder(conn).Decode(&resp); err != nil {
+		return out, fmt.Errorf("%s: %w", method, err)
+	}
+	if !resp.OK {
+		return out, errors.New(resp.Error)
+	}
+	if resp.Result != nil {
+		return out, json.Unmarshal(resp.Result, &out)
+	}
+	return out, nil
+}
+
+func (c *Client) Ping() error                    { _, err := call[any](c, "Ping", Args{}); return err }
+func (c *Client) Subs() ([]Sub, error)           { return call[[]Sub](c, "Subs", Args{}) }
+func (c *Client) AddSub(url string) (Sub, error) { return call[Sub](c, "AddSub", Args{URL: url}) }
+func (c *Client) RemoveSub(id string) error {
+	_, err := call[any](c, "RemoveSub", Args{ID: id})
+	return err
+}
+func (c *Client) RefreshAll() ([]Sub, error)        { return call[[]Sub](c, "RefreshAll", Args{}) }
+func (c *Client) Nodes() ([]Node, error)            { return call[[]Node](c, "Nodes", Args{}) }
+func (c *Client) Connect(id string) (Status, error) { return call[Status](c, "Connect", Args{ID: id}) }
+func (c *Client) Disconnect() (Status, error)       { return call[Status](c, "Disconnect", Args{}) }
+
+func (c *Client) Probe(sub, id string) ([]Node, error) {
+	return call[[]Node](c, "Probe", Args{Sub: sub, ID: id})
+}
+
+func (c *Client) Watch(onUpdate func(Status)) error {
+	conn, err := c.dial()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	if err := json.NewEncoder(conn).Encode(Req{Method: "Watch"}); err != nil {
+		return fmt.Errorf("watch: %w", err)
+	}
+	dec := json.NewDecoder(conn)
+	dec.DisallowUnknownFields()
+	for {
+		var st Status
+		if err := dec.Decode(&st); err != nil {
+			return fmt.Errorf("watch: %w", err)
+		}
+		onUpdate(st)
+	}
+}
