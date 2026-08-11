@@ -1,6 +1,8 @@
 #!/usr/bin/env fish
 set -l repo (realpath (dirname (status filename)))
 
+git -C "$repo" add -A # nix
+
 set -l build
 set -l ok 0
 for attempt in 1 2
@@ -20,4 +22,8 @@ if test $ok -ne 0
     printf '%s\n' $build >&2
     exit 1
 end
-echo (realpath "$repo/result")
+
+systemctl --user stop justxrayd 2>/dev/null # stop first, or systemd respawns it
+pkill -x justxrayd
+
+exec "$repo/result/bin/justxray" $argv

@@ -1,15 +1,12 @@
 package daemon
 
 import (
-	"crypto/rand"
 	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"mime"
 	"net/http"
 	"net/url"
-	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -140,9 +137,7 @@ func (s *Server) fetch(rawURL string) ([]proxy.Node, string, store.Traffic, erro
 	if err != nil {
 		return nil, "", none, err
 	}
-	if s.hwid != "" {
-		req.Header.Set("X-Hwid", s.hwid) // for panels like remnawave
-	}
+	req.Header = s.device.Clone()
 
 	resp, err := (&http.Client{Timeout: 20 * time.Second}).Do(req)
 	if err != nil {
@@ -154,9 +149,9 @@ func (s *Server) fetch(rawURL string) ([]proxy.Node, string, store.Traffic, erro
 	case resp.StatusCode != http.StatusOK:
 		return nil, "", none, fmt.Errorf("http %d", resp.StatusCode)
 	case resp.Header.Get("X-Hwid-Max-Devices-Reached") == "true":
-		return nil, "", none, fmt.Errorf("device limit reached — free one up in the provider's dashboard or ask them to raise it")
+		return nil, "", none, fmt.Errorf("Device limit reached")
 	case resp.Header.Get("X-Hwid-Not-Supported") == "true":
-		return nil, "", none, fmt.Errorf("this subscription needs a device id this build didn't send")
+		return nil, "", none, fmt.Errorf("This subscription require device id")
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBody))
@@ -244,18 +239,4 @@ func title(h http.Header) string {
 		}
 	}
 	return ""
-}
-
-// TODO: rework hwid
-func loadHWID(dir string) (string, error) {
-	p := hwidPath(dir)
-	if data, err := os.ReadFile(p); err == nil {
-		if id := strings.TrimSpace(string(data)); id != "" {
-			return id, nil
-		}
-	}
-	var b [16]byte
-	rand.Read(b[:])
-	id := hex.EncodeToString(b[:]) // 32 hex chars to match [a-zA-Z0-9=-]{10,64}$
-	return id, os.WriteFile(p, []byte(id), 0o600)
 }

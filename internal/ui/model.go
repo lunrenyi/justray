@@ -174,7 +174,7 @@ func (m Model) key(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.url.SetValue("")
 		m.url.Focus()
 		return m, textinput.Blink
-	case "~":
+	case "/":
 		m.filtering = true
 		m.filter.SetValue(m.query)
 		m.filter.CursorEnd()

@@ -149,7 +149,7 @@ func (m Model) footer() string {
 	}
 
 	keys := [][2]string{
-		{"↑/↓", "Move"}, {"↵", "Toggle"}, {"t", "Latency"}, {"~", "Filter"},
+		{"↑/↓", "Move"}, {"↵", "Toggle"}, {"t", "Latency"}, {"/", "Filter"},
 		{"a", "Add"}, {"d", "Delete"}, {"q", "Quit"},
 	}
 	switch {

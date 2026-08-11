@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"sync"
 	"time"
@@ -23,7 +24,7 @@ type Server struct {
 	store   store.Disk
 	runner  *runner.Process
 	log     *log.Logger
-	hwid    string
+	device  http.Header
 
 	mu       sync.Mutex
 	sub      string // subscription the active node belongs to
@@ -40,16 +41,14 @@ func New(dir, xrayBin string, logger *log.Logger) *Server {
 		xrayBin:  xrayBin,
 		store:    store.Disk{Dir: dir},
 		log:      logger,
+		device:   deviceHeaders(),
 		probes:   map[string]probeResult{},
 		watchers: map[chan Status]struct{}{},
 	}
 	s.runner = runner.New(xrayBin, xrayLog(dir), s.onExit)
-
-	hwid, err := loadHWID(dir)
-	if err != nil {
-		s.log.Printf("hwid: %v (subscriptions needing a device id may not resolve)", err)
+	if s.device.Get("X-Hwid") == "" {
+		s.log.Printf("no machine id found")
 	}
-	s.hwid = hwid
 	return s
 }
 
