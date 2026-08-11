@@ -1,6 +1,7 @@
 package protocols
 
 import (
+	"cmp"
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/hex"
@@ -8,6 +9,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/luynrs/justxray/internal/parser/proxy"
 )
 
 func Unbase64(s string) ([]byte, error) {
@@ -34,6 +37,15 @@ func hostPort(u *url.URL) (string, int, error) {
 		return "", 0, fmt.Errorf("bad port %q", p)
 	}
 	return host, port, nil
+}
+
+func transport(q url.Values) proxy.Transport {
+	return proxy.Transport{
+		Network:     strings.ToLower(cmp.Or(q.Get("type"), "tcp")),
+		Path:        cmp.Or(q.Get("path"), q.Get("serviceName")),
+		Host:        cmp.Or(q.Get("host"), q.Get("sni")),
+		ServiceName: q.Get("serviceName"),
+	}
 }
 
 func splitComma(s string) []string {

@@ -36,19 +36,20 @@ func New(dir, xrayBin string, logger *log.Logger) *Server {
 	if logger == nil {
 		logger = log.New(io.Discard, "", 0)
 	}
+	device, err := deviceHeaders()
+	if err != nil {
+		logger.Printf("device: %v, subscriptions needing a device id won't resolve", err)
+	}
 	s := &Server{
 		dir:      dir,
 		xrayBin:  xrayBin,
 		store:    store.Disk{Dir: dir},
 		log:      logger,
-		device:   deviceHeaders(),
+		device:   device,
 		probes:   map[string]probeResult{},
 		watchers: map[chan Status]struct{}{},
 	}
 	s.runner = runner.New(xrayBin, xrayLog(dir), s.onExit)
-	if s.device.Get("X-Hwid") == "" {
-		s.log.Printf("no machine id found")
-	}
 	return s
 }
 

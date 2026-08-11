@@ -9,37 +9,29 @@ import (
 	"github.com/luynrs/justxray/internal/parser/proxy"
 )
 
-var schemes = []string{"vmess", "vless", "trojan", "ss", "hysteria2", "hy2"}
+var parsers = map[string]func(string) (proxy.Node, error){
+	"vmess":     protocols.ParseVMess,
+	"vless":     protocols.ParseVLess,
+	"trojan":    protocols.ParseTrojan,
+	"ss":        protocols.ParseSS,
+	"hysteria2": protocols.ParseHY2,
+	"hy2":       protocols.ParseHY2,
+}
 
 func IsLink(s string) bool {
 	scheme, _, ok := strings.Cut(strings.TrimSpace(s), "://")
-	if !ok {
-		return false
-	}
-	for _, k := range schemes {
-		if scheme == k {
-			return true
-		}
-	}
-	return false
+	_, known := parsers[scheme]
+	return ok && known
 }
 
 func ParseURI(uri string) (proxy.Node, error) {
 	uri = strings.TrimSpace(uri)
 	scheme, _, _ := strings.Cut(uri, "://")
-	switch scheme {
-	case "vmess":
-		return protocols.ParseVMess(uri)
-	case "vless":
-		return protocols.ParseVLess(uri)
-	case "trojan":
-		return protocols.ParseTrojan(uri)
-	case "ss":
-		return protocols.ParseSS(uri)
-	case "hysteria2", "hy2":
-		return protocols.ParseHY2(uri)
+	parse, ok := parsers[scheme]
+	if !ok {
+		return proxy.Node{}, fmt.Errorf("unknown scheme in %q", uri)
 	}
-	return proxy.Node{}, fmt.Errorf("unknown scheme in %q", uri)
+	return parse(uri)
 }
 
 // clash yaml (b64)

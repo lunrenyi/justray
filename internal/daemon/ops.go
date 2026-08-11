@@ -39,9 +39,7 @@ func (s *Server) disconnect() (Status, error) {
 	defer s.mu.Unlock()
 
 	name := s.runner.Status().NodeName
-	s.runner.Stop()
-	s.sub = ""
-	s.store.SetActive("")
+	s.clear()
 	if name != "" {
 		s.log.Printf("disconnected from %s", name)
 	}
@@ -50,6 +48,14 @@ func (s *Server) disconnect() (Status, error) {
 }
 
 // assumes s.mu held
+func (s *Server) clear() {
+	s.runner.Stop()
+	s.sub = ""
+	if err := s.store.SetActive(""); err != nil {
+		s.log.Printf("could not clear the active node: %v", err)
+	}
+}
+
 func (s *Server) start(n proxy.Node, sub string) error {
 	cfg, err := xray.Build(n, socksPort, httpPort)
 	if err != nil {

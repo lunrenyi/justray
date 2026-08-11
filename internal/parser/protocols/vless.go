@@ -29,18 +29,13 @@ func ParseVLess(uri string) (proxy.Node, error) {
 
 	q := u.Query()
 	n := proxy.Node{
-		ID:       id(uri),
-		Name:     cmp.Or(u.Fragment, host),
-		Protocol: proxy.VLess,
-		Server:   host,
-		Port:     port,
-		Auth:     proxy.Auth{UUID: u.User.Username(), Flow: q.Get("flow")},
-		Transport: proxy.Transport{
-			Network:     strings.ToLower(cmp.Or(q.Get("type"), "tcp")),
-			Path:        cmp.Or(q.Get("path"), q.Get("serviceName")),
-			Host:        cmp.Or(q.Get("host"), q.Get("sni")),
-			ServiceName: q.Get("serviceName"),
-		},
+		ID:        id(uri),
+		Name:      cmp.Or(u.Fragment, host),
+		Protocol:  proxy.VLess,
+		Server:    host,
+		Port:      port,
+		Auth:      proxy.Auth{UUID: u.User.Username(), Flow: q.Get("flow")},
+		Transport: transport(q),
 	}
 
 	switch strings.ToLower(q.Get("security")) {

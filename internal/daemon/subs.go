@@ -71,9 +71,7 @@ func (s *Server) removeSub(id string) error {
 		return fmt.Errorf("subscription %q not found", id)
 	}
 	if s.sub == id {
-		s.runner.Stop()
-		s.sub = ""
-		s.store.SetActive("")
+		s.clear()
 	}
 	return s.store.Save(kept)
 }
@@ -149,9 +147,9 @@ func (s *Server) fetch(rawURL string) ([]proxy.Node, string, store.Traffic, erro
 	case resp.StatusCode != http.StatusOK:
 		return nil, "", none, fmt.Errorf("http %d", resp.StatusCode)
 	case resp.Header.Get("X-Hwid-Max-Devices-Reached") == "true":
-		return nil, "", none, fmt.Errorf("Device limit reached")
+		return nil, "", none, fmt.Errorf("device limit reached")
 	case resp.Header.Get("X-Hwid-Not-Supported") == "true":
-		return nil, "", none, fmt.Errorf("This subscription require device id")
+		return nil, "", none, fmt.Errorf("this subscription requires a device id")
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBody))

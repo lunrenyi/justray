@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
@@ -12,7 +13,7 @@ import (
 )
 
 // Device info; X-Hwid is required, the rest cosmetic
-func deviceHeaders() http.Header {
+func deviceHeaders() (http.Header, error) {
 	h := http.Header{}
 	set := func(key, val string) {
 		if val != "" {
@@ -45,7 +46,11 @@ func deviceHeaders() http.Header {
 	default:
 		set("X-Device-OS", runtime.GOOS)
 	}
-	return h
+
+	if h.Get("X-Hwid") == "" {
+		return h, fmt.Errorf("no machine id on %s", runtime.GOOS)
+	}
+	return h, nil
 }
 
 func hash(raw string) string {

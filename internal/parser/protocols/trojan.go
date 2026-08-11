@@ -28,18 +28,13 @@ func ParseTrojan(uri string) (proxy.Node, error) {
 
 	q := u.Query()
 	n := proxy.Node{
-		ID:       id(uri),
-		Name:     cmp.Or(u.Fragment, host),
-		Protocol: proxy.Trojan,
-		Server:   host,
-		Port:     port,
-		Auth:     proxy.Auth{Password: u.User.Username()},
-		Transport: proxy.Transport{
-			Network:     strings.ToLower(cmp.Or(q.Get("type"), "tcp")),
-			Path:        cmp.Or(q.Get("path"), q.Get("serviceName")),
-			Host:        cmp.Or(q.Get("host"), q.Get("sni")),
-			ServiceName: q.Get("serviceName"),
-		},
+		ID:        id(uri),
+		Name:      cmp.Or(u.Fragment, host),
+		Protocol:  proxy.Trojan,
+		Server:    host,
+		Port:      port,
+		Auth:      proxy.Auth{Password: u.User.Username()},
+		Transport: transport(q),
 	}
 	if strings.ToLower(cmp.Or(q.Get("security"), "tls")) != "none" {
 		n.TLS = &proxy.TLS{
