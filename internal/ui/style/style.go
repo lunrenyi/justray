@@ -6,6 +6,7 @@ package style
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/progress"
@@ -39,6 +40,17 @@ func Clip(s string, width int) string {
 		return ""
 	}
 	return lipgloss.NewStyle().MaxWidth(width).Render(s)
+}
+
+func Pad(s string, w int) string {
+	switch n := lipgloss.Width(s); {
+	case w <= 0:
+		return ""
+	case n > w:
+		return lipgloss.NewStyle().MaxWidth(w-1).Render(s) + "…"
+	default:
+		return s + strings.Repeat(" ", w-n)
+	}
 }
 
 // a static usage bar for a 0..1 fraction

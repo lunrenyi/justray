@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"github.com/luynrs/justxray/internal/daemon"
 	"github.com/luynrs/justxray/internal/ui/style"
 )
@@ -15,9 +17,17 @@ func (m Model) View() string {
 	}
 	body := m.tree()
 	if m.adding {
-		body = m.line(style.Title.Render("JustXray")) + "\n\n" + m.url.View()
+		body = m.titleLine() + "\n\n" + m.url.View()
 	}
-	return pad(body, m.h-footerLines) + "\n" + m.footer()
+	return fit(body, m.h-footerLines) + "\n" + m.footer()
+}
+
+func (m Model) titleLine() string {
+	title := style.Title.Render("JustXray")
+	if m.connected() {
+		title = flush(title, style.Dim.Render(fmt.Sprintf("socks :%d · http :%d", m.status.Socks, m.status.HTTP)), m.w)
+	}
+	return m.clip(title)
 }
 
 func (m Model) tree() string {
@@ -25,7 +35,7 @@ func (m Model) tree() string {
 	h := m.height()
 
 	lines := make([]string, 0, topLines+h)
-	lines = append(lines, m.line(style.Title.Render("JustXray")), m.filterLine())
+	lines = append(lines, m.titleLine(), m.filterLine())
 
 	switch {
 	case len(rows) > 0:
@@ -37,9 +47,9 @@ func (m Model) tree() string {
 			lines = append(lines, m.row(r, m.scroll+i == cursor))
 		}
 	case m.query != "":
-		lines = append(lines, m.line(style.Dim.Render(fmt.Sprintf("No matches for %q", m.query))))
+		lines = append(lines, m.clip(style.Dim.Render(fmt.Sprintf("No matches for %q", m.query))))
 	default:
-		lines = append(lines, m.line(style.Dim.Render("No subscriptions yet")))
+		lines = append(lines, m.clip(style.Dim.Render("No subscriptions yet")))
 	}
 
 	for len(lines) < topLines+h {
@@ -51,9 +61,9 @@ func (m Model) tree() string {
 func (m Model) filterLine() string {
 	switch {
 	case m.filtering:
-		return m.line(m.filter.View())
+		return m.clip(m.filter.View())
 	case m.query != "":
-		return m.line(style.Dim.Render(fmt.Sprintf("~ %s · esc to clear", m.query)))
+		return m.clip(style.Dim.Render(fmt.Sprintf("~ %s · esc to clear", m.query)))
 	}
 	return ""
 }
@@ -63,17 +73,17 @@ func (m Model) row(r row, selected bool) string {
 	case rowGap:
 		return ""
 	case rowMeta:
-		return m.line("    " + usage(r.sub))
+		return m.clip(flush("    "+usage(r.sub), subMeta(r.sub), m.w))
 	}
 
-	cursor := "  "
+	caret := "  "
 	if selected {
-		cursor = style.Strong.Render("❯ ")
+		caret = style.Strong.Render("❯ ")
 	}
 	if r.kind == rowHeader {
-		return m.line(cursor + m.header(r.sub, selected))
+		return m.clip(caret + m.header(r.sub, selected))
 	}
-	return m.line(cursor + m.node(r.node, selected))
+	return m.clip(caret + flush(m.node(r.node, selected), latency(r.node), m.w-2))
 }
 
 func (m Model) header(s daemon.Sub, selected bool) string {
@@ -85,7 +95,10 @@ func (m Model) header(s daemon.Sub, selected bool) string {
 	if selected {
 		name = style.Strong.Render(s.Name)
 	}
+	return arrow + " " + name
+}
 
+func subMeta(s daemon.Sub) string {
 	age := "never updated"
 	if !s.UpdatedAt.IsZero() {
 		age = "updated " + style.Since(s.UpdatedAt)
@@ -94,26 +107,44 @@ func (m Model) header(s daemon.Sub, selected bool) string {
 	if s.Nodes == 1 {
 		plural = ""
 	}
-	return arrow + " " + name + "  " + style.Dim.Render(fmt.Sprintf("%d node%s · %s", s.Nodes, plural, age))
+	return style.Dim.Render(fmt.Sprintf("%d node%s · %s", s.Nodes, plural, age))
+}
+
+const maxNameCol = 32
+
+func nameWidth(nodes []daemon.Node) int {
+	w := 0
+	for _, n := range nodes {
+		w = max(w, lipgloss.Width(n.Name))
+	}
+	return min(w, maxNameCol)
 }
 
 func (m Model) node(n daemon.Node, selected bool) string {
-	name := n.Name
+	name := style.Pad(n.Name, m.nameW)
 	if selected {
 		name = style.Accent.Render(name)
 	}
+	return "  " + m.dot(n) + " " + name + "  " +
+		style.Dim.Render(fmt.Sprintf("%s · %s:%d", n.Protocol, n.Server, n.Port))
+}
 
-	latency := ""
+func latency(n daemon.Node) string {
 	switch {
 	case !n.Probed:
+		return ""
 	case n.Alive:
-		latency = fmt.Sprintf("  %dms", n.MS)
-	default:
-		latency = "  timeout"
+		return style.Dim.Render(fmt.Sprintf("%dms", n.MS))
 	}
-	meta := style.Dim.Render(fmt.Sprintf("%s · %s:%d%s", n.Protocol, n.Server, n.Port, latency))
+	return style.Dim.Render("timeout")
+}
 
-	return "  " + m.dot(n) + " " + name + "  " + meta
+func flush(left, right string, width int) string {
+	if right == "" {
+		return left
+	}
+	gap := max(width-lipgloss.Width(left)-lipgloss.Width(right), 2)
+	return left + strings.Repeat(" ", gap) + right
 }
 
 func (m Model) dot(n daemon.Node) string {
@@ -133,10 +164,11 @@ func (m Model) dot(n daemon.Node) string {
 func (m Model) footer() string {
 	var status string
 	switch {
+	case m.confirm:
+		status = style.Err.Render("delete this subscription?") + " " + style.Dim.Render("cannot be undone")
 	case m.connected():
 		uptime := time.Duration(time.Since(m.since).Seconds()) * time.Second
-		status = style.Strong.Render(fmt.Sprintf("● %s · %s", m.status.NodeName, uptime)) +
-			"  " + style.Dim.Render(fmt.Sprintf("socks :%d · http :%d", m.status.Socks, m.status.HTTP))
+		status = style.Strong.Render(fmt.Sprintf("● %s · %s", m.status.NodeName, uptime))
 	case m.live && m.status.LastErr != "":
 		status = style.Dim.Render("○ disconnected") + "  " + style.Err.Render("last error: "+m.status.LastErr)
 	case m.live:
@@ -149,41 +181,53 @@ func (m Model) footer() string {
 	}
 
 	keys := [][2]string{
-		{"↑/↓", "Move"}, {"↵", "Toggle"}, {"t", "Latency"}, {"/", "Filter"},
-		{"a", "Add"}, {"d", "Delete"}, {"q", "Quit"},
+		{"↑/↓", "Move"}, {"↵", "Toggle"}, {"←/→", "Fold"}, {"t", "Ping"},
+		{"r", "Refresh"}, {"/", "Filter"}, {"a", "Add"}, {"d", "Delete"}, {"q", "Quit"},
 	}
 	switch {
+	case m.confirm:
+		keys = [][2]string{{"y", "Delete"}, {"any", "Cancel"}}
 	case m.adding:
 		keys = [][2]string{{"↵", "Add"}, {"esc", "Cancel"}}
 	case m.filtering:
 		keys = [][2]string{{"type", "Filter"}, {"↵", "Apply"}, {"esc", "Clear"}}
 	}
-	help := make([]string, len(keys))
-	for i, k := range keys {
-		help[i] = style.Strong.Render(k[0]) + " " + style.Dim.Render(k[1])
+	var help []string
+	used := 0
+	for _, k := range keys {
+		hint := style.Strong.Render(k[0]) + " " + style.Dim.Render(k[1])
+		if used += lipgloss.Width(hint) + 2; used-2 > m.w {
+			break
+		}
+		help = append(help, hint)
 	}
 
-	return "\n" + m.line(status) + "\n" + m.line(strings.Join(help, "    "))
+	return "\n" + m.clip(status) + "\n" + m.clip(strings.Join(help, "  "))
 }
 
 func usage(s daemon.Sub) string {
+	t := s.Traffic
+	used := t.UploadBytes + t.DownloadBytes
+
 	var parts []string
-	if t := s.Traffic; t.TotalBytes > 0 {
-		used := t.UploadBytes + t.DownloadBytes
+	switch {
+	case t.TotalBytes > 0:
 		parts = append(parts, fmt.Sprintf("%s %s %s",
 			style.Dim.Render(style.Bytes(used)),
 			style.Bar(float64(used)/float64(t.TotalBytes)),
 			style.Dim.Render(style.Bytes(t.TotalBytes))))
+	case used > 0:
+		parts = append(parts, style.Dim.Render(style.Bytes(used)+" used"))
 	}
-	if !s.Traffic.ExpiresAt.IsZero() {
-		parts = append(parts, style.Dim.Render(style.Expiry(s.Traffic.ExpiresAt)))
+	if !t.ExpiresAt.IsZero() {
+		parts = append(parts, style.Dim.Render(style.Expiry(t.ExpiresAt)))
 	}
 	return strings.Join(parts, style.Dim.Render(" · "))
 }
 
-func (m Model) line(s string) string { return style.Clip(s, m.w) }
+func (m Model) clip(s string) string { return style.Clip(s, m.w) }
 
-func pad(body string, n int) string {
+func fit(body string, n int) string {
 	lines := strings.Split(body, "\n")
 	for len(lines) < n {
 		lines = append(lines, "")

@@ -58,10 +58,7 @@ func (m Model) rows() []row {
 			continue
 		}
 
-		rows = append(rows, row{kind: rowHeader, sub: sub})
-		if sub.Traffic.TotalBytes > 0 || !sub.Traffic.ExpiresAt.IsZero() {
-			rows = append(rows, row{kind: rowMeta, sub: sub})
-		}
+		rows = append(rows, row{kind: rowHeader, sub: sub}, row{kind: rowMeta, sub: sub})
 		for _, n := range nodes {
 			if q != "" || !m.collapsed[sub.ID] || (m.connected() && m.status.NodeID == n.ID) {
 				rows = append(rows, row{kind: rowNode, node: n})
