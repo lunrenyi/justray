@@ -83,7 +83,11 @@ func (m Model) row(r row, selected bool) string {
 	if r.kind == rowHeader {
 		return m.clip(caret + m.header(r.sub, selected))
 	}
-	return m.clip(caret + flush(m.node(r.node, selected), latency(r.node), m.w-2))
+	right := info(r.node)
+	if l := latency(r.node); l != "" {
+		right += "  " + l
+	}
+	return m.clip(caret + flush(m.node(r.node, selected), right, m.w-2))
 }
 
 func (m Model) header(s daemon.Sub, selected bool) string {
@@ -125,8 +129,11 @@ func (m Model) node(n daemon.Node, selected bool) string {
 	if selected {
 		name = style.Accent.Render(name)
 	}
-	return "  " + m.dot(n) + " " + name + "  " +
-		style.Dim.Render(fmt.Sprintf("%s · %s:%d", n.Protocol, n.Server, n.Port))
+	return "  " + m.dot(n) + " " + name
+}
+
+func info(n daemon.Node) string {
+	return style.Dim.Render(fmt.Sprintf("%s · %s:%d", n.Protocol, n.Server, n.Port))
 }
 
 func latency(n daemon.Node) string {
