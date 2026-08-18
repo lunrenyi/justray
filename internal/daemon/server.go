@@ -19,12 +19,11 @@ import (
 const idle = 60 * time.Second
 
 type Server struct {
-	dir     string
-	xrayBin string
-	store   store.Disk
-	runner  *runner.Process
-	log     *log.Logger
-	device  http.Header
+	dir    string
+	store  store.Disk
+	runner *runner.Process
+	log    *log.Logger
+	device http.Header
 
 	mu       sync.Mutex
 	sub      string // subscription the active node belongs to
@@ -32,7 +31,7 @@ type Server struct {
 	watchers map[chan Status]struct{}
 }
 
-func New(dir, xrayBin string, logger *log.Logger) *Server {
+func New(dir string, logger *log.Logger) *Server {
 	if logger == nil {
 		logger = log.New(io.Discard, "", 0)
 	}
@@ -40,28 +39,15 @@ func New(dir, xrayBin string, logger *log.Logger) *Server {
 	if err != nil {
 		logger.Printf("device: %v, subscriptions needing a device id won't resolve", err)
 	}
-	s := &Server{
+	return &Server{
 		dir:      dir,
-		xrayBin:  xrayBin,
 		store:    store.Disk{Dir: dir},
+		runner:   runner.New(),
 		log:      logger,
 		device:   device,
 		probes:   map[string]probeResult{},
 		watchers: map[chan Status]struct{}{},
 	}
-	s.runner = runner.New(xrayBin, xrayLog(dir), s.onExit)
-	return s
-}
-
-// xray died on its own
-func (s *Server) onExit() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if st := s.status(); st.LastErr != "" {
-		s.log.Printf("xray died: %s", st.LastErr)
-	}
-	s.broadcast()
 }
 
 func Listen(socket string) (net.Listener, error) {
@@ -150,6 +136,8 @@ func (s *Server) dispatch(req Req) (any, error) {
 		return nil, s.removeSub(a.ID)
 	case "RefreshAll":
 		return s.refreshAll()
+	case "Refresh":
+		return s.refresh(a.ID)
 	case "Nodes":
 		return s.nodes()
 	case "Probe":

@@ -11,16 +11,17 @@ const (
 )
 
 type Node struct {
-	ID        string
-	Name      string
-	Protocol  Proto
-	Server    string
-	Port      int
-	Auth      Auth
-	Transport Transport
-	TLS       *TLS // nil means plaintext
-	Reality   *Reality
-	Obfs      string // hysteria2 salamander, can't proceed via xray :9
+	ID           string
+	Name         string
+	Protocol     Proto
+	Server       string
+	Port         int
+	Auth         Auth
+	Transport    Transport
+	TLS          *TLS // nil means plaintext
+	Reality      *Reality
+	Obfs         string // hysteria2 obfs type, e.g. "salamander"
+	ObfsPassword string
 }
 
 type Auth struct {

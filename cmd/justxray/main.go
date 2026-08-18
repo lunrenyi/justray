@@ -5,7 +5,6 @@ package main
 //
 
 import (
-	"cmp"
 	"flag"
 	"fmt"
 	"os"
@@ -21,12 +20,8 @@ import (
 
 func main() {
 	dir := flag.String("config-dir", "", "config directory (default: $JUSTXRAY_CONFIG_DIR, else the OS user config dir + /justxray)")
-	xrayBin := flag.String("xray-bin", "", "path to the xray-core binary, passed on to a daemon we spawn (default: xray next to justxray, else $PATH)")
 	flag.Parse()
 
-	if *xrayBin == "" {
-		*xrayBin = cmp.Or(nextToSelf("xray"), "xray")
-	}
 	if *dir == "" {
 		d, err := daemon.Dir()
 		if err != nil {
@@ -41,7 +36,7 @@ func main() {
 	client := daemon.NewClient(daemon.Socket(*dir))
 	if client.Ping() != nil {
 		fmt.Println("justxray: no daemon running, starting justxrayd in the background…")
-		if err := spawn(*dir, *xrayBin); err != nil {
+		if err := spawn(*dir); err != nil {
 			die("start daemon:", err)
 		}
 		if err := wait(client, 10*time.Second); err != nil {
@@ -55,7 +50,7 @@ func main() {
 	}
 }
 
-func spawn(dir, xrayBin string) error {
+func spawn(dir string) error {
 	bin, err := justxrayd()
 	if err != nil {
 		return err
@@ -66,7 +61,7 @@ func spawn(dir, xrayBin string) error {
 	}
 	defer devNull.Close()
 
-	cmd := exec.Command(bin, "--config-dir", dir, "--xray-bin", xrayBin)
+	cmd := exec.Command(bin, "--config-dir", dir)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = devNull, devNull, devNull
 	procgroup.Detach(cmd)
 	return cmd.Start() // detached on purpose

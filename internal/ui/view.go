@@ -73,7 +73,7 @@ func (m Model) row(r row, selected bool) string {
 	case rowGap:
 		return ""
 	case rowMeta:
-		return m.clip(flush("    "+usage(r.sub), subMeta(r.sub), m.w))
+		return m.clip(flush("    "+usage(r.sub), m.subMeta(r.sub), m.w))
 	}
 
 	caret := "  "
@@ -102,7 +102,10 @@ func (m Model) header(s daemon.Sub, selected bool) string {
 	return arrow + " " + name
 }
 
-func subMeta(s daemon.Sub) string {
+func (m Model) subMeta(s daemon.Sub) string {
+	if m.refreshing[s.ID] {
+		return style.Pending.Render("refreshing…")
+	}
 	age := "never updated"
 	if !s.UpdatedAt.IsZero() {
 		age = "updated " + style.Since(s.UpdatedAt)

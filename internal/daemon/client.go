@@ -54,6 +54,7 @@ func (c *Client) RemoveSub(id string) error {
 	return err
 }
 func (c *Client) RefreshAll() ([]Sub, error)        { return call[[]Sub](c, "RefreshAll", Args{}) }
+func (c *Client) Refresh(id string) (Sub, error)    { return call[Sub](c, "Refresh", Args{ID: id}) }
 func (c *Client) Nodes() ([]Node, error)            { return call[[]Node](c, "Nodes", Args{}) }
 func (c *Client) Connect(id string) (Status, error) { return call[Status](c, "Connect", Args{ID: id}) }
 func (c *Client) Disconnect() (Status, error)       { return call[Status](c, "Disconnect", Args{}) }

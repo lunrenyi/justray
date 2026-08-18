@@ -106,6 +106,29 @@ func (s *Server) refreshAll() ([]Sub, error) {
 	return out, nil
 }
 
+func (s *Server) refresh(id string) (Sub, error) {
+	s.mu.Lock()
+	subs, err := s.store.Subscriptions()
+	s.mu.Unlock()
+	if err != nil {
+		return Sub{}, err
+	}
+	i := slices.IndexFunc(subs, func(sub store.Subscription) bool { return sub.ID == id })
+	if i < 0 {
+		return Sub{}, fmt.Errorf("subscription %q not found", id)
+	}
+	if err := s.fill(&subs[i]); err != nil {
+		return Sub{}, err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.store.Save(subs); err != nil {
+		return Sub{}, err
+	}
+	return info(subs[i]), nil
+}
+
 func (s *Server) fill(sub *store.Subscription) error {
 	if parser.IsLink(sub.URL) {
 		n, err := parser.ParseURI(sub.URL)

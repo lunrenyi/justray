@@ -3,7 +3,6 @@ package daemon
 import (
 	"fmt"
 	"maps"
-	"os"
 
 	"github.com/luynrs/justxray/internal/daemon/store"
 	"github.com/luynrs/justxray/internal/daemon/xray"
@@ -57,15 +56,11 @@ func (s *Server) clear() {
 }
 
 func (s *Server) start(n proxy.Node, sub string) error {
-	cfg, err := xray.Build(n, socksPort, httpPort)
+	cfg, err := xray.Build(n, socksPort, httpPort, xrayLog(s.dir))
 	if err != nil {
 		return err
 	}
-	path := xrayConf(s.dir)
-	if err := os.WriteFile(path, cfg, 0o600); err != nil {
-		return fmt.Errorf("write config: %w", err)
-	}
-	if err := s.runner.Start(path, n.ID, n.Name); err != nil {
+	if err := s.runner.Start(cfg, n.ID, n.Name); err != nil {
 		return err
 	}
 
@@ -73,7 +68,7 @@ func (s *Server) start(n proxy.Node, sub string) error {
 	if err := s.store.SetActive(n.ID); err != nil {
 		s.log.Printf("could not persist the active node: %v", err)
 	}
-	s.log.Printf("connected to %s (%s %s:%d, pid %d)", n.Name, n.Protocol, n.Server, n.Port, s.runner.Status().PID)
+	s.log.Printf("connected to %s (%s %s:%d)", n.Name, n.Protocol, n.Server, n.Port)
 	return nil
 }
 

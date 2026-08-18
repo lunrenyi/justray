@@ -27,21 +27,17 @@
           version = "0.1.0";
           src = ./.;
 
-          vendorHash = "sha256-NH8fJYf0d4FAXnhFnS/E5gtfbwchAXEcNj4K0RDHGJE=";
+          vendorHash = "sha256-7W4+9jMCSsJuqaFWyn8QO4Y1wpC1BDp3a+lmfeLVFqc=";
 
           subPackages = [ "cmd/justxray" "cmd/justxrayd" ];
           ldflags = [ "-s" "-w" ];
-          nativeBuildInputs = [ pkgs.makeWrapper ];
 
           postInstall = ''
             ln -s justxray $out/bin/jray
-            for bin in justxray justxrayd; do
-              wrapProgram $out/bin/$bin --prefix PATH : ${pkgs.xray}/bin
-            done
           '';
 
           meta = with pkgs.lib; {
-            description = "TUI VPN subscription client for xray-core, with a background daemon that owns the xray-core process so the TUI can exit without dropping the connection";
+            description = "TUI VPN subscription client for xray-core, with a background daemon (xray-core embedded) so the TUI can exit without dropping the connection";
             homepage = "https://github.com/luynrs/justxray";
             mainProgram = "justxray";
             platforms = platforms.unix;
@@ -85,13 +81,6 @@
               defaultText = lib.literalExpression "justxray.packages.<system>.default";
               description = "The justxray package providing the justxray/jray TUI and the justxrayd daemon.";
             };
-
-            xrayPackage = lib.mkOption {
-              type = lib.types.package;
-              default = pkgs.xray;
-              defaultText = lib.literalExpression "pkgs.xray";
-              description = "The xray-core package justxrayd should exec as its managed process.";
-            };
           };
 
           config = lib.mkIf cfg.enable {
@@ -104,7 +93,7 @@
                 Wants = [ "network-online.target" ];
               };
               Service = {
-                ExecStart = "${cfg.package}/bin/justxrayd --xray-bin ${cfg.xrayPackage}/bin/xray";
+                ExecStart = "${cfg.package}/bin/justxrayd";
                 Restart = "on-failure";
                 RestartSec = 2;
               };

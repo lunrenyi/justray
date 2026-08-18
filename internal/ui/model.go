@@ -17,11 +17,12 @@ type Model struct {
 	nodes []daemon.Node
 	nameW int
 
-	collapsed map[string]bool
-	probing   map[string]bool
-	cursor    int
-	scroll    int
-	wheel     time.Time
+	collapsed  map[string]bool
+	probing    map[string]bool
+	refreshing map[string]bool
+	cursor     int
+	scroll     int
+	wheel      time.Time
 
 	adding    bool
 	url       textinput.Model
@@ -83,9 +84,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = ""
 		if msg.err != nil {
 			m.err = msg.err.Error()
+			m.probing, m.refreshing = nil, nil
 		}
 		if msg.subs != nil {
-			m.subs = msg.subs
+			m.subs, m.refreshing = msg.subs, nil
 		}
 		if msg.nodes != nil {
 			m.nodes, m.probing = msg.nodes, nil
@@ -176,10 +178,14 @@ func (m Model) key(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.activate()
 	case "t":
 		return m.probe()
+	case "T":
+		return m.probeAll()
 	case "d":
 		_, m.confirm = m.at()
 	case "r":
-		return m, act(m.client, func() error { _, err := m.client.RefreshAll(); return err })
+		return m.refresh()
+	case "R":
+		return m.refreshAll()
 	case "a":
 		m.adding = true
 		m.url.SetValue("")

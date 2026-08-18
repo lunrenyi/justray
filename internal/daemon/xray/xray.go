@@ -16,14 +16,14 @@ var protocols = map[proxy.Proto]string{
 	proxy.HY2:    "hysteria",
 }
 
-func Build(n proxy.Node, socks, http int) ([]byte, error) {
+func Build(n proxy.Node, socks, http int, logPath string) ([]byte, error) {
 	proxy, err := Outbound(n, "proxy")
 	if err != nil {
 		return nil, err
 	}
 
 	return json.MarshalIndent(map[string]any{
-		"log": map[string]any{"loglevel": "warning"},
+		"log": map[string]any{"loglevel": "warning", "error": logPath},
 		"inbounds": []any{
 			map[string]any{
 				"tag": "socks-in", "listen": "127.0.0.1", "port": socks, "protocol": "socks",
@@ -44,9 +44,6 @@ func Outbound(n proxy.Node, tag string) (map[string]any, error) {
 	protocol, ok := protocols[n.Protocol]
 	if !ok {
 		return nil, fmt.Errorf("unsupported protocol %q", n.Protocol)
-	}
-	if n.Obfs != "" {
-		return nil, fmt.Errorf("node %q needs obfs=%q, which xray's hysteria outbound can't do", n.Name, n.Obfs)
 	}
 	settings, err := outbound(n)
 	if err != nil {
@@ -186,10 +183,16 @@ func hysteriaStream(n proxy.Node) map[string]any {
 		tls["serverName"] = n.TLS.SNI
 		tls["allowInsecure"] = n.TLS.Insecure
 	}
-	return map[string]any{
+	ss := map[string]any{
 		"network":          "hysteria",
 		"security":         "tls",
-		"hysteriaSettings": map[string]any{"auth": n.Auth.Password},
+		"hysteriaSettings": map[string]any{"version": 2, "auth": n.Auth.Password},
 		"tlsSettings":      tls,
 	}
+	if n.Obfs != "" {
+		ss["finalmask"] = map[string]any{"udp": []any{
+			map[string]any{"type": n.Obfs, "settings": map[string]any{"password": n.ObfsPassword}},
+		}}
+	}
+	return ss
 }

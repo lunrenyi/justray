@@ -45,6 +45,7 @@ func ParseHY2(uri string) (proxy.Node, error) {
 			SNI:      cmp.Or(q.Get("sni"), q.Get("peer"), host),
 			Insecure: truthy(q.Get("insecure")),
 		},
-		Obfs: q.Get("obfs"),
+		Obfs:         q.Get("obfs"),
+		ObfsPassword: q.Get("obfs-password"),
 	}, nil
 }

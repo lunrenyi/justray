@@ -23,5 +23,4 @@ func EnsureDir(dir string) error { return os.MkdirAll(dir, 0o700) }
 func Socket(dir string) string    { return filepath.Join(dir, "justxrayd.sock") }
 func DaemonLog(dir string) string { return filepath.Join(dir, "justxrayd.log") }
 
-func xrayConf(dir string) string { return filepath.Join(dir, "xray-config.json") }
-func xrayLog(dir string) string  { return filepath.Join(dir, "xray.log") }
+func xrayLog(dir string) string { return filepath.Join(dir, "xray.log") }

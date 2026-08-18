@@ -196,6 +196,32 @@ func (m Model) probe() (tea.Model, tea.Cmd) {
 	return m, probeCmd(m.client, r.sub.ID, "")
 }
 
+func (m Model) refresh() (tea.Model, tea.Cmd) {
+	r, ok := m.at()
+	if !ok {
+		return m, nil
+	}
+	id := r.subID()
+	m.refreshing = map[string]bool{id: true}
+	return m, act(m.client, func() error { _, err := m.client.Refresh(id); return err })
+}
+
+func (m Model) refreshAll() (tea.Model, tea.Cmd) {
+	m.refreshing = map[string]bool{}
+	for _, sub := range m.subs {
+		m.refreshing[sub.ID] = true
+	}
+	return m, act(m.client, func() error { _, err := m.client.RefreshAll(); return err })
+}
+
+func (m Model) probeAll() (tea.Model, tea.Cmd) {
+	m.probing = map[string]bool{}
+	for _, n := range m.nodes {
+		m.probing[n.ID] = true
+	}
+	return m, probeCmd(m.client, "", "")
+}
+
 func (m Model) remove() (tea.Model, tea.Cmd) {
 	r, ok := m.at()
 	if !ok {

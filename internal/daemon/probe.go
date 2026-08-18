@@ -5,13 +5,12 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
-	"os/exec"
 	"strconv"
 	"sync"
 	"time"
 
-	"github.com/luynrs/justxray/internal/daemon/procgroup"
+	"github.com/xtls/xray-core/core"
+
 	"github.com/luynrs/justxray/internal/daemon/xray"
 	"github.com/luynrs/justxray/internal/parser/proxy"
 )
@@ -74,36 +73,11 @@ func (s *Server) startProbeXray(nodes []proxy.Node, ports []int) (func(), error)
 	if err != nil {
 		return nil, err
 	}
-	f, err := os.CreateTemp(s.dir, "probe-*.json")
+	inst, err := core.StartInstance("json", cfg)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("start probe xray: %w", err)
 	}
-	defer os.Remove(f.Name())
-	if _, err := f.Write(cfg); err != nil {
-		f.Close()
-		return nil, err
-	}
-	f.Close()
-
-	cmd := exec.Command(s.xrayBin, "run", "-c", f.Name())
-	procgroup.Setup(cmd)
-	if err := cmd.Start(); err != nil {
-		return nil, err
-	}
-	stop := func() {
-		procgroup.Kill(cmd)
-		cmd.Wait()
-	}
-
-	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); {
-		if conn, err := net.DialTimeout("tcp", local(ports[0]), 200*time.Millisecond); err == nil {
-			conn.Close()
-			return stop, nil
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	stop()
-	return nil, fmt.Errorf("xray did not come up for the latency test")
+	return func() { inst.Close() }, nil
 }
 
 func delay(port int) (int, error) {

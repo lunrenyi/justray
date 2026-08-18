@@ -10,7 +10,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"os/exec"
 	"os/signal"
 	"syscall"
 
@@ -19,7 +18,6 @@ import (
 
 func main() {
 	dir := flag.String("config-dir", "", "config directory (default: $JUSTXRAY_CONFIG_DIR, else the OS user config dir + /justxray)")
-	xrayBin := flag.String("xray-bin", "xray", "path to the xray-core binary")
 	flag.Parse()
 
 	if *dir == "" {
@@ -40,20 +38,14 @@ func main() {
 	defer logFile.Close()
 	logger := log.New(io.MultiWriter(os.Stderr, logFile), "justxrayd: ", log.LstdFlags)
 
-	bin, err := exec.LookPath(*xrayBin)
-	if err != nil {
-		bin = *xrayBin
-		logger.Printf("warning: xray binary %q not in PATH", bin)
-	}
-
 	socket := daemon.Socket(*dir)
 	ln, err := daemon.Listen(socket)
 	if err != nil {
 		logger.Fatal(err)
 	}
-	logger.Printf("listening on %s (xray-bin=%s)", socket, bin)
+	logger.Printf("listening on %s", socket)
 
-	srv := daemon.New(*dir, bin, logger)
+	srv := daemon.New(*dir, logger)
 	srv.Restore()
 
 	sig := make(chan os.Signal, 1)
