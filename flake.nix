@@ -9,7 +9,7 @@
 #     services.justxray.enable = true;    # runs justxrayd as a systemd --user service
 #   }
 {
-  description = "justxray - lightweight terminal vpn client built on xray-core";
+  description = "A lightweight terminal-based VPN client powered by xray";
 
   inputs = {
     nixpkgs.url = "git+https://github.com/NixOS/nixpkgs.git?ref=nixos-unstable&shallow=1";
@@ -37,7 +37,7 @@
           '';
 
           meta = with pkgs.lib; {
-            description = "TUI VPN subscription client for xray-core, with a background daemon (xray-core embedded) so the TUI can exit without dropping the connection";
+            description = "A lightweight terminal-based VPN client powered by xray";
             homepage = "https://github.com/luynrs/justxray";
             mainProgram = "justxray";
             platforms = platforms.unix;
@@ -54,7 +54,11 @@
         justxray = { type = "app"; program = "${justxrayFor system}/bin/justxray"; };
         jray = { type = "app"; program = "${justxrayFor system}/bin/jray"; };
         justxrayd = { type = "app"; program = "${justxrayFor system}/bin/justxrayd"; };
-        default = { type = "app"; program = "${justxrayFor system}/bin/justxray"; };
+        default = {
+          type = "app";
+          program = "${justxrayFor system}/bin/justxray";
+          meta.description = "A lightweight terminal-based VPN client powered by xray";
+        };
       });
 
       devShells = forAllSystems (system:
