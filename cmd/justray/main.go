@@ -13,13 +13,13 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/luynrs/justxray/internal/daemon"
-	"github.com/luynrs/justxray/internal/daemon/procgroup"
-	"github.com/luynrs/justxray/internal/ui"
+	"github.com/luynrs/justray/internal/daemon"
+	"github.com/luynrs/justray/internal/daemon/procgroup"
+	"github.com/luynrs/justray/internal/ui"
 )
 
 func main() {
-	dir := flag.String("config-dir", "", "config directory (default: $JUSTXRAY_CONFIG_DIR, else the OS user config dir + /justxray)")
+	dir := flag.String("config-dir", "", "config directory (default: $JUSTRAY_CONFIG_DIR, else the OS user config dir + /justray)")
 	flag.Parse()
 
 	if *dir == "" {
@@ -35,12 +35,12 @@ func main() {
 
 	client := daemon.NewClient(daemon.Socket(*dir))
 	if client.Ping() != nil {
-		fmt.Println("justxray: no daemon running, starting justxrayd in the background…")
+		fmt.Println("justray: no daemon running, starting justrayd in the background…")
 		if err := spawn(*dir); err != nil {
 			die("start daemon:", err)
 		}
 		if err := wait(client, 10*time.Second); err != nil {
-			fmt.Fprintln(os.Stderr, "justxray:", err, "— see", daemon.DaemonLog(*dir))
+			fmt.Fprintln(os.Stderr, "justray:", err, "— see", daemon.DaemonLog(*dir))
 			os.Exit(1)
 		}
 	}
@@ -51,7 +51,7 @@ func main() {
 }
 
 func spawn(dir string) error {
-	bin, err := justxrayd()
+	bin, err := justrayd()
 	if err != nil {
 		return err
 	}
@@ -67,13 +67,13 @@ func spawn(dir string) error {
 	return cmd.Start() // detached on purpose
 }
 
-func justxrayd() (string, error) {
-	if bin := nextToSelf("justxrayd"); bin != "" {
+func justrayd() (string, error) {
+	if bin := nextToSelf("justrayd"); bin != "" {
 		return bin, nil
 	}
-	bin, err := exec.LookPath(exeName("justxrayd"))
+	bin, err := exec.LookPath(exeName("justrayd"))
 	if err != nil {
-		return "", fmt.Errorf("justxrayd not found next to justxray or in PATH; build it with \"go build ./cmd/justxrayd\"")
+		return "", fmt.Errorf("justrayd not found next to justray or in PATH; build it with \"go build ./cmd/justrayd\"")
 	}
 	return bin, nil
 }
@@ -108,6 +108,6 @@ func wait(c *daemon.Client, timeout time.Duration) error {
 }
 
 func die(v ...any) {
-	fmt.Fprintln(os.Stderr, append([]any{"justxray:"}, v...)...)
+	fmt.Fprintln(os.Stderr, append([]any{"justray:"}, v...)...)
 	os.Exit(1)
 }

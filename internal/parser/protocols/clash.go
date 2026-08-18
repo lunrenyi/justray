@@ -7,7 +7,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/luynrs/justxray/internal/parser/proxy"
+	"github.com/luynrs/justray/internal/parser/proxy"
 )
 
 type clashProxy struct {

@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/luynrs/justxray/internal/parser/proxy"
+	"github.com/luynrs/justray/internal/parser/proxy"
 )
 
 func Unbase64(s string) ([]byte, error) {

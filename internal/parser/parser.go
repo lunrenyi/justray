@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/luynrs/justxray/internal/parser/protocols"
-	"github.com/luynrs/justxray/internal/parser/proxy"
+	"github.com/luynrs/justray/internal/parser/protocols"
+	"github.com/luynrs/justray/internal/parser/proxy"
 )
 
 var parsers = map[string]func(string) (proxy.Node, error){

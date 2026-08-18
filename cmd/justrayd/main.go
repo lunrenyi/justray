@@ -13,11 +13,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/luynrs/justxray/internal/daemon"
+	"github.com/luynrs/justray/internal/daemon"
 )
 
 func main() {
-	dir := flag.String("config-dir", "", "config directory (default: $JUSTXRAY_CONFIG_DIR, else the OS user config dir + /justxray)")
+	dir := flag.String("config-dir", "", "config directory (default: $JUSTRAY_CONFIG_DIR, else the OS user config dir + /justray)")
 	flag.Parse()
 
 	if *dir == "" {
@@ -36,7 +36,7 @@ func main() {
 		die("open log file:", err)
 	}
 	defer logFile.Close()
-	logger := log.New(io.MultiWriter(os.Stderr, logFile), "justxrayd: ", log.LstdFlags)
+	logger := log.New(io.MultiWriter(os.Stderr, logFile), "justrayd: ", log.LstdFlags)
 
 	socket := daemon.Socket(*dir)
 	ln, err := daemon.Listen(socket)
@@ -67,6 +67,6 @@ func main() {
 }
 
 func die(v ...any) {
-	fmt.Fprintln(os.Stderr, append([]any{"justxrayd:"}, v...)...)
+	fmt.Fprintln(os.Stderr, append([]any{"justrayd:"}, v...)...)
 	os.Exit(1)
 }

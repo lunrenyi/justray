@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/luynrs/justxray/internal/parser/proxy"
+	"github.com/luynrs/justray/internal/parser/proxy"
 )
 
 func ParseTrojan(uri string) (proxy.Node, error) {

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/luynrs/justxray/internal/parser/proxy"
+	"github.com/luynrs/justray/internal/parser/proxy"
 )
 
 func ParseHY2(uri string) (proxy.Node, error) {

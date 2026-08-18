@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/luynrs/justxray/internal/daemon/runner"
-	"github.com/luynrs/justxray/internal/daemon/store"
+	"github.com/luynrs/justray/internal/daemon/runner"
+	"github.com/luynrs/justray/internal/daemon/store"
 )
 
 // has to cover a full Probe of every node
@@ -27,6 +27,7 @@ type Server struct {
 
 	mu       sync.Mutex
 	sub      string // subscription the active node belongs to
+	tun      bool
 	probes   map[string]probeResult
 	watchers map[chan Status]struct{}
 }
@@ -53,7 +54,7 @@ func New(dir string, logger *log.Logger) *Server {
 func Listen(socket string) (net.Listener, error) {
 	if conn, err := net.DialTimeout("unix", socket, time.Second); err == nil {
 		conn.Close()
-		return nil, fmt.Errorf("another justxrayd is already listening on %s", socket)
+		return nil, fmt.Errorf("another justrayd is already listening on %s", socket)
 	}
 	os.Remove(socket)
 
@@ -146,6 +147,8 @@ func (s *Server) dispatch(req Req) (any, error) {
 		return s.connect(a.ID)
 	case "Disconnect":
 		return s.disconnect()
+	case "SetTun":
+		return s.setTun(a.Tun)
 	}
 	return nil, fmt.Errorf("unknown method %q", req.Method)
 }

@@ -5,7 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/luynrs/justxray/internal/daemon"
+	"github.com/luynrs/justray/internal/daemon"
 )
 
 const (
@@ -220,6 +220,11 @@ func (m Model) probeAll() (tea.Model, tea.Cmd) {
 		m.probing[n.ID] = true
 	}
 	return m, probeCmd(m.client, "", "")
+}
+
+func (m Model) toggleTun() (tea.Model, tea.Cmd) {
+	enable := !m.status.Tun
+	return m, run(func() error { _, err := m.client.SetTun(enable); return err })
 }
 
 func (m Model) remove() (tea.Model, tea.Cmd) {

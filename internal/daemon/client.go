@@ -63,6 +63,10 @@ func (c *Client) Probe(sub, id string) ([]Node, error) {
 	return call[[]Node](c, "Probe", Args{Sub: sub, ID: id})
 }
 
+func (c *Client) SetTun(enable bool) (Status, error) {
+	return call[Status](c, "SetTun", Args{Tun: enable})
+}
+
 func (c *Client) Watch(onUpdate func(Status)) error {
 	conn, err := c.dial()
 	if err != nil {

@@ -1,17 +1,21 @@
 package runner
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"sync"
 	"time"
 
-	"github.com/xtls/xray-core/core"
+	sbox "github.com/sagernet/sing-box"
+	"github.com/sagernet/sing-box/option"
+
+	"github.com/luynrs/justray/internal/daemon/core"
 )
 
 type Process struct {
 	mu      sync.Mutex
-	inst    *core.Instance
+	inst    *sbox.Box
 	started time.Time
 	id      string
 	name    string
@@ -29,16 +33,20 @@ type Status struct {
 
 func New() *Process { return &Process{} }
 
-func (r *Process) Start(config []byte, nodeID, nodeName string) error {
+func (r *Process) Start(opts *option.Options, nodeID, nodeName string) error {
 	r.Stop()
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	inst, err := core.StartInstance("json", config)
+	inst, err := sbox.New(sbox.Options{Options: *opts, Context: core.Context(context.Background())})
 	if err != nil {
 		r.lastErr = err.Error()
-		return fmt.Errorf("start xray: %w", err)
+		return fmt.Errorf("build engine: %w", err)
+	}
+	if err := inst.Start(); err != nil {
+		r.lastErr = err.Error()
+		return fmt.Errorf("start engine: %w", err)
 	}
 
 	r.inst, r.started = inst, time.Now()

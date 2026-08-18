@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -9,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/xtls/xray-core/core"
+	sbox "github.com/sagernet/sing-box"
 
-	"github.com/luynrs/justxray/internal/daemon/xray"
-	"github.com/luynrs/justxray/internal/parser/proxy"
+	"github.com/luynrs/justray/internal/daemon/core"
+	"github.com/luynrs/justray/internal/parser/proxy"
 )
 
 const (
@@ -29,7 +30,7 @@ type probeResult struct {
 func (s *Server) probeNodes(nodes []proxy.Node) (map[string]probeResult, error) {
 	var testable []proxy.Node
 	for _, n := range nodes {
-		if _, err := xray.Outbound(n, "p"); err == nil {
+		if _, err := core.Outbound(n, "p"); err == nil {
 			testable = append(testable, n)
 		}
 	}
@@ -42,7 +43,7 @@ func (s *Server) probeNodes(nodes []proxy.Node) (map[string]probeResult, error) 
 	if err != nil {
 		return nil, err
 	}
-	stop, err := s.startProbeXray(testable, ports)
+	stop, err := s.startProbeCore(testable, ports)
 	if err != nil {
 		return nil, err
 	}
@@ -68,14 +69,18 @@ func (s *Server) probeNodes(nodes []proxy.Node) (map[string]probeResult, error) 
 	return out, nil
 }
 
-func (s *Server) startProbeXray(nodes []proxy.Node, ports []int) (func(), error) {
-	cfg, err := xray.ProbeConfig(nodes, ports)
+func (s *Server) startProbeCore(nodes []proxy.Node, ports []int) (func(), error) {
+	opts, err := core.ProbeConfig(nodes, ports)
 	if err != nil {
 		return nil, err
 	}
-	inst, err := core.StartInstance("json", cfg)
+	inst, err := sbox.New(sbox.Options{Options: *opts, Context: core.Context(context.Background())})
 	if err != nil {
-		return nil, fmt.Errorf("start probe xray: %w", err)
+		return nil, fmt.Errorf("build probe engine: %w", err)
+	}
+	if err := inst.Start(); err != nil {
+		inst.Close()
+		return nil, fmt.Errorf("start probe engine: %w", err)
 	}
 	return func() { inst.Close() }, nil
 }

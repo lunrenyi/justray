@@ -5,7 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/luynrs/justxray/internal/daemon"
+	"github.com/luynrs/justray/internal/daemon"
 )
 
 type loaded struct {

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/luynrs/justxray/internal/daemon/store"
+	"github.com/luynrs/justray/internal/daemon/store"
 )
 
 type Req struct {
@@ -16,6 +16,7 @@ type Args struct {
 	ID  string // subscription id, or node id, depending on the method
 	Sub string
 	URL string
+	Tun bool
 }
 
 type Resp struct {
@@ -59,4 +60,5 @@ type Status struct {
 	LastErr   string
 	Socks     int
 	HTTP      int
+	Tun       bool
 }

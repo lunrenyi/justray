@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/luynrs/justxray/internal/daemon"
+	"github.com/luynrs/justray/internal/daemon"
 )
 
 type Model struct {
@@ -186,6 +186,8 @@ func (m Model) key(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.refresh()
 	case "R":
 		return m.refreshAll()
+	case "m":
+		return m.toggleTun()
 	case "a":
 		m.adding = true
 		m.url.SetValue("")

@@ -4,14 +4,15 @@ import (
 	"fmt"
 	"maps"
 
-	"github.com/luynrs/justxray/internal/daemon/store"
-	"github.com/luynrs/justxray/internal/daemon/xray"
-	"github.com/luynrs/justxray/internal/parser/proxy"
+	"github.com/luynrs/justray/internal/daemon/core"
+	"github.com/luynrs/justray/internal/daemon/store"
+	"github.com/luynrs/justray/internal/parser/proxy"
 )
 
 const (
 	socksPort = 1080 // TODO: mixed port (emm.. idk how on xray) or settings ui
 	httpPort  = 1081
+	tunIface  = "justray0"
 )
 
 func (s *Server) connect(id string) (Status, error) {
@@ -56,11 +57,15 @@ func (s *Server) clear() {
 }
 
 func (s *Server) start(n proxy.Node, sub string) error {
-	cfg, err := xray.Build(n, socksPort, httpPort, xrayLog(s.dir))
+	name := ""
+	if s.tun {
+		name = tunIface
+	}
+	opts, err := core.Build(n, socksPort, httpPort, coreLog(s.dir), name)
 	if err != nil {
 		return err
 	}
-	if err := s.runner.Start(cfg, n.ID, n.Name); err != nil {
+	if err := s.runner.Start(opts, n.ID, n.Name); err != nil {
 		return err
 	}
 
@@ -70,6 +75,33 @@ func (s *Server) start(n proxy.Node, sub string) error {
 	}
 	s.log.Printf("connected to %s (%s %s:%d)", n.Name, n.Protocol, n.Server, n.Port)
 	return nil
+}
+
+// toggles tun mode; if a node is currently connected, reconnects to it so
+// the change takes effect immediately
+func (s *Server) setTun(enable bool) (Status, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.tun = enable
+	id := s.runner.Status().NodeID
+	if id == "" {
+		return s.status(), nil
+	}
+
+	subs, err := s.store.Subscriptions()
+	if err != nil {
+		return Status{}, err
+	}
+	n, sub, ok := find(subs, id)
+	if !ok {
+		return Status{}, fmt.Errorf("active node %q is gone", id)
+	}
+	if err := s.start(n, sub); err != nil {
+		return Status{}, err
+	}
+	s.broadcast()
+	return s.status(), nil
 }
 
 // assumes s.mu held
@@ -83,6 +115,7 @@ func (s *Server) status() Status {
 		PID:       p.PID,
 		Uptime:    int64(p.Uptime.Seconds()),
 		LastErr:   p.LastErr,
+		Tun:       s.tun,
 	}
 	if st.Connected {
 		st.Socks, st.HTTP = socksPort, httpPort

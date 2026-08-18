@@ -20,7 +20,7 @@ func deviceHeaders() (http.Header, error) {
 			h.Set(key, val)
 		}
 	}
-	set("User-Agent", "justxray")
+	set("User-Agent", "justray")
 
 	switch runtime.GOOS {
 	case "linux":
@@ -57,7 +57,7 @@ func hash(raw string) string {
 	if raw == "" {
 		return ""
 	}
-	sum := sha256.Sum256([]byte("justxray:" + raw))
+	sum := sha256.Sum256([]byte("justray:" + raw))
 	return hex.EncodeToString(sum[:16]) // 32 hex chars to match [a-zA-Z0-9=-]{10,64}$
 }
 

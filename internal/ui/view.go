@@ -7,8 +7,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/luynrs/justxray/internal/daemon"
-	"github.com/luynrs/justxray/internal/ui/style"
+	"github.com/luynrs/justray/internal/daemon"
+	"github.com/luynrs/justray/internal/ui/style"
 )
 
 func (m Model) View() string {
@@ -23,7 +23,7 @@ func (m Model) View() string {
 }
 
 func (m Model) titleLine() string {
-	title := style.Title.Render("JustXray")
+	title := style.Title.Render("JustRay")
 	if m.connected() {
 		title = flush(title, style.Dim.Render(fmt.Sprintf("socks :%d · http :%d", m.status.Socks, m.status.HTTP)), m.w)
 	}
@@ -179,6 +179,9 @@ func (m Model) footer() string {
 	case m.connected():
 		uptime := time.Duration(time.Since(m.since).Seconds()) * time.Second
 		status = style.Strong.Render(fmt.Sprintf("● %s · %s", m.status.NodeName, uptime))
+		if m.status.Tun {
+			status += "  " + style.Dim.Render("tun")
+		}
 	case m.live && m.status.LastErr != "":
 		status = style.Dim.Render("○ disconnected") + "  " + style.Err.Render("last error: "+m.status.LastErr)
 	case m.live:
@@ -192,7 +195,7 @@ func (m Model) footer() string {
 
 	keys := [][2]string{
 		{"↑/↓", "Move"}, {"↵", "Toggle"}, {"←/→", "Fold"}, {"t", "Ping"},
-		{"r", "Refresh"}, {"/", "Filter"}, {"a", "Add"}, {"d", "Delete"}, {"q", "Quit"},
+		{"r", "Refresh"}, {"m", "TUN"}, {"/", "Filter"}, {"a", "Add"}, {"d", "Delete"}, {"q", "Quit"},
 	}
 	switch {
 	case m.confirm:

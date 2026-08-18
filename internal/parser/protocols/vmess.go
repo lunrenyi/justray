@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/luynrs/justxray/internal/parser/proxy"
+	"github.com/luynrs/justray/internal/parser/proxy"
 )
 
 // v2rayn schema

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/luynrs/justxray/internal/parser/proxy"
+	"github.com/luynrs/justray/internal/parser/proxy"
 	"gopkg.in/yaml.v3"
 )
 

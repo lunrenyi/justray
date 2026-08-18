@@ -23,7 +23,7 @@ if test $ok -ne 0
     exit 1
 end
 
-systemctl --user stop justxrayd 2>/dev/null # stop first, or systemd respawns it
-pkill -x justxrayd
+systemctl --user stop justrayd 2>/dev/null # stop first, or systemd respawns it
+pkill -x justrayd
 
-exec "$repo/result/bin/justxray" $argv
+exec "$repo/result/bin/justray" $argv

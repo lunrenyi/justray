@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/luynrs/justxray/internal/parser/proxy"
+	"github.com/luynrs/justray/internal/parser/proxy"
 )
 
 // ss://base64(method:password)@host:port#remark (SIP002) or the legacy

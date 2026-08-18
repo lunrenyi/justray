@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/luynrs/justxray/internal/daemon/store"
-	"github.com/luynrs/justxray/internal/parser"
-	"github.com/luynrs/justxray/internal/parser/proxy"
+	"github.com/luynrs/justray/internal/daemon/store"
+	"github.com/luynrs/justray/internal/parser"
+	"github.com/luynrs/justray/internal/parser/proxy"
 )
 
 const maxBody = 10 << 20
