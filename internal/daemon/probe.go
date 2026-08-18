@@ -9,9 +9,9 @@ import (
 	"os/exec"
 	"strconv"
 	"sync"
-	"syscall"
 	"time"
 
+	"github.com/luynrs/justxray/internal/daemon/procgroup"
 	"github.com/luynrs/justxray/internal/daemon/xray"
 	"github.com/luynrs/justxray/internal/parser/proxy"
 )
@@ -86,12 +86,12 @@ func (s *Server) startProbeXray(nodes []proxy.Node, ports []int) (func(), error)
 	f.Close()
 
 	cmd := exec.Command(s.xrayBin, "run", "-c", f.Name())
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	procgroup.Setup(cmd)
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
 	stop := func() {
-		syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		procgroup.Kill(cmd)
 		cmd.Wait()
 	}
 

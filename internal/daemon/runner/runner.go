@@ -9,8 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
+
+	"github.com/luynrs/justxray/internal/daemon/procgroup"
 )
 
 type Process struct {
@@ -54,7 +55,7 @@ func (r *Process) Start(config, nodeID, nodeName string) error {
 
 	cmd := exec.Command(r.bin, "run", "-c", config)
 	cmd.Stdout, cmd.Stderr = logFile, logFile
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true} // own group, so reaches its children too
+	procgroup.Setup(cmd)
 
 	if err := cmd.Start(); err != nil {
 		logFile.Close()
@@ -96,11 +97,11 @@ func (r *Process) Stop() {
 	if cmd == nil || cmd.Process == nil {
 		return
 	}
-	syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+	procgroup.Terminate(cmd)
 	select {
 	case <-done:
 	case <-time.After(5 * time.Second):
-		syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		procgroup.Kill(cmd)
 		<-done
 	}
 }

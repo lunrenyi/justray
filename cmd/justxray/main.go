@@ -5,23 +5,28 @@ package main
 //
 
 import (
+	"cmp"
 	"flag"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"syscall"
+	"runtime"
 	"time"
 
 	"github.com/luynrs/justxray/internal/daemon"
+	"github.com/luynrs/justxray/internal/daemon/procgroup"
 	"github.com/luynrs/justxray/internal/ui"
 )
 
 func main() {
 	dir := flag.String("config-dir", "", "config directory (default: $JUSTXRAY_CONFIG_DIR, else the OS user config dir + /justxray)")
-	xrayBin := flag.String("xray-bin", "xray", "path to the xray-core binary, passed on to a daemon we spawn")
+	xrayBin := flag.String("xray-bin", "", "path to the xray-core binary, passed on to a daemon we spawn (default: xray next to justxray, else $PATH)")
 	flag.Parse()
 
+	if *xrayBin == "" {
+		*xrayBin = cmp.Or(nextToSelf("xray"), "xray")
+	}
 	if *dir == "" {
 		d, err := daemon.Dir()
 		if err != nil {
@@ -63,22 +68,38 @@ func spawn(dir, xrayBin string) error {
 
 	cmd := exec.Command(bin, "--config-dir", dir, "--xray-bin", xrayBin)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = devNull, devNull, devNull
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	procgroup.Detach(cmd)
 	return cmd.Start() // detached on purpose
 }
 
 func justxrayd() (string, error) {
-	if self, err := os.Executable(); err == nil {
-		bin := filepath.Join(filepath.Dir(self), "justxrayd")
-		if _, err := os.Stat(bin); err == nil {
-			return bin, nil
-		}
+	if bin := nextToSelf("justxrayd"); bin != "" {
+		return bin, nil
 	}
-	bin, err := exec.LookPath("justxrayd")
+	bin, err := exec.LookPath(exeName("justxrayd"))
 	if err != nil {
 		return "", fmt.Errorf("justxrayd not found next to justxray or in PATH; build it with \"go build ./cmd/justxrayd\"")
 	}
 	return bin, nil
+}
+
+func exeName(name string) string {
+	if runtime.GOOS == "windows" {
+		return name + ".exe"
+	}
+	return name
+}
+
+func nextToSelf(name string) string {
+	self, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	p := filepath.Join(filepath.Dir(self), exeName(name))
+	if _, err := os.Stat(p); err != nil {
+		return ""
+	}
+	return p
 }
 
 func wait(c *daemon.Client, timeout time.Duration) error {
