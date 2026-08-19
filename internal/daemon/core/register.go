@@ -12,8 +12,8 @@ import (
 	"github.com/sagernet/sing-box/dns/transport/local"
 	"github.com/sagernet/sing-box/protocol/block"
 	"github.com/sagernet/sing-box/protocol/direct"
-	"github.com/sagernet/sing-box/protocol/http"
 	"github.com/sagernet/sing-box/protocol/hysteria2"
+	"github.com/sagernet/sing-box/protocol/mixed"
 	"github.com/sagernet/sing-box/protocol/shadowsocks"
 	"github.com/sagernet/sing-box/protocol/socks"
 	"github.com/sagernet/sing-box/protocol/trojan"
@@ -31,7 +31,7 @@ func Context(ctx context.Context) context.Context {
 func inboundRegistry() *inbound.Registry {
 	registry := inbound.NewRegistry()
 	socks.RegisterInbound(registry)
-	http.RegisterInbound(registry)
+	mixed.RegisterInbound(registry)
 	tun.RegisterInbound(registry)
 	return registry
 }

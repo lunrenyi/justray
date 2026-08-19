@@ -58,7 +58,6 @@ type Status struct {
 	PID       int
 	Uptime    int64 // seconds
 	LastErr   string
-	Socks     int
-	HTTP      int
+	Port      int
 	Tun       bool
 }

@@ -25,7 +25,7 @@ func (m Model) View() string {
 func (m Model) titleLine() string {
 	title := style.Title.Render("JustRay")
 	if m.connected() {
-		title = flush(title, style.Dim.Render(fmt.Sprintf("socks :%d · http :%d", m.status.Socks, m.status.HTTP)), m.w)
+		title = flush(title, style.Dim.Render(fmt.Sprintf("proxy :%d", m.status.Port)), m.w)
 	}
 	return m.clip(title)
 }
@@ -194,8 +194,8 @@ func (m Model) footer() string {
 	}
 
 	keys := [][2]string{
-		{"↑/↓", "Move"}, {"↵", "Toggle"}, {"←/→", "Fold"}, {"t", "Ping"},
-		{"r", "Refresh"}, {"m", "TUN"}, {"/", "Filter"}, {"a", "Add"}, {"d", "Delete"}, {"q", "Quit"},
+		{"↑/↓", "Move"}, {"←/→", "Fold"}, {"↵", "Toggle"}, {"t", "Ping"}, {"r", "Refresh"},
+		{"m", "TUN"}, {"/", "Filter"}, {"a", "Add"}, {"d", "Delete"}, {"q", "Quit"},
 	}
 	switch {
 	case m.confirm:

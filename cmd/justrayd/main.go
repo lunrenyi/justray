@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/luynrs/justray/internal/daemon"
@@ -41,6 +42,10 @@ func main() {
 	socket := daemon.Socket(*dir)
 	ln, err := daemon.Listen(socket)
 	if err != nil {
+		if strings.Contains(err.Error(), "already listening") {
+			logger.Print(err, ", exiting")
+			return
+		}
 		logger.Fatal(err)
 	}
 	logger.Printf("listening on %s", socket)
@@ -56,14 +61,13 @@ func main() {
 
 	select {
 	case s := <-sig:
-		logger.Printf("got %s, shutting down", s)
+		logger.Printf("shutting down (%s)", s)
 	case err := <-served:
-		logger.Printf("serve: %v", err)
+		logger.Printf("shutting down (%v)", err)
 	}
 
 	ln.Close()
 	srv.Shutdown()
-	logger.Print("stopped")
 }
 
 func die(v ...any) {

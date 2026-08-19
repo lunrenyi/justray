@@ -13,18 +13,15 @@ import (
 )
 
 // tun is the interface name to bring up a tun inbound for, or "" for none
-func Build(n proxy.Node, socksPort, httpPort int, logPath, tun string) (*option.Options, error) {
+func Build(n proxy.Node, port int, logPath, tun string) (*option.Options, error) {
 	out, err := Outbound(n, "proxy")
 	if err != nil {
 		return nil, err
 	}
 
 	inbounds := []option.Inbound{
-		{Type: C.TypeSOCKS, Tag: "socks-in", Options: &option.SocksInboundOptions{
-			ListenOptions: option.ListenOptions{Listen: addr("127.0.0.1"), ListenPort: uint16(socksPort)},
-		}},
-		{Type: C.TypeHTTP, Tag: "http-in", Options: &option.HTTPMixedInboundOptions{
-			ListenOptions: option.ListenOptions{Listen: addr("127.0.0.1"), ListenPort: uint16(httpPort)},
+		{Type: C.TypeMixed, Tag: "mixed-in", Options: &option.HTTPMixedInboundOptions{
+			ListenOptions: option.ListenOptions{Listen: addr("127.0.0.1"), ListenPort: uint16(port)},
 		}},
 	}
 	if tun != "" {
@@ -41,7 +38,29 @@ func Build(n proxy.Node, socksPort, httpPort int, logPath, tun string) (*option.
 	}
 
 	return &option.Options{
-		Log:      &option.LogOptions{Level: "warn", Output: logPath},
+		Log: &option.LogOptions{Level: "error", Output: logPath},
+		DNS: &option.DNSOptions{
+			RawDNSOptions: option.RawDNSOptions{
+				Servers: []option.DNSServerOptions{
+					{Type: C.DNSTypeLocal, Tag: "local-dns", Options: &option.LocalDNSServerOptions{
+						PreferGo: true,
+					}},
+				},
+				Rules: []option.DNSRule{
+					{DefaultOptions: option.DefaultDNSRule{
+						RawDefaultDNSRule: option.RawDefaultDNSRule{
+							Outbound: []string{"any"},
+						},
+						DNSRuleAction: option.DNSRuleAction{
+							Action: "route",
+							RouteOptions: option.DNSRouteActionOptions{
+								Server: "local-dns",
+							},
+						},
+					}},
+				},
+			},
+		},
 		Inbounds: inbounds,
 		Outbounds: []option.Outbound{
 			*out,

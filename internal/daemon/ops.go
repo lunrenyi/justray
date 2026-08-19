@@ -10,9 +10,8 @@ import (
 )
 
 const (
-	socksPort = 1080 // TODO: mixed port (emm.. idk how on xray) or settings ui
-	httpPort  = 1081
-	tunIface  = "justray0"
+	port = 10808 // TODO: settings ui
+	tuninterface  = "justray0"
 )
 
 func (s *Server) connect(id string) (Status, error) {
@@ -59,13 +58,17 @@ func (s *Server) clear() {
 func (s *Server) start(n proxy.Node, sub string) error {
 	name := ""
 	if s.tun {
-		name = tunIface
+		name = tuninterface
 	}
-	opts, err := core.Build(n, socksPort, httpPort, coreLog(s.dir), name)
+	opts, err := core.Build(n, port, coreLog(s.dir), name)
 	if err != nil {
 		return err
 	}
 	if err := s.runner.Start(opts, n.ID, n.Name); err != nil {
+		if name != "" && tunPermissionErr(err) {
+			go elevateTun(s.log, s.dir)
+			return fmt.Errorf("tun needs elevated permission, granting it now — retry in a few seconds")
+		}
 		return err
 	}
 
@@ -115,10 +118,8 @@ func (s *Server) status() Status {
 		PID:       p.PID,
 		Uptime:    int64(p.Uptime.Seconds()),
 		LastErr:   p.LastErr,
+		Port:      port,
 		Tun:       s.tun,
-	}
-	if st.Connected {
-		st.Socks, st.HTTP = socksPort, httpPort
 	}
 	return st
 }

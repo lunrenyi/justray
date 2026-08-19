@@ -27,7 +27,7 @@
           version = "0.1.0";
           src = ./.;
 
-          vendorHash = "sha256-vW3+MbRJu5diex637ljaq8/OchG4IsAtjScP9uoR0/E=";
+          vendorHash = "sha256-60C8IDojHLPuV5Db/Sk8DILn/K2tix1IeDYTF7PjsXQ=";
 
           subPackages = [ "cmd/justray" "cmd/justrayd" ];
           # with_quic: hysteria2. with_utls: reality/utls fingerprinting.
