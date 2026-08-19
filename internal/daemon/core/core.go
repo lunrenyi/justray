@@ -124,7 +124,7 @@ func dnsHijack(tun string) []option.Rule {
 
 func ProbeTag(i int) string { return "p" + strconv.Itoa(i) }
 
-func ProbeConfig(nodes []proxy.Node) *option.Options {
+func ProbeConfig(nodes []proxy.Node, logPath string) *option.Options {
 	var outbounds []option.Outbound
 	for i, n := range nodes {
 		if out, err := Outbound(n, ProbeTag(i)); err == nil {
@@ -132,7 +132,7 @@ func ProbeConfig(nodes []proxy.Node) *option.Options {
 		}
 	}
 	return &option.Options{
-		Log:       &option.LogOptions{Level: LogLevel()},
+		Log:       &option.LogOptions{Level: LogLevel(), Output: logPath},
 		Outbounds: outbounds,
 	}
 }

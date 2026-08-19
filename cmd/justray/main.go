@@ -35,7 +35,6 @@ func main() {
 
 	client := daemon.NewClient(daemon.Socket(*dir))
 	if client.Ping() != nil {
-		fmt.Println("justray: no daemon running, starting justrayd in the background…")
 		if err := spawn(*dir); err != nil {
 			die("start daemon:", err)
 		}

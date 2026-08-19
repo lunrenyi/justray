@@ -10,6 +10,7 @@ import (
 	boxservice "github.com/sagernet/sing-box/adapter/service"
 	"github.com/sagernet/sing-box/dns"
 	"github.com/sagernet/sing-box/dns/transport"
+	"github.com/sagernet/sing-box/dns/transport/local"
 	"github.com/sagernet/sing-box/protocol/hysteria2"
 	"github.com/sagernet/sing-box/protocol/mixed"
 	"github.com/sagernet/sing-box/protocol/shadowsocks"
@@ -45,5 +46,6 @@ func outboundRegistry() *outbound.Registry {
 func dnsTransportRegistry() *dns.TransportRegistry {
 	registry := dns.NewTransportRegistry()
 	transport.RegisterUDP(registry)
+	local.RegisterTransport(registry)
 	return registry
 }

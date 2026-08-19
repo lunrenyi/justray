@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"io"
+	"log"
 	"strings"
 	"time"
 
@@ -49,7 +51,7 @@ func New(c *daemon.Client) Model {
 	return Model{
 		client:    c,
 		collapsed: map[string]bool{},
-		spin:      spinner.New(spinner.WithSpinner(spinner.Dot)),
+		spin:      spinner.New(spinner.WithSpinner(spinner.MiniDot)),
 		url:       input("Add:  ", "subscription URL, or a vless:// vmess:// trojan:// ss:// link", 2048),
 		filter:    input("~ ", "filter by name, protocol, server…", 128),
 		statusCh:  make(chan daemon.Status),
@@ -242,6 +244,7 @@ func (m Model) quit() (tea.Model, tea.Cmd) {
 }
 
 func Run(c *daemon.Client) error {
+	log.SetOutput(io.Discard)
 	_, err := tea.NewProgram(New(c), tea.WithAltScreen(), tea.WithMouseCellMotion()).Run()
 	return err
 }
