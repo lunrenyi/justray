@@ -30,9 +30,7 @@
           vendorHash = "sha256-60C8IDojHLPuV5Db/Sk8DILn/K2tix1IeDYTF7PjsXQ=";
 
           subPackages = [ "cmd/justray" "cmd/justrayd" ];
-          # with_quic: hysteria2. with_utls: reality/utls fingerprinting.
-          # both are opt-in in sing-box and off by default.
-          tags = [ "with_quic" "with_utls" ];
+          tags = [ "with_quic" "with_utls" "with_gvisor" ];
           ldflags = [ "-s" "-w" ];
 
           postInstall = ''
@@ -103,9 +101,7 @@
               Service = {
                 ExecStart = "${cfg.package}/bin/justrayd";
                 Restart = "on-failure";
-                RestartSec = 2;
-                # lets tun mode create/configure its interface and adjust
-                # routes without running the daemon as root
+                RestartSec = 3;
                 AmbientCapabilities = [ "CAP_NET_ADMIN" ];
               };
               Install.WantedBy = [ "default.target" ];

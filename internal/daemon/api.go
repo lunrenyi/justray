@@ -55,7 +55,6 @@ type Status struct {
 	Sub       string
 	NodeID    string
 	NodeName  string
-	PID       int
 	Uptime    int64 // seconds
 	LastErr   string
 	Port      int

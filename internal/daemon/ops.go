@@ -1,8 +1,12 @@
 package daemon
 
 import (
+	"context"
 	"fmt"
 	"maps"
+	"time"
+
+	sbox "github.com/sagernet/sing-box"
 
 	"github.com/luynrs/justray/internal/daemon/core"
 	"github.com/luynrs/justray/internal/daemon/store"
@@ -10,8 +14,9 @@ import (
 )
 
 const (
-	port = 10808 // TODO: settings ui
-	tuninterface  = "justray0"
+	port         = 10808 // TODO: settings ui
+	tunInterface = "justray0"
+	tunEnv       = "JUSTRAY_TUN"
 )
 
 func (s *Server) connect(id string) (Status, error) {
@@ -37,7 +42,7 @@ func (s *Server) disconnect() (Status, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	name := s.runner.Status().NodeName
+	name := s.node.Name
 	s.clear()
 	if name != "" {
 		s.log.Printf("disconnected from %s", name)
@@ -47,8 +52,15 @@ func (s *Server) disconnect() (Status, error) {
 }
 
 // assumes s.mu held
+func (s *Server) stop() {
+	if s.inst != nil {
+		s.inst.Close()
+		s.inst, s.node = nil, proxy.Node{}
+	}
+}
+
 func (s *Server) clear() {
-	s.runner.Stop()
+	s.stop()
 	s.sub = ""
 	if err := s.store.SetActive(""); err != nil {
 		s.log.Printf("could not clear the active node: %v", err)
@@ -56,23 +68,30 @@ func (s *Server) clear() {
 }
 
 func (s *Server) start(n proxy.Node, sub string) error {
-	name := ""
+	iface := ""
 	if s.tun {
-		name = tuninterface
+		iface = tunInterface
 	}
-	opts, err := core.Build(n, port, coreLog(s.dir), name)
+	s.stop()
+
+	opts, err := core.Build(n, port, coreLog(s.dir), iface)
 	if err != nil {
 		return err
 	}
-	if err := s.runner.Start(opts, n.ID, n.Name); err != nil {
-		if name != "" && tunPermissionErr(err) {
+	inst, err := sbox.New(sbox.Options{Options: *opts, Context: core.Context(context.Background())})
+	if err == nil {
+		err = inst.Start()
+	}
+	if err != nil {
+		s.lastErr = err.Error()
+		if iface != "" && tunPermissionErr(err) {
 			go elevateTun(s.log, s.dir)
-			return fmt.Errorf("tun needs elevated permission, granting it now — retry in a few seconds")
+			return fmt.Errorf("granting tun permission, reconnecting…")
 		}
 		return err
 	}
 
-	s.sub = sub
+	s.inst, s.node, s.sub, s.started, s.lastErr = inst, n, sub, time.Now(), ""
 	if err := s.store.SetActive(n.ID); err != nil {
 		s.log.Printf("could not persist the active node: %v", err)
 	}
@@ -87,19 +106,11 @@ func (s *Server) setTun(enable bool) (Status, error) {
 	defer s.mu.Unlock()
 
 	s.tun = enable
-	id := s.runner.Status().NodeID
-	if id == "" {
+	if s.inst == nil {
 		return s.status(), nil
 	}
 
-	subs, err := s.store.Subscriptions()
-	if err != nil {
-		return Status{}, err
-	}
-	n, sub, ok := find(subs, id)
-	if !ok {
-		return Status{}, fmt.Errorf("active node %q is gone", id)
-	}
+	n, sub := s.node, s.sub
 	if err := s.start(n, sub); err != nil {
 		return Status{}, err
 	}
@@ -107,19 +118,13 @@ func (s *Server) setTun(enable bool) (Status, error) {
 	return s.status(), nil
 }
 
-// assumes s.mu held
+
 func (s *Server) status() Status {
-	p := s.runner.Status()
-	st := Status{
-		Connected: p.Running,
-		Sub:       s.sub,
-		NodeID:    p.NodeID,
-		NodeName:  p.NodeName,
-		PID:       p.PID,
-		Uptime:    int64(p.Uptime.Seconds()),
-		LastErr:   p.LastErr,
-		Port:      port,
-		Tun:       s.tun,
+	st := Status{Port: port, Tun: s.tun, LastErr: s.lastErr}
+	if s.inst != nil {
+		st.Connected, st.Sub = true, s.sub
+		st.NodeID, st.NodeName = s.node.ID, s.node.Name
+		st.Uptime = int64(time.Since(s.started).Seconds())
 	}
 	return st
 }

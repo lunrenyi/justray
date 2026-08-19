@@ -2,8 +2,14 @@ package core
 
 import (
 	"cmp"
+	"context"
 	"fmt"
+	"net"
 	"net/netip"
+	"os"
+	"strconv"
+	"strings"
+	"time"
 
 	C "github.com/sagernet/sing-box/constant"
 	"github.com/sagernet/sing-box/option"
@@ -12,8 +18,11 @@ import (
 	"github.com/luynrs/justray/internal/parser/proxy"
 )
 
-// tun is the interface name to bring up a tun inbound for, or "" for none
 func Build(n proxy.Node, port int, logPath, tun string) (*option.Options, error) {
+	n, err := resolved(n)
+	if err != nil {
+		return nil, err
+	}
 	out, err := Outbound(n, "proxy")
 	if err != nil {
 		return nil, err
@@ -28,87 +37,104 @@ func Build(n proxy.Node, port int, logPath, tun string) (*option.Options, error)
 		inbounds = append(inbounds, option.Inbound{Type: C.TypeTun, Tag: "tun-in", Options: &option.TunInboundOptions{
 			InterfaceName: tun,
 			MTU:           1500,
+			Stack:         "gvisor",
 			Address: []netip.Prefix{
 				netip.MustParsePrefix("172.19.0.1/30"),
-				netip.MustParsePrefix("fdfe:dcba:9876::1/126"),
 			},
-			AutoRoute:   true,
-			StrictRoute: true,
+			AutoRoute:    true,
+			StrictRoute:  true,
+			RouteAddress: append([]netip.Prefix{netip.MustParsePrefix("0.0.0.0/0")}, resolvers()...),
 		}})
 	}
 
 	return &option.Options{
-		Log: &option.LogOptions{Level: "error", Output: logPath},
-		DNS: &option.DNSOptions{
-			RawDNSOptions: option.RawDNSOptions{
-				Servers: []option.DNSServerOptions{
-					{Type: C.DNSTypeLocal, Tag: "local-dns", Options: &option.LocalDNSServerOptions{
-						PreferGo: true,
-					}},
+		Log: &option.LogOptions{Level: LogLevel(), Output: logPath},
+		DNS: &option.DNSOptions{RawDNSOptions: option.RawDNSOptions{Servers: []option.DNSServerOptions{
+			{Type: C.DNSTypeUDP, Tag: "remote", Options: &option.RemoteDNSServerOptions{
+				RawLocalDNSServerOptions: option.RawLocalDNSServerOptions{
+					DialerOptions: option.DialerOptions{Detour: "proxy"},
 				},
-				Rules: []option.DNSRule{
-					{DefaultOptions: option.DefaultDNSRule{
-						RawDefaultDNSRule: option.RawDefaultDNSRule{
-							Outbound: []string{"any"},
-						},
-						DNSRuleAction: option.DNSRuleAction{
-							Action: "route",
-							RouteOptions: option.DNSRouteActionOptions{
-								Server: "local-dns",
-							},
-						},
-					}},
-				},
-			},
-		},
-		Inbounds: inbounds,
-		Outbounds: []option.Outbound{
-			*out,
-			{Type: C.TypeDirect, Tag: "direct", Options: &option.DirectOutboundOptions{}},
-			{Type: C.TypeBlock, Tag: "block", Options: &option.StubOptions{}},
-		},
+				DNSServerAddressOptions: option.DNSServerAddressOptions{Server: "1.1.1.1"},
+			}},
+		}}},
+		Inbounds:  inbounds,
+		Outbounds: []option.Outbound{*out},
 		Route: &option.RouteOptions{
 			Final:               "proxy",
 			AutoDetectInterface: tun != "",
+			Rules:               dnsHijack(tun),
 		},
 	}, nil
 }
 
-// one local socks inbound per node, routed to that node's outbound
-func ProbeConfig(nodes []proxy.Node, ports []int) (*option.Options, error) {
-	var inbounds []option.Inbound
-	var outbounds []option.Outbound
-	var rules []option.Rule
-	for i, n := range nodes {
-		tag := fmt.Sprintf("p%d", i)
-		out, err := Outbound(n, tag)
-		if err != nil {
-			return nil, err
+func LogLevel() string { return cmp.Or(os.Getenv("JUSTRAY_LOG"), "error") }
+
+func resolved(n proxy.Node) (proxy.Node, error) {
+	if _, err := netip.ParseAddr(n.Server); err == nil {
+		return n, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+
+	ips, err := net.DefaultResolver.LookupNetIP(ctx, "ip", n.Server)
+	if err != nil || len(ips) == 0 {
+		return n, fmt.Errorf("could not resolve %s: %w", n.Server, err)
+	}
+	switch {
+	case n.TLS != nil && n.TLS.SNI == "":
+		tls := *n.TLS
+		tls.SNI = n.Server
+		n.TLS = &tls
+	case n.TLS == nil && n.Protocol == proxy.HY2:
+		n.TLS = &proxy.TLS{SNI: n.Server}
+	}
+	n.Server = ips[0].Unmap().String()
+	return n, nil
+}
+
+func resolvers() []netip.Prefix {
+	b, err := os.ReadFile("/etc/resolv.conf")
+	if err != nil {
+		return nil
+	}
+	var out []netip.Prefix
+	for _, line := range strings.Split(string(b), "\n") {
+		f := strings.Fields(line)
+		if len(f) != 2 || f[0] != "nameserver" {
+			continue
 		}
-		inbounds = append(inbounds, option.Inbound{
-			Type: C.TypeSOCKS, Tag: "in" + tag,
-			Options: &option.SocksInboundOptions{
-				ListenOptions: option.ListenOptions{Listen: addr("127.0.0.1"), ListenPort: uint16(ports[i])},
-			},
-		})
-		outbounds = append(outbounds, *out)
-		rules = append(rules, option.Rule{
-			Type: C.RuleTypeDefault,
-			DefaultOptions: option.DefaultRule{
-				RawDefaultRule: option.RawDefaultRule{Inbound: []string{"in" + tag}},
-				RuleAction: option.RuleAction{
-					Action:       C.RuleActionTypeRoute,
-					RouteOptions: option.RouteActionOptions{Outbound: tag},
-				},
-			},
-		})
+		a, err := netip.ParseAddr(f[1])
+		if err != nil || !a.Is4() || a.IsLoopback() {
+			continue
+		}
+		out = append(out, netip.PrefixFrom(a, 32))
+	}
+	return out
+}
+
+func dnsHijack(tun string) []option.Rule {
+	if tun == "" {
+		return nil
+	}
+	return []option.Rule{{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
+		RawDefaultRule: option.RawDefaultRule{Port: []uint16{53}},
+		RuleAction:     option.RuleAction{Action: C.RuleActionTypeHijackDNS},
+	}}}
+}
+
+func ProbeTag(i int) string { return "p" + strconv.Itoa(i) }
+
+func ProbeConfig(nodes []proxy.Node) *option.Options {
+	var outbounds []option.Outbound
+	for i, n := range nodes {
+		if out, err := Outbound(n, ProbeTag(i)); err == nil {
+			outbounds = append(outbounds, *out)
+		}
 	}
 	return &option.Options{
-		Log:       &option.LogOptions{Level: "error"},
-		Inbounds:  inbounds,
+		Log:       &option.LogOptions{Level: LogLevel()},
 		Outbounds: outbounds,
-		Route:     &option.RouteOptions{Rules: rules},
-	}, nil
+	}
 }
 
 func Outbound(n proxy.Node, tag string) (*option.Outbound, error) {

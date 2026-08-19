@@ -44,7 +44,7 @@ func elevateTun(logger *log.Logger, dir string) {
 	}
 
 	logger.Print("elevate: got cap_net_admin, restarting")
-	if err := syscall.Exec(target, os.Args, os.Environ()); err != nil {
+	if err := syscall.Exec(target, os.Args, append(os.Environ(), tunEnv+"=1")); err != nil {
 		logger.Printf("elevate: re-exec: %v", err)
 	}
 }

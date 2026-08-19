@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/url"
-	"strconv"
 	"sync"
 	"time"
 
 	sbox "github.com/sagernet/sing-box"
+	M "github.com/sagernet/sing/common/metadata"
+	N "github.com/sagernet/sing/common/network"
 
 	"github.com/luynrs/justray/internal/daemon/core"
 	"github.com/luynrs/justray/internal/parser/proxy"
@@ -28,38 +28,32 @@ type probeResult struct {
 }
 
 func (s *Server) probeNodes(nodes []proxy.Node) (map[string]probeResult, error) {
-	var testable []proxy.Node
-	for _, n := range nodes {
-		if _, err := core.Outbound(n, "p"); err == nil {
-			testable = append(testable, n)
-		}
+	inst, err := sbox.New(sbox.Options{Options: *core.ProbeConfig(nodes), Context: core.Context(context.Background())})
+	if err != nil {
+		return nil, fmt.Errorf("build probe engine: %w", err)
 	}
+	if err := inst.Start(); err != nil {
+		inst.Close()
+		return nil, fmt.Errorf("start probe engine: %w", err)
+	}
+	defer inst.Close()
+
 	out := map[string]probeResult{}
-	if len(testable) == 0 {
-		return out, nil
-	}
-
-	ports, err := freePorts(len(testable))
-	if err != nil {
-		return nil, err
-	}
-	stop, err := s.startProbeCore(testable, ports)
-	if err != nil {
-		return nil, err
-	}
-	defer stop()
-
 	sem := make(chan struct{}, probeWorkers)
 	var mu sync.Mutex
 	var wg sync.WaitGroup
-	for i, n := range testable {
+	for i, n := range nodes {
+		dialer, ok := inst.Outbound().Outbound(core.ProbeTag(i))
+		if !ok {
+			continue
+		}
 		wg.Add(1)
 		sem <- struct{}{}
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			ms, err := delay(ports[i])
+			ms, err := delay(dialer)
 			mu.Lock()
 			out[n.ID] = probeResult{alive: err == nil, ms: ms}
 			mu.Unlock()
@@ -69,27 +63,17 @@ func (s *Server) probeNodes(nodes []proxy.Node) (map[string]probeResult, error) 
 	return out, nil
 }
 
-func (s *Server) startProbeCore(nodes []proxy.Node, ports []int) (func(), error) {
-	opts, err := core.ProbeConfig(nodes, ports)
-	if err != nil {
-		return nil, err
-	}
-	inst, err := sbox.New(sbox.Options{Options: *opts, Context: core.Context(context.Background())})
-	if err != nil {
-		return nil, fmt.Errorf("build probe engine: %w", err)
-	}
-	if err := inst.Start(); err != nil {
-		inst.Close()
-		return nil, fmt.Errorf("start probe engine: %w", err)
-	}
-	return func() { inst.Close() }, nil
-}
-
-func delay(port int) (int, error) {
+func delay(dialer N.Dialer) (int, error) {
 	client := &http.Client{
-		Timeout:   probeTimeout,
-		Transport: &http.Transport{Proxy: http.ProxyURL(&url.URL{Scheme: "socks5", Host: local(port)})},
+		Timeout: probeTimeout,
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
+				return dialer.DialContext(ctx, N.NetworkTCP, M.ParseSocksaddr(addr))
+			},
+		},
 	}
+	defer client.CloseIdleConnections()
+
 	start := time.Now()
 	resp, err := client.Get(probeURL)
 	ms := int(time.Since(start).Milliseconds())
@@ -102,18 +86,3 @@ func delay(port int) (int, error) {
 	}
 	return ms, nil
 }
-
-func freePorts(n int) ([]int, error) {
-	ports := make([]int, n)
-	for i := range ports {
-		ln, err := net.Listen("tcp", "127.0.0.1:0")
-		if err != nil {
-			return nil, err
-		}
-		defer ln.Close()
-		ports[i] = ln.Addr().(*net.TCPAddr).Port
-	}
-	return ports, nil
-}
-
-func local(port int) string { return net.JoinHostPort("127.0.0.1", strconv.Itoa(port)) }

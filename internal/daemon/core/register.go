@@ -9,13 +9,10 @@ import (
 	"github.com/sagernet/sing-box/adapter/outbound"
 	boxservice "github.com/sagernet/sing-box/adapter/service"
 	"github.com/sagernet/sing-box/dns"
-	"github.com/sagernet/sing-box/dns/transport/local"
-	"github.com/sagernet/sing-box/protocol/block"
-	"github.com/sagernet/sing-box/protocol/direct"
+	"github.com/sagernet/sing-box/dns/transport"
 	"github.com/sagernet/sing-box/protocol/hysteria2"
 	"github.com/sagernet/sing-box/protocol/mixed"
 	"github.com/sagernet/sing-box/protocol/shadowsocks"
-	"github.com/sagernet/sing-box/protocol/socks"
 	"github.com/sagernet/sing-box/protocol/trojan"
 	"github.com/sagernet/sing-box/protocol/tun"
 	"github.com/sagernet/sing-box/protocol/vless"
@@ -30,7 +27,6 @@ func Context(ctx context.Context) context.Context {
 
 func inboundRegistry() *inbound.Registry {
 	registry := inbound.NewRegistry()
-	socks.RegisterInbound(registry)
 	mixed.RegisterInbound(registry)
 	tun.RegisterInbound(registry)
 	return registry
@@ -38,8 +34,6 @@ func inboundRegistry() *inbound.Registry {
 
 func outboundRegistry() *outbound.Registry {
 	registry := outbound.NewRegistry()
-	direct.RegisterOutbound(registry)
-	block.RegisterOutbound(registry)
 	vless.RegisterOutbound(registry)
 	vmess.RegisterOutbound(registry)
 	trojan.RegisterOutbound(registry)
@@ -48,10 +42,8 @@ func outboundRegistry() *outbound.Registry {
 	return registry
 }
 
-// "local" is the fallback resolver reached for whenever an
-// outbound needs to resolve a server hostname
 func dnsTransportRegistry() *dns.TransportRegistry {
 	registry := dns.NewTransportRegistry()
-	local.RegisterTransport(registry)
+	transport.RegisterUDP(registry)
 	return registry
 }

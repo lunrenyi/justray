@@ -11,8 +11,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/luynrs/justray/internal/daemon/runner"
+	sbox "github.com/sagernet/sing-box"
+
 	"github.com/luynrs/justray/internal/daemon/store"
+	"github.com/luynrs/justray/internal/parser/proxy"
 )
 
 // has to cover a full Probe of every node
@@ -21,12 +23,15 @@ const idle = 60 * time.Second
 type Server struct {
 	dir    string
 	store  store.Disk
-	runner *runner.Process
 	log    *log.Logger
 	device http.Header
 
 	mu       sync.Mutex
-	sub      string // subscription the active node belongs to
+	inst     *sbox.Box  // nil while disconnected
+	node     proxy.Node // the one inst is running
+	sub      string     // sub the active node belongs to
+	started  time.Time
+	lastErr  string
 	tun      bool
 	probes   map[string]probeResult
 	watchers map[chan Status]struct{}
@@ -43,8 +48,8 @@ func New(dir string, logger *log.Logger) *Server {
 	return &Server{
 		dir:      dir,
 		store:    store.Disk{Dir: dir},
-		runner:   runner.New(),
 		log:      logger,
+		tun:      os.Getenv(tunEnv) == "1", // set by elevateTun across its re-exec
 		device:   device,
 		probes:   map[string]probeResult{},
 		watchers: map[chan Status]struct{}{},
@@ -79,7 +84,11 @@ func (s *Server) Serve(ln net.Listener) error {
 	}
 }
 
-func (s *Server) Shutdown() { s.runner.Stop() }
+func (s *Server) Shutdown() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.stop()
+}
 
 // reconnect to the last active node
 func (s *Server) Restore() {
