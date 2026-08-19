@@ -1,7 +1,7 @@
 package main
 
 //
-// TUI
+// CLIENT ENTRYPOINT
 //
 
 import (

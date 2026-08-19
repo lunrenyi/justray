@@ -85,6 +85,7 @@ func (s *Server) refreshAll() ([]Sub, error) {
 	}
 
 	out := make([]Sub, 0, len(subs))
+	updated := make([]store.Subscription, 0, len(subs))
 	var failed error
 	for i := range subs {
 		if err := s.fill(&subs[i]); err != nil {
@@ -92,12 +93,13 @@ func (s *Server) refreshAll() ([]Sub, error) {
 			s.log.Printf("refresh %s: %v", subs[i].Name, err)
 			continue
 		}
+		updated = append(updated, subs[i])
 		out = append(out, info(subs[i]))
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.store.Save(subs); err != nil {
+	if err := s.merge(updated); err != nil {
 		return nil, err
 	}
 	if failed != nil {
@@ -123,10 +125,23 @@ func (s *Server) refresh(id string) (Sub, error) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.store.Save(subs); err != nil {
+	if err := s.merge(subs[i : i+1]); err != nil {
 		return Sub{}, err
 	}
 	return info(subs[i]), nil
+}
+
+func (s *Server) merge(updated []store.Subscription) error {
+	subs, err := s.store.Subscriptions()
+	if err != nil {
+		return err
+	}
+	for _, u := range updated {
+		if i := slices.IndexFunc(subs, func(x store.Subscription) bool { return x.ID == u.ID }); i >= 0 {
+			subs[i] = u
+		}
+	}
+	return s.store.Save(subs)
 }
 
 func (s *Server) fill(sub *store.Subscription) error {

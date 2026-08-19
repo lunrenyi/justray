@@ -1,9 +1,5 @@
 package style
 
-//
-// Colours and the small formatters the views reach for
-//
-
 import (
 	"fmt"
 	"strings"
@@ -14,6 +10,7 @@ import (
 )
 
 const (
+	// Static colors for better accessibility
 	green  = lipgloss.Color("#22c55e")
 	yellow = lipgloss.Color("#f59e0b")
 	red    = lipgloss.Color("#ef4444")
@@ -34,7 +31,6 @@ var (
 	Unknown = lipgloss.NewStyle().Foreground(gray)
 )
 
-// cuts a line to the terminal width: a wrapped line would push rows out of place
 func Clip(s string, width int) string {
 	if width <= 0 {
 		return ""
@@ -80,29 +76,22 @@ func Bytes(b int64) string {
 	return fmt.Sprintf("%.1f%ciB", float64(b)/float64(div), "KMGTPE"[exp])
 }
 
-// how long ago t was; Expiry, how long until t
-func Since(t time.Time) string {
-	d := time.Since(t)
-	switch {
-	case d < time.Minute:
-		return "just now"
-	case d < time.Hour:
-		return fmt.Sprintf("%dm ago", int(d.Minutes()))
-	case d < 24*time.Hour:
-		return fmt.Sprintf("%dh ago", int(d.Hours()))
-	}
-	return fmt.Sprintf("%dd ago", int(d.Hours()/24))
-}
+func Since(t time.Time) string { return span(time.Since(t)) + " ago" }
 
 func Expiry(t time.Time) string {
 	d := time.Until(t)
-	switch {
-	case d < 0:
+	if d < 0 {
 		return "expired " + Since(t)
-	case d < time.Hour:
-		return fmt.Sprintf("%dm left", int(d.Minutes()))
-	case d < 24*time.Hour:
-		return fmt.Sprintf("%dh left", int(d.Hours()))
 	}
-	return fmt.Sprintf("%dd left", int(d.Hours()/24))
+	return span(d) + " left"
+}
+
+func span(d time.Duration) string {
+	switch {
+	case d < time.Hour:
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	}
+	return fmt.Sprintf("%dd", int(d.Hours()/24))
 }

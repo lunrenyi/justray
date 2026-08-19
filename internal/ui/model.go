@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -20,6 +21,7 @@ type Model struct {
 	collapsed  map[string]bool
 	probing    map[string]bool
 	refreshing map[string]bool
+	spin       spinner.Model
 	cursor     int
 	scroll     int
 	wheel      time.Time
@@ -47,6 +49,7 @@ func New(c *daemon.Client) Model {
 	return Model{
 		client:    c,
 		collapsed: map[string]bool{},
+		spin:      spinner.New(spinner.WithSpinner(spinner.Dot)),
 		url:       input("Add:  ", "subscription URL, or a vless:// vmess:// trojan:// ss:// link", 2048),
 		filter:    input("~ ", "filter by name, protocol, server…", 128),
 		statusCh:  make(chan daemon.Status),
@@ -79,6 +82,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tick:
 		return m, tickCmd()
+
+	case spinner.TickMsg:
+		if len(m.refreshing) == 0 {
+			return m, nil
+		}
+		var cmd tea.Cmd
+		m.spin, cmd = m.spin.Update(msg)
+		return m, cmd
 
 	case loaded:
 		m.err = ""
@@ -164,8 +175,6 @@ func (m Model) key(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	switch k {
-	case "q":
-		return m.quit()
 	case "up", "k":
 		m.move(-1)
 	case "down", "j":
@@ -180,8 +189,6 @@ func (m Model) key(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.probe()
 	case "T":
 		return m.probeAll()
-	case "d":
-		_, m.confirm = m.at()
 	case "r":
 		return m.refresh()
 	case "R":
@@ -199,6 +206,10 @@ func (m Model) key(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.filter.CursorEnd()
 		m.filter.Focus()
 		return m, textinput.Blink
+	case "d":
+		_, m.confirm = m.at()
+	case "q":
+		return m.quit()
 	case "esc":
 		if m.query != "" {
 			m.query = ""
@@ -208,15 +219,12 @@ func (m Model) key(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// idk how to fix instead of this shit
-const wheelDebounce = 20 * time.Millisecond
-
 func (m Model) wheelScroll(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	up := msg.Button == tea.MouseButtonWheelUp
 	if m.adding || m.filtering || (!up && msg.Button != tea.MouseButtonWheelDown) {
 		return m, nil
 	}
-	if time.Since(m.wheel) < wheelDebounce {
+	if time.Since(m.wheel) < 20*time.Millisecond {
 		return m, nil
 	}
 	m.wheel = time.Now()

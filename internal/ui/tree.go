@@ -203,7 +203,7 @@ func (m Model) refresh() (tea.Model, tea.Cmd) {
 	}
 	id := r.subID()
 	m.refreshing = map[string]bool{id: true}
-	return m, act(m.client, func() error { _, err := m.client.Refresh(id); return err })
+	return m, tea.Batch(m.spin.Tick, act(m.client, func() error { _, err := m.client.Refresh(id); return err }))
 }
 
 func (m Model) refreshAll() (tea.Model, tea.Cmd) {
@@ -211,7 +211,7 @@ func (m Model) refreshAll() (tea.Model, tea.Cmd) {
 	for _, sub := range m.subs {
 		m.refreshing[sub.ID] = true
 	}
-	return m, act(m.client, func() error { _, err := m.client.RefreshAll(); return err })
+	return m, tea.Batch(m.spin.Tick, act(m.client, func() error { _, err := m.client.RefreshAll(); return err }))
 }
 
 func (m Model) probeAll() (tea.Model, tea.Cmd) {

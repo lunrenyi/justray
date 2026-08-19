@@ -18,7 +18,6 @@ import (
 	"github.com/luynrs/justray/internal/parser/proxy"
 )
 
-// has to cover a full Probe of every node
 const idle = 60 * time.Second
 
 type Server struct {
@@ -131,6 +130,7 @@ func (s *Server) handle(conn net.Conn) {
 		return
 	}
 	result, err := s.dispatch(req)
+	conn.SetDeadline(time.Now().Add(idle))
 	reply(conn, result, err)
 }
 

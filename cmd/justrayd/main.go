@@ -1,7 +1,7 @@
 package main
 
 //
-// DAEMON
+// DAEMON ENTRYPOINT
 //
 
 import (

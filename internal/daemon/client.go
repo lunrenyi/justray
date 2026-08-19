@@ -28,7 +28,11 @@ func call[T any](c *Client, method string, args Args) (T, error) {
 		return out, err
 	}
 	defer conn.Close()
-	conn.SetDeadline(time.Now().Add(idle))
+	timeout := idle
+	if method == "Probe" {
+		timeout = 5 * time.Minute
+	}
+	conn.SetDeadline(time.Now().Add(timeout))
 
 	if err := json.NewEncoder(conn).Encode(Req{method, args}); err != nil {
 		return out, fmt.Errorf("%s: %w", method, err)

@@ -61,7 +61,7 @@ func (s *Server) stop() {
 
 func (s *Server) clear() {
 	s.stop()
-	s.sub = ""
+	s.sub, s.lastErr = "", ""
 	if err := s.store.SetActive(""); err != nil {
 		s.log.Printf("could not clear the active node: %v", err)
 	}
@@ -99,8 +99,7 @@ func (s *Server) start(n proxy.Node, sub string) error {
 	return nil
 }
 
-// toggles tun mode; if a node is currently connected, reconnects to it so
-// the change takes effect immediately
+// tun mode toggle
 func (s *Server) setTun(enable bool) (Status, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -150,6 +149,12 @@ func (s *Server) nodes() ([]Node, error) {
 			out = append(out, item)
 		}
 	}
+
+	live := make(map[string]bool, len(out))
+	for _, n := range out {
+		live[n.ID] = true
+	}
+	maps.DeleteFunc(s.probes, func(id string, _ probeResult) bool { return !live[id] })
 	return out, nil
 }
 

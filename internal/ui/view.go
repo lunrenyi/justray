@@ -103,11 +103,11 @@ func (m Model) header(s daemon.Sub, selected bool) string {
 }
 
 func (m Model) subMeta(s daemon.Sub) string {
-	if m.refreshing[s.ID] {
-		return style.Pending.Render("refreshing…")
-	}
 	age := "never updated"
-	if !s.UpdatedAt.IsZero() {
+	switch {
+	case m.refreshing[s.ID]:
+		age = "updated " + m.spin.View() + " ago"
+	case !s.UpdatedAt.IsZero():
 		age = "updated " + style.Since(s.UpdatedAt)
 	}
 	plural := "s"
@@ -117,14 +117,12 @@ func (m Model) subMeta(s daemon.Sub) string {
 	return style.Dim.Render(fmt.Sprintf("%d node%s · %s", s.Nodes, plural, age))
 }
 
-const maxNameCol = 32
-
 func nameWidth(nodes []daemon.Node) int {
 	w := 0
 	for _, n := range nodes {
 		w = max(w, lipgloss.Width(n.Name))
 	}
-	return min(w, maxNameCol)
+	return min(w, 32) // name column cap
 }
 
 func (m Model) node(n daemon.Node, selected bool) string {
