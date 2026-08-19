@@ -13,6 +13,7 @@ import (
 
 	sbox "github.com/sagernet/sing-box"
 
+	"github.com/luynrs/justray/internal/daemon/elevate"
 	"github.com/luynrs/justray/internal/daemon/store"
 	"github.com/luynrs/justray/internal/parser/proxy"
 )
@@ -49,7 +50,7 @@ func New(dir string, logger *log.Logger) *Server {
 		dir:      dir,
 		store:    store.Disk{Dir: dir},
 		log:      logger,
-		tun:      os.Getenv(tunEnv) == "1", // set by elevateTun across its re-exec
+		tun:      elevate.Restarted(),
 		device:   device,
 		probes:   map[string]probeResult{},
 		watchers: map[chan Status]struct{}{},

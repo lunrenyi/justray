@@ -9,6 +9,7 @@ import (
 	sbox "github.com/sagernet/sing-box"
 
 	"github.com/luynrs/justray/internal/daemon/core"
+	"github.com/luynrs/justray/internal/daemon/elevate"
 	"github.com/luynrs/justray/internal/daemon/store"
 	"github.com/luynrs/justray/internal/parser/proxy"
 )
@@ -16,7 +17,6 @@ import (
 const (
 	port         = 10808 // TODO: settings ui
 	tunInterface = "justray0"
-	tunEnv       = "JUSTRAY_TUN"
 )
 
 func (s *Server) connect(id string) (Status, error) {
@@ -84,8 +84,8 @@ func (s *Server) start(n proxy.Node, sub string) error {
 	}
 	if err != nil {
 		s.lastErr = err.Error()
-		if iface != "" && tunPermissionErr(err) {
-			go elevateTun(s.log, s.dir)
+		if iface != "" && elevate.Needed(err) {
+			go elevate.Tun(s.log, s.dir)
 			return fmt.Errorf("granting tun permission, reconnecting…")
 		}
 		return err
@@ -117,7 +117,6 @@ func (s *Server) setTun(enable bool) (Status, error) {
 	s.broadcast()
 	return s.status(), nil
 }
-
 
 func (s *Server) status() Status {
 	st := Status{Port: port, Tun: s.tun, LastErr: s.lastErr}

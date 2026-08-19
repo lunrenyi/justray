@@ -13,8 +13,8 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/luynrs/justray/cmd/justray/detach"
 	"github.com/luynrs/justray/internal/daemon"
-	"github.com/luynrs/justray/internal/daemon/procgroup"
 	"github.com/luynrs/justray/internal/ui"
 )
 
@@ -63,7 +63,7 @@ func spawn(dir string) error {
 
 	cmd := exec.Command(bin, "--config-dir", dir)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = devNull, devNull, devNull
-	procgroup.Detach(cmd)
+	detach.Cmd(cmd)
 	return cmd.Start() // detached on purpose
 }
 

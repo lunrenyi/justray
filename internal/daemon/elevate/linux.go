@@ -1,6 +1,6 @@
 //go:build linux
 
-package daemon
+package elevate
 
 import (
 	"crypto/sha256"
@@ -14,19 +14,18 @@ import (
 	"syscall"
 )
 
-func tunPermissionErr(err error) bool {
+const tunEnv = "JUSTRAY_TUN"
+
+func Needed(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "operation not permitted")
 }
 
-// CAP_NET_ADMIN
-func elevateTun(logger *log.Logger, dir string) {
-	self, err := os.Executable()
-	if err != nil {
-		logger.Printf("elevate: %v", err)
-		return
-	}
+// set across the re-exec below, so the daemon comes back with tun still on
+func Restarted() bool { return os.Getenv(tunEnv) == "1" }
 
-	target, err := cachedCopy(self, dir)
+// CAP_NET_ADMIN
+func Tun(logger *log.Logger, dir string) {
+	target, err := cachedCopy(dir)
 	if err != nil {
 		logger.Printf("elevate: %v", err)
 		return
@@ -49,23 +48,28 @@ func elevateTun(logger *log.Logger, dir string) {
 	}
 }
 
-func cachedCopy(self, dir string) (string, error) {
+func cachedCopy(dir string) (string, error) {
+	self, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
 	sum, err := hashFile(self)
 	if err != nil {
 		return "", err
 	}
-	cacheDir := filepath.Join(dir, "elevated")
-	target := filepath.Join(cacheDir, sum+"-justrayd")
+
+	root := filepath.Join(dir, "elevated")
+	target := filepath.Join(root, sum, "justrayd")
 	if _, err := os.Stat(target); err == nil {
 		return target, nil
 	}
-	if err := os.MkdirAll(cacheDir, 0o700); err != nil {
+	if err := os.RemoveAll(root); err != nil {
 		return "", err
 	}
-	if err := copyFile(self, target); err != nil {
+	if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
 		return "", err
 	}
-	return target, nil
+	return target, copyFile(self, target)
 }
 
 func hashFile(path string) (string, error) {
@@ -74,6 +78,7 @@ func hashFile(path string) (string, error) {
 		return "", err
 	}
 	defer f.Close()
+
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
 		return "", err
@@ -88,21 +93,16 @@ func copyFile(src, dst string) error {
 	}
 	defer in.Close()
 
-	tmp := dst + ".tmp"
-	out, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o700)
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o700)
 	if err != nil {
 		return err
 	}
 	if _, err := io.Copy(out, in); err != nil {
 		out.Close()
-		os.Remove(tmp)
+		os.Remove(dst)
 		return err
 	}
-	if err := out.Close(); err != nil {
-		os.Remove(tmp)
-		return err
-	}
-	return os.Rename(tmp, dst)
+	return out.Close()
 }
 
 func hasNetAdmin(path string) bool {
