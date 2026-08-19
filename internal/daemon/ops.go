@@ -149,12 +149,6 @@ func (s *Server) nodes() ([]Node, error) {
 			out = append(out, item)
 		}
 	}
-
-	live := make(map[string]bool, len(out))
-	for _, n := range out {
-		live[n.ID] = true
-	}
-	maps.DeleteFunc(s.probes, func(id string, _ probeResult) bool { return !live[id] })
 	return out, nil
 }
 

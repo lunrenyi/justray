@@ -28,43 +28,45 @@ func Build(n proxy.Node, port int, logPath, tun string) (*option.Options, error)
 		return nil, err
 	}
 
-	inbounds := []option.Inbound{
-		{Type: C.TypeMixed, Tag: "mixed-in", Options: &option.HTTPMixedInboundOptions{
-			ListenOptions: option.ListenOptions{Listen: addr("127.0.0.1"), ListenPort: uint16(port)},
-		}},
+	opts := &option.Options{
+		Log: &option.LogOptions{Level: LogLevel(), Output: logPath},
+		Inbounds: []option.Inbound{
+			{Type: C.TypeMixed, Tag: "mixed-in", Options: &option.HTTPMixedInboundOptions{
+				ListenOptions: option.ListenOptions{Listen: addr("127.0.0.1"), ListenPort: uint16(port)},
+			}},
+		},
+		Outbounds: []option.Outbound{*out},
+		Route:     &option.RouteOptions{Final: "proxy"},
 	}
-	if tun != "" {
-		inbounds = append(inbounds, option.Inbound{Type: C.TypeTun, Tag: "tun-in", Options: &option.TunInboundOptions{
-			InterfaceName: tun,
-			MTU:           1500,
-			Stack:         "gvisor",
-			Address: []netip.Prefix{
-				netip.MustParsePrefix("172.19.0.1/30"),
-			},
-			AutoRoute:    true,
-			StrictRoute:  true,
-			RouteAddress: append([]netip.Prefix{netip.MustParsePrefix("0.0.0.0/0")}, resolvers()...),
-		}})
+	if tun == "" {
+		return opts, nil
 	}
 
-	return &option.Options{
-		Log: &option.LogOptions{Level: LogLevel(), Output: logPath},
-		DNS: &option.DNSOptions{RawDNSOptions: option.RawDNSOptions{Servers: []option.DNSServerOptions{
-			{Type: C.DNSTypeUDP, Tag: "remote", Options: &option.RemoteDNSServerOptions{
-				RawLocalDNSServerOptions: option.RawLocalDNSServerOptions{
-					DialerOptions: option.DialerOptions{Detour: "proxy"},
-				},
-				DNSServerAddressOptions: option.DNSServerAddressOptions{Server: "1.1.1.1"},
-			}},
-		}}},
-		Inbounds:  inbounds,
-		Outbounds: []option.Outbound{*out},
-		Route: &option.RouteOptions{
-			Final:               "proxy",
-			AutoDetectInterface: tun != "",
-			Rules:               dnsHijack(tun),
+	opts.Inbounds = append(opts.Inbounds, option.Inbound{Type: C.TypeTun, Tag: "tun-in", Options: &option.TunInboundOptions{
+		InterfaceName: tun,
+		MTU:           1500,
+		Stack:         "gvisor",
+		Address: []netip.Prefix{
+			netip.MustParsePrefix("172.19.0.1/30"),
 		},
-	}, nil
+		AutoRoute:    true,
+		StrictRoute:  true,
+		RouteAddress: append([]netip.Prefix{netip.MustParsePrefix("0.0.0.0/0")}, resolvers()...),
+	}})
+	opts.DNS = &option.DNSOptions{RawDNSOptions: option.RawDNSOptions{Servers: []option.DNSServerOptions{
+		{Type: C.DNSTypeUDP, Tag: "remote", Options: &option.RemoteDNSServerOptions{
+			RawLocalDNSServerOptions: option.RawLocalDNSServerOptions{
+				DialerOptions: option.DialerOptions{Detour: "proxy"},
+			},
+			DNSServerAddressOptions: option.DNSServerAddressOptions{Server: cmp.Or(os.Getenv("JUSTRAY_DNS"), "1.1.1.1")},
+		}},
+	}}}
+	opts.Route.AutoDetectInterface = true
+	opts.Route.Rules = []option.Rule{{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
+		RawDefaultRule: option.RawDefaultRule{Port: []uint16{53}},
+		RuleAction:     option.RuleAction{Action: C.RuleActionTypeHijackDNS},
+	}}}
+	return opts, nil
 }
 
 func LogLevel() string { return cmp.Or(os.Getenv("JUSTRAY_LOG"), "error") }
@@ -110,16 +112,6 @@ func resolvers() []netip.Prefix {
 		out = append(out, netip.PrefixFrom(a, 32))
 	}
 	return out
-}
-
-func dnsHijack(tun string) []option.Rule {
-	if tun == "" {
-		return nil
-	}
-	return []option.Rule{{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
-		RawDefaultRule: option.RawDefaultRule{Port: []uint16{53}},
-		RuleAction:     option.RuleAction{Action: C.RuleActionTypeHijackDNS},
-	}}}
 }
 
 func ProbeTag(i int) string { return "p" + strconv.Itoa(i) }

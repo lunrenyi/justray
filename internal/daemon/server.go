@@ -175,6 +175,9 @@ func (s *Server) watch(conn net.Conn) {
 	defer func() {
 		s.mu.Lock()
 		delete(s.watchers, ch)
+		if len(s.watchers) == 0 {
+			clear(s.probes)
+		}
 		s.mu.Unlock()
 	}()
 
