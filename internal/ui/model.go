@@ -3,7 +3,6 @@ package ui
 import (
 	"io"
 	"log"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -58,12 +57,6 @@ func New(c *daemon.Client) Model {
 	}
 }
 
-func input(prompt, placeholder string, limit int) textinput.Model {
-	t := textinput.New()
-	t.Prompt, t.Placeholder, t.CharLimit = prompt, placeholder, limit
-	return t
-}
-
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(loadCmd(m.client), watch(m.client, m.statusCh), next(m.statusCh), tickCmd())
 }
@@ -80,7 +73,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.key(msg)
 
 	case tea.MouseMsg:
-		return m.wheelScroll(msg)
+		return m.mouse(msg)
 
 	case tick:
 		return m, tickCmd()
@@ -137,43 +130,10 @@ func (m Model) key(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case m.adding:
-		switch k {
-		case "esc":
-			m.adding = false
-			m.url.Blur()
-			return m, nil
-		case "enter":
-			url := strings.TrimSpace(m.url.Value())
-			m.adding = false
-			m.url.Blur()
-			if url == "" {
-				m.err = "a URL or a share link is required"
-				return m, nil
-			}
-			return m, act(m.client, func() error { _, err := m.client.AddSub(url); return err })
-		}
-		var cmd tea.Cmd
-		m.url, cmd = m.url.Update(msg)
-		return m, cmd
+		return m.addKey(msg)
 
 	case m.filtering:
-		switch k {
-		case "esc":
-			m.filtering, m.query = false, ""
-			m.filter.Blur()
-			m.clamp()
-			return m, nil
-		case "enter":
-			m.filtering = false
-			m.filter.Blur()
-			m.clamp()
-			return m, nil
-		}
-		var cmd tea.Cmd
-		m.filter, cmd = m.filter.Update(msg)
-		m.query = m.filter.Value()
-		m.clamp()
-		return m, cmd
+		return m.filterKey(msg)
 	}
 
 	switch k {
@@ -196,18 +156,11 @@ func (m Model) key(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "R":
 		return m.refreshAll()
 	case "m":
-		return m.toggleTun()
+		return m.setTun(!m.status.Tun)
 	case "a":
-		m.adding = true
-		m.url.SetValue("")
-		m.url.Focus()
-		return m, textinput.Blink
+		return m, m.startAdding()
 	case "/":
-		m.filtering = true
-		m.filter.SetValue(m.query)
-		m.filter.CursorEnd()
-		m.filter.Focus()
-		return m, textinput.Blink
+		return m, m.startFiltering()
 	case "d":
 		_, m.confirm = m.at()
 	case "q":
@@ -221,9 +174,30 @@ func (m Model) key(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) wheelScroll(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+func (m Model) click(x, y int) (tea.Model, tea.Cmd) {
+	if y == 0 {
+		if tun, ok := modeAt(x, m.w); ok {
+			return m.setTun(tun)
+		}
+		return m, nil
+	}
+	focused, ok := m.point(y)
+	if r, _ := m.at(); ok && (focused || r.kind == rowHeader) {
+		return m.activate()
+	}
+	return m, nil
+}
+
+func (m Model) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if m.adding || m.confirm {
+		return m, nil
+	}
+	if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
+		return m.click(msg.X, msg.Y)
+	}
+
 	up := msg.Button == tea.MouseButtonWheelUp
-	if m.adding || m.filtering || (!up && msg.Button != tea.MouseButtonWheelDown) {
+	if m.filtering || (!up && msg.Button != tea.MouseButtonWheelDown) {
 		return m, nil
 	}
 	if time.Since(m.wheel) < 20*time.Millisecond {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"net"
 	"time"
 
 	sbox "github.com/sagernet/sing-box"
@@ -53,9 +54,24 @@ func (s *Server) disconnect() (Status, error) {
 
 // assumes s.mu held
 func (s *Server) stop() {
-	if s.inst != nil {
-		s.inst.Close()
-		s.inst, s.node = nil, proxy.Node{}
+	if s.inst == nil {
+		return
+	}
+	if err := s.inst.Close(); err != nil {
+		s.log.Printf("closing the engine: %v", err)
+	}
+	if s.tunLive {
+		waitGone(tunInterface)
+	}
+	s.inst, s.node, s.tunLive = nil, proxy.Node{}, false
+}
+
+func waitGone(iface string) {
+	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); {
+		if _, err := net.InterfaceByName(iface); err != nil {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }
 
@@ -91,7 +107,7 @@ func (s *Server) start(n proxy.Node, sub string) error {
 		return err
 	}
 
-	s.inst, s.node, s.sub, s.started, s.lastErr = inst, n, sub, time.Now(), ""
+	s.inst, s.node, s.sub, s.started, s.lastErr, s.tunLive = inst, n, sub, time.Now(), "", iface != ""
 	if err := s.store.SetActive(n.ID); err != nil {
 		s.log.Printf("could not persist the active node: %v", err)
 	}
@@ -99,20 +115,11 @@ func (s *Server) start(n proxy.Node, sub string) error {
 	return nil
 }
 
-// tun mode toggle
 func (s *Server) setTun(enable bool) (Status, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.tun = enable
-	if s.inst == nil {
-		return s.status(), nil
-	}
-
-	n, sub := s.node, s.sub
-	if err := s.start(n, sub); err != nil {
-		return Status{}, err
-	}
 	s.broadcast()
 	return s.status(), nil
 }
@@ -120,7 +127,7 @@ func (s *Server) setTun(enable bool) (Status, error) {
 func (s *Server) status() Status {
 	st := Status{Port: port, Tun: s.tun, LastErr: s.lastErr}
 	if s.inst != nil {
-		st.Connected, st.Sub = true, s.sub
+		st.Connected, st.Sub, st.TunLive = true, s.sub, s.tunLive
 		st.NodeID, st.NodeName = s.node.ID, s.node.Name
 		st.Uptime = int64(time.Since(s.started).Seconds())
 	}

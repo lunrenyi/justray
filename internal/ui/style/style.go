@@ -10,7 +10,6 @@ import (
 )
 
 const (
-	// Static colors for better accessibility
 	green  = lipgloss.Color("#22c55e")
 	yellow = lipgloss.Color("#f59e0b")
 	red    = lipgloss.Color("#ef4444")
@@ -25,11 +24,22 @@ var (
 	Dim    = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 	Err    = lipgloss.NewStyle().Bold(true).Foreground(red)
 
+	pill    = lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Background(lipgloss.Color("4"))
+	pillCap = lipgloss.NewStyle().Foreground(lipgloss.Color("4"))
+
 	Alive   = lipgloss.NewStyle().Foreground(green)
 	Dead    = lipgloss.NewStyle().Foreground(red)
 	Pending = lipgloss.NewStyle().Foreground(yellow)
 	Unknown = lipgloss.NewStyle().Foreground(gray)
 )
+
+// one segment of a switch, the same width whether it is active or not
+func Segment(s string, active bool) string {
+	if !active {
+		return " " + Dim.Render(s) + " "
+	}
+	return pillCap.Render("▐") + pill.Render(s) + pillCap.Render("▌")
+}
 
 func Clip(s string, width int) string {
 	if width <= 0 {
@@ -49,7 +59,6 @@ func Pad(s string, w int) string {
 	}
 }
 
-// a static usage bar for a 0..1 fraction
 func Bar(fraction float64) string {
 	color := green
 	switch {

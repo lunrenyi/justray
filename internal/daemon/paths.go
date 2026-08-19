@@ -17,7 +17,6 @@ func Dir() (string, error) {
 	return filepath.Join(base, "justray"), nil
 }
 
-// creds
 func EnsureDir(dir string) error { return os.MkdirAll(dir, 0o700) }
 
 func Socket(dir string) string    { return filepath.Join(dir, "justrayd.sock") }

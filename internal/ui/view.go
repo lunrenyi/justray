@@ -11,6 +11,22 @@ import (
 	"github.com/luynrs/justray/internal/ui/style"
 )
 
+const (
+	modeProxy = " Proxy "
+	modeTun   = " TUN "
+)
+
+func modeAt(x, w int) (tun, ok bool) {
+	proxyW, tunW := lipgloss.Width(modeProxy)+2, lipgloss.Width(modeTun)+2 // +2 for the caps style.Segment adds
+	switch x -= w - proxyW - tunW; {
+	case x < 0:
+		return false, false
+	case x < proxyW:
+		return false, true
+	}
+	return true, true
+}
+
 func (m Model) View() string {
 	if m.quitting {
 		return ""
@@ -23,11 +39,15 @@ func (m Model) View() string {
 }
 
 func (m Model) titleLine() string {
-	title := style.Title.Render("JustRay")
+	right := m.modeSwitch()
 	if m.connected() {
-		title = flush(title, style.Dim.Render(fmt.Sprintf("proxy :%d", m.status.Port)), m.w)
+		right = style.Dim.Render(fmt.Sprintf(":%d", m.status.Port)) + "  " + right
 	}
-	return m.clip(title)
+	return m.clip(flush(style.Title.Render("JustRay"), right, m.w))
+}
+
+func (m Model) modeSwitch() string {
+	return style.Segment(modeProxy, !m.status.Tun) + style.Segment(modeTun, m.status.Tun)
 }
 
 func (m Model) tree() string {
@@ -122,7 +142,7 @@ func nameWidth(nodes []daemon.Node) int {
 	for _, n := range nodes {
 		w = max(w, lipgloss.Width(n.Name))
 	}
-	return min(w, 32) // name column cap
+	return min(w, 32)
 }
 
 func (m Model) node(n daemon.Node, selected bool) string {
@@ -169,6 +189,36 @@ func (m Model) dot(n daemon.Node) string {
 	return style.Dead.Render("●")
 }
 
+func (m Model) keys() [][2]string {
+	switch {
+	case m.confirm:
+		return [][2]string{{"y", "Delete"}, {"any", "Cancel"}}
+	case m.adding:
+		return [][2]string{{"↵", "Add"}, {"esc", "Cancel"}}
+	case m.filtering:
+		return [][2]string{{"type", "Filter"}, {"↵", "Apply"}, {"esc", "Clear"}}
+	}
+	return [][2]string{
+		{"↑/↓", "Move"}, {"←/→", "Fold"}, {"↵", "Toggle"}, {"t", "Ping"}, {"r", "Refresh"},
+		{"m", "Mode"}, {"/", "Filter"}, {"a", "Add"}, {"d", "Delete"}, {"q", "Quit"},
+	}
+}
+
+func (m Model) hints() string {
+	out, w := "", 0
+	for _, k := range m.keys() {
+		hint := style.Strong.Render(k[0]) + " " + style.Dim.Render(k[1])
+		if out != "" {
+			hint = "  " + hint
+		}
+		if w += lipgloss.Width(hint); w > m.w {
+			break
+		}
+		out += hint
+	}
+	return out
+}
+
 func (m Model) footer() string {
 	var status string
 	switch {
@@ -177,8 +227,8 @@ func (m Model) footer() string {
 	case m.connected():
 		uptime := time.Duration(time.Since(m.since).Seconds()) * time.Second
 		status = style.Strong.Render(fmt.Sprintf("● %s · %s", m.status.NodeName, uptime))
-		if m.status.Tun {
-			status += "  " + style.Dim.Render("tun")
+		if m.status.Tun != m.status.TunLive {
+			status += "  " + style.Dim.Render("reconnect to apply the new mode")
 		}
 	case m.live && m.status.LastErr != "":
 		status = style.Dim.Render("○ disconnected") + "  " + style.Err.Render("last error: "+m.status.LastErr)
@@ -191,29 +241,7 @@ func (m Model) footer() string {
 		status += "   " + style.Err.Render(m.err)
 	}
 
-	keys := [][2]string{
-		{"↑/↓", "Move"}, {"←/→", "Fold"}, {"↵", "Toggle"}, {"t", "Ping"}, {"r", "Refresh"},
-		{"m", "TUN"}, {"/", "Filter"}, {"a", "Add"}, {"d", "Delete"}, {"q", "Quit"},
-	}
-	switch {
-	case m.confirm:
-		keys = [][2]string{{"y", "Delete"}, {"any", "Cancel"}}
-	case m.adding:
-		keys = [][2]string{{"↵", "Add"}, {"esc", "Cancel"}}
-	case m.filtering:
-		keys = [][2]string{{"type", "Filter"}, {"↵", "Apply"}, {"esc", "Clear"}}
-	}
-	var help []string
-	used := 0
-	for _, k := range keys {
-		hint := style.Strong.Render(k[0]) + " " + style.Dim.Render(k[1])
-		if used += lipgloss.Width(hint) + 2; used-2 > m.w {
-			break
-		}
-		help = append(help, hint)
-	}
-
-	return "\n" + m.clip(status) + "\n" + m.clip(strings.Join(help, "  "))
+	return "\n" + m.clip(status) + "\n" + m.hints()
 }
 
 func usage(s daemon.Sub) string {

@@ -12,7 +12,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// subscription
 type Subscription struct {
 	ID        string       `yaml:"id"`
 	Name      string       `yaml:"name"`
@@ -22,7 +21,6 @@ type Subscription struct {
 	Traffic   Traffic      `yaml:"traffic,omitempty"`
 }
 
-// provider info
 type Traffic struct {
 	UploadBytes   int64     `yaml:"upload_bytes,omitempty"`
 	DownloadBytes int64     `yaml:"download_bytes,omitempty"`
@@ -76,7 +74,6 @@ func skipMissing(err error) error {
 	return err
 }
 
-// temp file + rename
 func write(path string, data []byte) error {
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".tmp-*")
 	if err != nil {

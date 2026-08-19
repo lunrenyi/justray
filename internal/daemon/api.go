@@ -58,5 +58,6 @@ type Status struct {
 	Uptime    int64 // seconds
 	LastErr   string
 	Port      int
-	Tun       bool
+	Tun       bool // the mode the next connect will use
+	TunLive   bool // the mode the running engine actually has
 }

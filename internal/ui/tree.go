@@ -116,7 +116,6 @@ func (m *Model) move(delta int) {
 	m.clamp()
 }
 
-// scroll
 func (m *Model) clamp() {
 	rows := m.rows()
 	sel := selectable(rows)
@@ -135,6 +134,19 @@ func (m *Model) clamp() {
 		m.scroll = pos - h + 1
 	}
 	m.scroll = min(max(m.scroll, 0), max(len(rows)-h, 0))
+}
+
+func (m *Model) point(y int) (focused, ok bool) {
+	rows := m.rows()
+	i := m.scroll + y - topLines
+	if y < topLines || y >= topLines+m.height() || i >= len(rows) || !rows[i].selectable() {
+		return false, false
+	}
+	c := len(selectable(rows[:i]))
+	focused = c == m.cursor
+	m.cursor = c
+	m.clamp()
+	return focused, true
 }
 
 func (m Model) activate() (tea.Model, tea.Cmd) {
@@ -222,8 +234,7 @@ func (m Model) probeAll() (tea.Model, tea.Cmd) {
 	return m, probeCmd(m.client, "", "")
 }
 
-func (m Model) toggleTun() (tea.Model, tea.Cmd) {
-	enable := !m.status.Tun
+func (m Model) setTun(enable bool) (tea.Model, tea.Cmd) {
 	return m, run(func() error { _, err := m.client.SetTun(enable); return err })
 }
 

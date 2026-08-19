@@ -17,7 +17,8 @@ import (
 const tunEnv = "JUSTRAY_TUN"
 
 func Needed(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "operation not permitted")
+	self, _ := os.Executable()
+	return err != nil && strings.Contains(err.Error(), "operation not permitted") && !hasNetAdmin(self)
 }
 
 // set across the re-exec below, so the daemon comes back with tun still on

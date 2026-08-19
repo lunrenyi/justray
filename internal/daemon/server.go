@@ -33,6 +33,7 @@ type Server struct {
 	started  time.Time
 	lastErr  string
 	tun      bool
+	tunLive  bool
 	probes   map[string]probeResult
 	watchers map[chan Status]struct{}
 }
@@ -90,7 +91,6 @@ func (s *Server) Shutdown() {
 	s.stop()
 }
 
-// reconnect to the last active node
 func (s *Server) Restore() {
 	s.mu.Lock()
 	defer s.mu.Unlock()

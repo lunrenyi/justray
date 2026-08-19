@@ -51,7 +51,6 @@ func probeCmd(c *daemon.Client, sub, id string) tea.Cmd {
 	}
 }
 
-// connection watchdog
 func watch(c *daemon.Client, ch chan<- daemon.Status) tea.Cmd {
 	return func() tea.Msg {
 		go func() {
