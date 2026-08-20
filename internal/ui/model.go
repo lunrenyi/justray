@@ -25,6 +25,7 @@ type Model struct {
 	spin       spinner.Model
 	cursor     int
 	scroll     int
+	wheel      time.Time
 
 	adding    bool
 	url       textinput.Model
@@ -32,7 +33,7 @@ type Model struct {
 	filter    textinput.Model
 	query     string
 
-	confirm bool
+	confirmSub string
 
 	status   daemon.Status
 	live     bool
@@ -50,7 +51,7 @@ func New(c *daemon.Client) Model {
 		client:    c,
 		collapsed: map[string]bool{},
 		spin:      spinner.New(spinner.WithSpinner(spinner.MiniDot)),
-		url:       input("Add:  ", "subscription URL, or a vless:// vmess:// trojan:// ss:// link", 2048),
+		url:       input("Add:  ", "subscription URL, or a vless://, vmess://, trojan://, ss://, etc. link", 2048),
 		filter:    input("~ ", "filter by name, protocol, server…", 128),
 		statusCh:  make(chan daemon.Status),
 	}
@@ -116,10 +117,11 @@ func (m Model) key(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	switch {
-	case m.confirm:
-		m.confirm = false
+	case m.confirmSub != "":
+		id := m.confirmSub
+		m.confirmSub = ""
 		if k == "y" {
-			return m.remove()
+			return m.remove(id)
 		}
 		return m, nil
 
@@ -156,7 +158,9 @@ func (m Model) key(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "/":
 		return m, m.startFiltering()
 	case "d":
-		_, m.confirm = m.at()
+		if r, ok := m.at(); ok {
+			m.confirmSub = r.subID()
+		}
 	case "q":
 		return m.quit()
 	case "esc":
@@ -183,17 +187,24 @@ func (m Model) click(x, y int) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	if m.adding || m.confirm {
+	if m.adding || m.confirmSub != "" {
 		return m, nil
 	}
 	if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
 		return m.click(msg.X, msg.Y)
 	}
 
-	switch msg.Button {
-	case tea.MouseButtonWheelUp:
+	up := msg.Button == tea.MouseButtonWheelUp
+	if m.filtering || (!up && msg.Button != tea.MouseButtonWheelDown) {
+		return m, nil
+	}
+	if time.Since(m.wheel) < 20*time.Millisecond {
+		return m, nil
+	}
+	m.wheel = time.Now()
+	if up {
 		m.move(-1)
-	case tea.MouseButtonWheelDown:
+	} else {
 		m.move(1)
 	}
 	return m, nil

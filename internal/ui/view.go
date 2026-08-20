@@ -29,9 +29,19 @@ func modeAt(x, w int) (tun, ok bool) {
 
 func segW(s string) int { return lipgloss.Width(style.Segment(s, false)) }
 
+func firstLine(s string) string {
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		return s[:i]
+	}
+	return s
+}
+
 func (m Model) View() string {
 	if m.quitting {
 		return ""
+	}
+	if m.h < topLines+footerLines+1 {
+		return m.titleLine()
 	}
 	body := m.tree()
 	if m.adding {
@@ -117,9 +127,10 @@ func (m Model) header(s daemon.Sub, selected bool) string {
 	if m.collapsed[s.ID] {
 		arrow = "▸"
 	}
-	name := style.Name.Render(s.Name)
+	clean := style.Sanitize(s.Name)
+	name := style.Name.Render(clean)
 	if selected {
-		name = style.Strong.Render(s.Name)
+		name = style.Strong.Render(clean)
 	}
 	return arrow + " " + name
 }
@@ -148,7 +159,7 @@ func nameWidth(nodes []daemon.Node) int {
 }
 
 func (m Model) node(n daemon.Node, selected bool) string {
-	name := style.Pad(n.Name, m.nameW)
+	name := style.Pad(style.Sanitize(n.Name), m.nameW)
 	if selected {
 		name = style.Accent.Render(name)
 	}
@@ -193,7 +204,7 @@ func (m Model) dot(n daemon.Node) string {
 
 func (m Model) keys() [][2]string {
 	switch {
-	case m.confirm:
+	case m.confirmSub != "":
 		return [][2]string{{"y", "Delete"}, {"any", "Cancel"}}
 	case m.adding:
 		return [][2]string{{"↵", "Add"}, {"esc", "Cancel"}}
@@ -206,14 +217,14 @@ func (m Model) keys() [][2]string {
 	}
 }
 
-func (m Model) hints() string {
+func (m Model) hints(maxW int) string {
 	out, w := "", 0
 	for _, k := range m.keys() {
 		hint := style.Strong.Render(k[0]) + " " + style.Dim.Render(k[1])
 		if out != "" {
 			hint = "  " + hint
 		}
-		if w += lipgloss.Width(hint); w > m.w {
+		if w += lipgloss.Width(hint); w > maxW {
 			break
 		}
 		out += hint
@@ -224,23 +235,27 @@ func (m Model) hints() string {
 func (m Model) footer() string {
 	var status string
 	switch {
-	case m.confirm:
-		status = style.Err.Render("delete this subscription?") + " " + style.Dim.Render("cannot be undone")
 	case m.connected():
 		uptime := time.Duration(time.Since(m.since).Seconds()) * time.Second
-		status = style.Strong.Render(fmt.Sprintf("● %s · %s", m.status.NodeName, uptime))
+		status = style.Strong.Render(fmt.Sprintf("● %s · %s", style.Sanitize(m.status.NodeName), uptime))
 	case m.live && m.status.LastErr != "":
-		status = style.Dim.Render("○ disconnected") + "  " + style.Err.Render("last error: "+m.status.LastErr)
+		status = style.Dim.Render("○ disconnected") + "  " + style.Err.Render("last error: "+firstLine(m.status.LastErr))
 	case m.live:
 		status = style.Dim.Render("○ disconnected")
 	default:
 		status = style.Dim.Render("○ connecting to the daemon…")
 	}
 	if m.err != "" {
-		status += "   " + style.Err.Render(m.err)
+		status += "   " + style.Err.Render(firstLine(m.err))
 	}
 
-	return "\n" + m.clip(status) + "\n" + m.hints()
+	hints := m.hints(m.w)
+	if m.confirmSub != "" {
+		question := style.Err.Render("delete " + style.Sanitize(m.subName(m.confirmSub)) + "?")
+		hints = question + "  " + m.hints(max(m.w-lipgloss.Width(question)-2, 0))
+	}
+
+	return "\n" + m.clip(status) + "\n" + m.clip(hints)
 }
 
 func usage(s daemon.Sub) string {

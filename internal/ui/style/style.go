@@ -22,7 +22,7 @@ var (
 	Strong = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
 	Name   = lipgloss.NewStyle().Bold(true)
 	Dim    = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
-	Err    = lipgloss.NewStyle().Bold(true).Foreground(red)
+	Err    = lipgloss.NewStyle().Foreground(red)
 
 	pill    = lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Background(lipgloss.Color("4"))
 	pillCap = lipgloss.NewStyle().Foreground(lipgloss.Color("4"))
@@ -52,10 +52,23 @@ func Pad(s string, w int) string {
 	case w <= 0:
 		return ""
 	case n > w:
-		return lipgloss.NewStyle().MaxWidth(w-1).Render(s) + "…"
+		t := lipgloss.NewStyle().MaxWidth(w-1).Render(s) + "…"
+		if shortfall := w - lipgloss.Width(t); shortfall > 0 {
+			t += strings.Repeat(" ", shortfall)
+		}
+		return t
 	default:
 		return s + strings.Repeat(" ", w-n)
 	}
+}
+
+func Sanitize(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f {
+			return -1
+		}
+		return r
+	}, s)
 }
 
 func Bar(fraction float64) string {
@@ -95,11 +108,14 @@ func Expiry(t time.Time) string {
 }
 
 func span(d time.Duration) string {
-	switch {
-	case d < time.Hour:
-		return fmt.Sprintf("%dm", int(d.Minutes()))
-	case d < 24*time.Hour:
-		return fmt.Sprintf("%dh", int(d.Hours()))
+	if d < 0 {
+		d = 0
 	}
-	return fmt.Sprintf("%dd", int(d.Hours()/24))
+	switch {
+	case d < time.Hour-30*time.Second:
+		return fmt.Sprintf("%dm", (d+30*time.Second)/time.Minute)
+	case d < 24*time.Hour-30*time.Minute:
+		return fmt.Sprintf("%dh", (d+30*time.Minute)/time.Hour)
+	}
+	return fmt.Sprintf("%dd", (d+12*time.Hour)/(24*time.Hour))
 }

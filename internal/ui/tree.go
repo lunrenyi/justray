@@ -238,11 +238,15 @@ func (m Model) setTun(enable bool) (tea.Model, tea.Cmd) {
 	return m, run(func() error { _, err := m.client.SetTun(enable); return err })
 }
 
-func (m Model) remove() (tea.Model, tea.Cmd) {
-	r, ok := m.at()
-	if !ok {
-		return m, nil
-	}
-	id := r.subID()
+func (m Model) remove(id string) (tea.Model, tea.Cmd) {
 	return m, act(m.client, func() error { return m.client.RemoveSub(id) })
+}
+
+func (m Model) subName(id string) string {
+	for _, s := range m.subs {
+		if s.ID == id {
+			return s.Name
+		}
+	}
+	return ""
 }
