@@ -164,9 +164,9 @@ func (m Model) activate() (tea.Model, tea.Cmd) {
 	}
 	m.connecting = true
 	if m.connected() && m.status.NodeID == r.node.ID {
-		return m, connectCmd(func() error { _, err := m.client.Disconnect(); return err })
+		return m, tea.Batch(m.spin.Tick, connectCmd(func() error { _, err := m.client.Disconnect(); return err }))
 	}
-	return m, connectCmd(func() error { _, err := m.client.Connect(r.node.ID); return err })
+	return m, tea.Batch(m.spin.Tick, connectCmd(func() error { _, err := m.client.Connect(r.node.ID); return err }))
 }
 
 func (m Model) collapse() (tea.Model, tea.Cmd) {
@@ -243,7 +243,7 @@ func (m Model) setTun(enable bool) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.connecting = true
-	return m, connectCmd(func() error { _, err := m.client.SetTun(enable); return err })
+	return m, tea.Batch(m.spin.Tick, connectCmd(func() error { _, err := m.client.SetTun(enable); return err }))
 }
 
 func (m Model) remove(id string) (tea.Model, tea.Cmd) {

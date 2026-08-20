@@ -28,10 +28,16 @@ import (
 	"github.com/sagernet/sing-box/protocol/wireguard"
 )
 
-// only the protocols justray actually speaks, not the vendor's full include
-// package (which also drags in tor, ssh, tailscale, caddy/ACME, cronet...)
+var ( // read-only, built once instead of on every connect/probe
+	inboundReg  = inboundRegistry()
+	outboundReg = outboundRegistry()
+	endpointReg = endpointRegistry()
+	dnsReg      = dnsTransportRegistry()
+	serviceReg  = boxservice.NewRegistry()
+)
+
 func Context(ctx context.Context) context.Context {
-	return sbox.Context(ctx, inboundRegistry(), outboundRegistry(), endpointRegistry(), dnsTransportRegistry(), boxservice.NewRegistry())
+	return sbox.Context(ctx, inboundReg, outboundReg, endpointReg, dnsReg, serviceReg)
 }
 
 func inboundRegistry() *inbound.Registry {

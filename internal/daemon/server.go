@@ -66,6 +66,12 @@ func New(dir string, logger *log.Logger) *Server {
 	}
 }
 
+func (s *Server) subscriptions() ([]store.Subscription, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.store.Subscriptions()
+}
+
 func Listen(socket string) (net.Listener, error) {
 	unlock, err := lock.File(socket + ".lock")
 	if err != nil {
@@ -103,8 +109,6 @@ func (s *Server) Serve(ln net.Listener) error {
 func (s *Server) Shutdown() {
 	s.opMu.Lock()
 	defer s.opMu.Unlock()
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.stop()
 }
 

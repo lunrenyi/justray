@@ -27,18 +27,14 @@ func (s *Server) connect(id string) (Status, error) {
 	s.opMu.Lock()
 	defer s.opMu.Unlock()
 
-	s.mu.Lock()
-	subs, err := s.store.Subscriptions()
+	subs, err := s.subscriptions()
 	if err != nil {
-		s.mu.Unlock()
 		return Status{}, err
 	}
 	n, sub, ok := find(subs, id)
 	if !ok {
-		s.mu.Unlock()
 		return Status{}, fmt.Errorf("node %q not found", id)
 	}
-	s.mu.Unlock()
 
 	return s.finish(s.start(n, sub))
 }
@@ -49,8 +45,9 @@ func (s *Server) disconnect() (Status, error) {
 
 	s.mu.Lock()
 	name := s.node.Name
-	s.clear()
 	s.mu.Unlock()
+
+	s.clear()
 
 	if name != "" {
 		s.log.Printf("disconnected from %s", name)
@@ -64,16 +61,20 @@ func (s *Server) finish(err error) (Status, error) {
 }
 
 func (s *Server) stop() {
-	if s.inst == nil {
+	s.mu.Lock()
+	inst, tunLive := s.inst, s.tunLive
+	s.inst, s.node, s.sub, s.tunLive = nil, proxy.Node{}, "", false
+	s.mu.Unlock()
+
+	if inst == nil {
 		return
 	}
-	if err := s.inst.Close(); err != nil {
+	if err := inst.Close(); err != nil {
 		s.log.Printf("closing the engine: %v", err)
 	}
-	if s.tunLive {
+	if tunLive {
 		waitGone(tunInterface)
 	}
-	s.inst, s.node, s.sub, s.tunLive = nil, proxy.Node{}, "", false
 }
 
 func newEngine(opts option.Options) (*sbox.Box, error) {
@@ -95,7 +96,9 @@ func waitGone(iface string) {
 
 func (s *Server) clear() {
 	s.stop()
+	s.mu.Lock()
 	s.lastErr = ""
+	s.mu.Unlock()
 	if err := s.store.SetActive(""); err != nil {
 		s.log.Printf("could not clear the active node: %v", err)
 	}
@@ -107,15 +110,16 @@ func (s *Server) start(n proxy.Node, sub string) error {
 	if s.tun {
 		iface = tunInterface
 	}
-	s.stop()
 	s.mu.Unlock()
+
+	s.stop()
 
 	opts, err := core.Build(n, port, coreLog(s.dir), iface)
 	var inst *sbox.Box
 	if err == nil {
 		inst, err = newEngine(*opts)
 	}
-	if err != nil && iface != "" && errors.Is(err, syscall.EBUSY) {
+	for i := 0; i < 2 && err != nil && iface != "" && errors.Is(err, syscall.EBUSY); i++ {
 		if inst != nil {
 			inst.Close()
 		}
@@ -131,6 +135,9 @@ func (s *Server) start(n proxy.Node, sub string) error {
 			inst.Close()
 		}
 		if iface != "" && elevate.Needed(err) {
+			if err := s.store.SetActive(n.ID); err != nil {
+				s.log.Printf("could not persist the active node: %v", err)
+			}
 			go elevate.Tun(s.log, s.dir)
 			return fmt.Errorf("granting tun permission, reconnecting…")
 		}
@@ -201,9 +208,7 @@ func (s *Server) nodes() ([]Node, error) {
 
 // one node if id is set, else every node in sub, else all of them
 func (s *Server) probe(sub, id string) ([]Node, error) {
-	s.mu.Lock()
-	subs, err := s.store.Subscriptions()
-	s.mu.Unlock()
+	subs, err := s.subscriptions()
 	if err != nil {
 		return nil, err
 	}

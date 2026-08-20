@@ -80,7 +80,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tickCmd()
 
 	case spinner.TickMsg:
-		if len(m.refreshing) == 0 {
+		if len(m.refreshing) == 0 && !m.connecting {
 			return m, nil
 		}
 		var cmd tea.Cmd

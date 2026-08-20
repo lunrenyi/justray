@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	C "github.com/sagernet/sing-box/constant"
@@ -147,10 +148,21 @@ func ProbeConfig(nodes []proxy.Node, logPath string) *option.Options {
 		Log:   &option.LogOptions{Level: LogLevel(), Output: logPath},
 		Route: &option.RouteOptions{AutoDetectInterface: true},
 	}
+	resolvedNodes := make([]proxy.Node, len(nodes))
+	var wg sync.WaitGroup
 	for i, n := range nodes {
-		if r, err := resolved(n); err == nil {
-			n = r
-		}
+		wg.Add(1)
+		go func(i int, n proxy.Node) {
+			defer wg.Done()
+			if r, err := resolved(n); err == nil {
+				n = r
+			}
+			resolvedNodes[i] = n
+		}(i, n)
+	}
+	wg.Wait()
+
+	for i, n := range resolvedNodes {
 		_ = Add(opts, n, ProbeTag(i))
 	}
 	return opts

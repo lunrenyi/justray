@@ -193,13 +193,13 @@ func (m Model) dot(n daemon.Node) string {
 	case m.connected() && m.status.NodeID == n.ID:
 		return style.Strong.Render("●")
 	case m.probing[n.ID]:
-		return style.Pending.Render("●")
+		return style.Pending.Render("○")
 	case !n.Probed:
-		return style.Unknown.Render("●")
+		return style.Unknown.Render("○")
 	case n.Alive:
-		return style.Alive.Render("●")
+		return style.Alive.Render("○")
 	}
-	return style.Dead.Render("●")
+	return style.Dead.Render("○")
 }
 
 func (m Model) keys() [][2]string {
@@ -233,17 +233,25 @@ func (m Model) hints(maxW int) string {
 }
 
 func (m Model) footer() string {
+	icon := "○"
+	if m.connected() {
+		icon = "●"
+	}
+	if m.connecting {
+		icon = m.spin.View()
+	}
+
 	var status string
 	switch {
 	case m.connected():
 		uptime := time.Duration(time.Since(m.since).Seconds()) * time.Second
-		status = style.Strong.Render(fmt.Sprintf("● %s · %s", style.Sanitize(m.status.NodeName), uptime))
+		status = style.Strong.Render(fmt.Sprintf("%s %s · %s", icon, style.Sanitize(m.status.NodeName), uptime))
 	case m.live && m.status.LastErr != "":
-		status = style.Dim.Render("○ disconnected") + "  " + style.Err.Render("last error: "+firstLine(m.status.LastErr))
+		status = style.Dim.Render(icon+" disconnected") + "  " + style.Err.Render("last error: "+firstLine(m.status.LastErr))
 	case m.live:
-		status = style.Dim.Render("○ disconnected")
+		status = style.Dim.Render(icon + " disconnected")
 	default:
-		status = style.Dim.Render("○ connecting to the daemon…")
+		status = style.Dim.Render(icon + " connecting to the daemon…")
 	}
 	if m.err != "" {
 		status += "   " + style.Err.Render(firstLine(m.err))

@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/luynrs/justray/internal/daemon/store"
@@ -20,10 +21,7 @@ import (
 const maxBody = 10 << 20
 
 func (s *Server) subs() ([]Sub, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	subs, err := s.store.Subscriptions()
+	subs, err := s.subscriptions()
 	if err != nil {
 		return nil, err
 	}
@@ -61,21 +59,26 @@ func (s *Server) addSub(rawURL string) (Sub, error) {
 func (s *Server) removeSub(id string) error {
 	s.opMu.Lock()
 	defer s.opMu.Unlock()
-	s.mu.Lock()
-	defer s.mu.Unlock()
 
+	s.mu.Lock()
 	subs, err := s.store.Subscriptions()
 	if err != nil {
+		s.mu.Unlock()
 		return err
 	}
 	kept := slices.DeleteFunc(subs, func(sub store.Subscription) bool { return sub.ID == id })
 	if len(kept) == len(subs) {
+		s.mu.Unlock()
 		return fmt.Errorf("subscription %q not found", id)
 	}
 	if err := s.store.Save(kept); err != nil {
+		s.mu.Unlock()
 		return err
 	}
-	if s.sub == id {
+	active := s.sub == id
+	s.mu.Unlock()
+
+	if active {
 		s.clear()
 		s.broadcast()
 	}
@@ -83,18 +86,27 @@ func (s *Server) removeSub(id string) error {
 }
 
 func (s *Server) refreshAll() ([]Sub, error) {
-	s.mu.Lock()
-	subs, err := s.store.Subscriptions()
-	s.mu.Unlock()
+	subs, err := s.subscriptions()
 	if err != nil {
 		return nil, err
 	}
 
+	errs := make([]error, len(subs))
+	var wg sync.WaitGroup
+	for i := range subs {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			errs[i] = s.fill(&subs[i])
+		}(i)
+	}
+	wg.Wait()
+
 	out := make([]Sub, 0, len(subs))
 	updated := make([]store.Subscription, 0, len(subs))
 	var failed error
-	for i := range subs {
-		if err := s.fill(&subs[i]); err != nil {
+	for i, err := range errs {
+		if err != nil {
 			failed = err
 			s.log.Printf("refresh %s: %v", subs[i].Name, err)
 			continue
@@ -115,9 +127,7 @@ func (s *Server) refreshAll() ([]Sub, error) {
 }
 
 func (s *Server) refresh(id string) (Sub, error) {
-	s.mu.Lock()
-	subs, err := s.store.Subscriptions()
-	s.mu.Unlock()
+	subs, err := s.subscriptions()
 	if err != nil {
 		return Sub{}, err
 	}
