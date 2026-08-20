@@ -16,6 +16,12 @@ type loaded struct {
 
 type pushed daemon.Status
 
+type connectResult struct{ err error }
+
+func connectCmd(fn func() error) tea.Cmd {
+	return func() tea.Msg { return connectResult{fn()} }
+}
+
 type tick struct{}
 
 func load(c *daemon.Client) tea.Msg {
@@ -29,10 +35,6 @@ func load(c *daemon.Client) tea.Msg {
 
 func loadCmd(c *daemon.Client) tea.Cmd {
 	return func() tea.Msg { return load(c) }
-}
-
-func run(fn func() error) tea.Cmd {
-	return func() tea.Msg { return loaded{err: fn()} }
 }
 
 func act(c *daemon.Client, fn func() error) tea.Cmd {

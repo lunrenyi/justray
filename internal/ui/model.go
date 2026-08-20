@@ -35,10 +35,11 @@ type Model struct {
 
 	confirmSub string
 
-	status   daemon.Status
-	live     bool
-	since    time.Time
-	statusCh chan daemon.Status
+	status     daemon.Status
+	live       bool
+	since      time.Time
+	statusCh   chan daemon.Status
+	connecting bool
 
 	err string
 
@@ -100,6 +101,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.nameW = nameWidth(m.nodes)
 		}
 		m.clamp()
+
+	case connectResult:
+		m.connecting = false
+		m.err = ""
+		if msg.err != nil {
+			m.err = msg.err.Error()
+		}
 
 	case pushed:
 		st := daemon.Status(msg)

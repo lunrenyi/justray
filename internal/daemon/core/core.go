@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -41,7 +42,7 @@ func Build(n proxy.Node, port int, logPath, tun string) (*option.Options, error)
 	}
 
 	resolverIPs := resolvers()
-	opts.Inbounds = append(opts.Inbounds, option.Inbound{Type: C.TypeTun, Tag: "tun-in", Options: &option.TunInboundOptions{
+	tunOpts := &option.TunInboundOptions{
 		InterfaceName: tun,
 		MTU:           1500,
 		Stack:         "gvisor",
@@ -55,7 +56,11 @@ func Build(n proxy.Node, port int, logPath, tun string) (*option.Options, error)
 			netip.MustParsePrefix("0.0.0.0/0"),
 			netip.MustParsePrefix("::/0"),
 		}, resolverIPs...),
-	}})
+	}
+	if runtime.GOOS == "linux" {
+		tunOpts.ExcludeUID = []uint32{uint32(os.Getuid())}
+	}
+	opts.Inbounds = append(opts.Inbounds, option.Inbound{Type: C.TypeTun, Tag: "tun-in", Options: tunOpts})
 	opts.DNS = &option.DNSOptions{RawDNSOptions: option.RawDNSOptions{Servers: []option.DNSServerOptions{
 		{Type: C.DNSTypeUDP, Tag: "remote", Options: &option.RemoteDNSServerOptions{
 			RawLocalDNSServerOptions: option.RawLocalDNSServerOptions{
@@ -143,6 +148,9 @@ func ProbeConfig(nodes []proxy.Node, logPath string) *option.Options {
 		Route: &option.RouteOptions{AutoDetectInterface: true},
 	}
 	for i, n := range nodes {
+		if r, err := resolved(n); err == nil {
+			n = r
+		}
 		_ = Add(opts, n, ProbeTag(i))
 	}
 	return opts

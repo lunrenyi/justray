@@ -2,12 +2,15 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"net"
+	"syscall"
 	"time"
 
 	sbox "github.com/sagernet/sing-box"
+	"github.com/sagernet/sing-box/option"
 
 	"github.com/luynrs/justray/internal/daemon/core"
 	"github.com/luynrs/justray/internal/daemon/elevate"
@@ -73,6 +76,14 @@ func (s *Server) stop() {
 	s.inst, s.node, s.sub, s.tunLive = nil, proxy.Node{}, "", false
 }
 
+func newEngine(opts option.Options) (*sbox.Box, error) {
+	inst, err := sbox.New(sbox.Options{Options: opts, Context: core.Context(context.Background())})
+	if err == nil {
+		err = inst.Start()
+	}
+	return inst, err
+}
+
 func waitGone(iface string) {
 	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); {
 		if _, err := net.InterfaceByName(iface); err != nil {
@@ -102,10 +113,14 @@ func (s *Server) start(n proxy.Node, sub string) error {
 	opts, err := core.Build(n, port, coreLog(s.dir), iface)
 	var inst *sbox.Box
 	if err == nil {
-		inst, err = sbox.New(sbox.Options{Options: *opts, Context: core.Context(context.Background())})
+		inst, err = newEngine(*opts)
 	}
-	if err == nil {
-		err = inst.Start()
+	if err != nil && iface != "" && errors.Is(err, syscall.EBUSY) {
+		if inst != nil {
+			inst.Close()
+		}
+		waitGone(iface)
+		inst, err = newEngine(*opts)
 	}
 
 	s.mu.Lock()
