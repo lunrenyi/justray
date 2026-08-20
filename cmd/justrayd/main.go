@@ -8,11 +8,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
+
+	"github.com/charmbracelet/log"
 
 	"github.com/luynrs/justray/internal/daemon"
 )
@@ -32,18 +33,21 @@ func main() {
 		die("create config dir:", err)
 	}
 
-	logFile, err := os.OpenFile(daemon.DaemonLog(*dir), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	logFile, err := os.OpenFile(daemon.DaemonLog(*dir), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		die("open log file:", err)
 	}
 	defer logFile.Close()
-	logger := log.New(io.MultiWriter(os.Stderr, logFile), "justrayd: ", log.LstdFlags)
+	logger := log.NewWithOptions(io.MultiWriter(os.Stderr, logFile), log.Options{
+		ReportTimestamp: true,
+		Prefix:          "justrayd",
+	})
 
 	socket := daemon.Socket(*dir)
 	ln, err := daemon.Listen(socket)
 	if err != nil {
 		if strings.Contains(err.Error(), "already listening") {
-			logger.Print(err, ", exiting")
+			logger.Printf("%v, exiting", err)
 			return
 		}
 		logger.Fatal(err)

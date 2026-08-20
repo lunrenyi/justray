@@ -17,7 +17,12 @@ func Dir() (string, error) {
 	return filepath.Join(base, "justray"), nil
 }
 
-func EnsureDir(dir string) error { return os.MkdirAll(dir, 0o700) }
+func EnsureDir(dir string) error {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	return os.Chmod(dir, 0o700)
+}
 
 func Socket(dir string) string    { return filepath.Join(dir, "justrayd.sock") }
 func DaemonLog(dir string) string { return filepath.Join(dir, "justrayd.log") }

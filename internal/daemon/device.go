@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"cmp"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"time"
 )
 
 // Device info; X-Hwid is required, the rest cosmetic
@@ -76,6 +78,8 @@ func readFile(p string) string {
 }
 
 func run(name string, arg ...string) string {
-	out, _ := exec.Command(name, arg...).Output()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	out, _ := exec.CommandContext(ctx, name, arg...).Output()
 	return strings.TrimSpace(string(out))
 }

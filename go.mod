@@ -6,6 +6,7 @@ require (
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/charmbracelet/log v1.0.0
 	github.com/sagernet/sing v0.8.13
 	github.com/sagernet/sing-box v1.13.19
 	golang.org/x/sys v0.47.0
@@ -32,6 +33,7 @@ require (
 	github.com/florianl/go-nfqueue/v2 v2.0.2 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-chi/chi/v5 v5.2.5 // indirect
+	github.com/go-logfmt/logfmt v0.6.1 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/gobwas/httphead v0.1.0 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect

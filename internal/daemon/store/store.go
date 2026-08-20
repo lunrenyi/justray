@@ -67,6 +67,22 @@ func (d Disk) SetActive(nodeID string) error {
 	return write(activePath(d.Dir), []byte(nodeID))
 }
 
+func (d Disk) Tun() (bool, error) {
+	data, err := os.ReadFile(tunPath(d.Dir))
+	if err != nil {
+		return false, skipMissing(err)
+	}
+	return strings.TrimSpace(string(data)) == "1", nil
+}
+
+func (d Disk) SetTun(enabled bool) error {
+	v := "0"
+	if enabled {
+		v = "1"
+	}
+	return write(tunPath(d.Dir), []byte(v))
+}
+
 func skipMissing(err error) error {
 	if os.IsNotExist(err) {
 		return nil
@@ -85,6 +101,10 @@ func write(path string, data []byte) error {
 		tmp.Close()
 		return err
 	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
 	if err := tmp.Close(); err != nil {
 		return err
 	}
@@ -99,3 +119,4 @@ func NewID() string {
 
 func subsPath(dir string) string   { return filepath.Join(dir, "subscriptions.yaml") }
 func activePath(dir string) string { return filepath.Join(dir, "active") }
+func tunPath(dir string) string    { return filepath.Join(dir, "tun") }

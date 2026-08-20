@@ -21,36 +21,45 @@ const (
 )
 
 func (s *Server) connect(id string) (Status, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
 
+	s.mu.Lock()
 	subs, err := s.store.Subscriptions()
 	if err != nil {
+		s.mu.Unlock()
 		return Status{}, err
 	}
 	n, sub, ok := find(subs, id)
 	if !ok {
+		s.mu.Unlock()
 		return Status{}, fmt.Errorf("node %q not found", id)
 	}
-	err = s.start(n, sub)
-	s.broadcast()
-	return s.status(), err
+	s.mu.Unlock()
+
+	return s.finish(s.start(n, sub))
 }
 
 func (s *Server) disconnect() (Status, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
 
+	s.mu.Lock()
 	name := s.node.Name
 	s.clear()
+	s.mu.Unlock()
+
 	if name != "" {
 		s.log.Printf("disconnected from %s", name)
 	}
-	s.broadcast()
-	return s.status(), nil
+	return s.finish(nil)
 }
 
-// assumes s.mu held
+// finish broadcasts the post-op status and passes err through.
+func (s *Server) finish(err error) (Status, error) {
+	return s.broadcast(), err
+}
+
 func (s *Server) stop() {
 	if s.inst == nil {
 		return
@@ -61,7 +70,7 @@ func (s *Server) stop() {
 	if s.tunLive {
 		waitGone(tunInterface)
 	}
-	s.inst, s.node, s.tunLive = nil, proxy.Node{}, false
+	s.inst, s.node, s.sub, s.tunLive = nil, proxy.Node{}, "", false
 }
 
 func waitGone(iface string) {
@@ -75,29 +84,37 @@ func waitGone(iface string) {
 
 func (s *Server) clear() {
 	s.stop()
-	s.sub, s.lastErr = "", ""
+	s.lastErr = ""
 	if err := s.store.SetActive(""); err != nil {
 		s.log.Printf("could not clear the active node: %v", err)
 	}
 }
 
 func (s *Server) start(n proxy.Node, sub string) error {
+	s.mu.Lock()
 	iface := ""
 	if s.tun {
 		iface = tunInterface
 	}
 	s.stop()
+	s.mu.Unlock()
 
 	opts, err := core.Build(n, port, coreLog(s.dir), iface)
-	if err != nil {
-		return err
+	var inst *sbox.Box
+	if err == nil {
+		inst, err = sbox.New(sbox.Options{Options: *opts, Context: core.Context(context.Background())})
 	}
-	inst, err := sbox.New(sbox.Options{Options: *opts, Context: core.Context(context.Background())})
 	if err == nil {
 		err = inst.Start()
 	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if err != nil {
 		s.lastErr = err.Error()
+		if inst != nil {
+			inst.Close()
+		}
 		if iface != "" && elevate.Needed(err) {
 			go elevate.Tun(s.log, s.dir)
 			return fmt.Errorf("granting tun permission, reconnecting…")
@@ -114,16 +131,22 @@ func (s *Server) start(n proxy.Node, sub string) error {
 }
 
 func (s *Server) setTun(enable bool) (Status, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
 
+	s.mu.Lock()
 	s.tun = enable
-	var err error
-	if s.inst != nil {
-		err = s.start(s.node, s.sub)
+	if err := s.store.SetTun(enable); err != nil {
+		s.log.Printf("could not persist tun state: %v", err)
 	}
-	s.broadcast()
-	return s.status(), err
+	n, sub, connected := s.node, s.sub, s.inst != nil
+	s.mu.Unlock()
+
+	var err error
+	if connected {
+		err = s.start(n, sub)
+	}
+	return s.finish(err)
 }
 
 func (s *Server) status() Status {

@@ -4,27 +4,23 @@ package elevate
 
 import (
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"io"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
-)
 
-const tunEnv = "JUSTRAY_TUN"
+	"github.com/charmbracelet/log"
+)
 
 func Needed(err error) bool {
 	self, _ := os.Executable()
 	return err != nil && strings.Contains(err.Error(), "operation not permitted") && !hasNetAdmin(self)
 }
 
-// set across the re-exec below, so the daemon comes back with tun still on
-func Restarted() bool { return os.Getenv(tunEnv) == "1" }
-
-// CAP_NET_ADMIN
 func Tun(logger *log.Logger, dir string) {
 	target, err := cachedCopy(dir)
 	if err != nil {
@@ -44,7 +40,7 @@ func Tun(logger *log.Logger, dir string) {
 	}
 
 	logger.Print("elevate: got cap_net_admin, restarting")
-	if err := syscall.Exec(target, os.Args, append(os.Environ(), tunEnv+"=1")); err != nil {
+	if err := syscall.Exec(target, os.Args, os.Environ()); err != nil {
 		logger.Printf("elevate: re-exec: %v", err)
 	}
 }
@@ -61,7 +57,7 @@ func cachedCopy(dir string) (string, error) {
 
 	root := filepath.Join(dir, "elevated")
 	target := filepath.Join(root, sum, "justrayd")
-	if _, err := os.Stat(target); err == nil {
+	if verified(target, sum) {
 		return target, nil
 	}
 	if err := os.RemoveAll(root); err != nil {
@@ -71,6 +67,15 @@ func cachedCopy(dir string) (string, error) {
 		return "", err
 	}
 	return target, copyFile(self, target)
+}
+
+func verified(path, sum string) bool {
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() {
+		return false
+	}
+	got, err := hashFile(path)
+	return err == nil && got == sum
 }
 
 func hashFile(path string) (string, error) {
@@ -94,7 +99,7 @@ func copyFile(src, dst string) error {
 	}
 	defer in.Close()
 
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o700)
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0o700)
 	if err != nil {
 		return err
 	}
@@ -106,8 +111,16 @@ func copyFile(src, dst string) error {
 	return out.Close()
 }
 
+const capNetAdmin = 12
+
 func hasNetAdmin(path string) bool {
-	buf := make([]byte, 128)
+	buf := make([]byte, 32) // fits VFS_CAP_REVISION_3 (24 bytes)
 	n, err := syscall.Getxattr(path, "security.capability", buf)
-	return err == nil && n > 0
+	if err != nil || n < 8 {
+		return false
+	}
+	if binary.LittleEndian.Uint32(buf[0:4])&0x1 == 0 {
+		return false
+	}
+	return binary.LittleEndian.Uint32(buf[4:8])&(1<<capNetAdmin) != 0
 }

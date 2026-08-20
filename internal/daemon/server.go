@@ -4,21 +4,23 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"os"
 	"sync"
 	"time"
 
+	"github.com/charmbracelet/log"
 	sbox "github.com/sagernet/sing-box"
 
-	"github.com/luynrs/justray/internal/daemon/elevate"
 	"github.com/luynrs/justray/internal/daemon/store"
 	"github.com/luynrs/justray/internal/parser/proxy"
 )
 
-const idle = 60 * time.Second
+const (
+	idle           = 60 * time.Second
+	maxRequestSize = 1 << 20
+)
 
 type Server struct {
 	dir    string
@@ -27,6 +29,7 @@ type Server struct {
 	device http.Header
 
 	mu       sync.Mutex
+	opMu     sync.Mutex
 	inst     *sbox.Box  // nil while disconnected
 	node     proxy.Node // the one inst is running
 	sub      string     // sub the active node belongs to
@@ -40,17 +43,22 @@ type Server struct {
 
 func New(dir string, logger *log.Logger) *Server {
 	if logger == nil {
-		logger = log.New(io.Discard, "", 0)
+		logger = log.New(io.Discard)
 	}
 	device, err := deviceHeaders()
 	if err != nil {
 		logger.Printf("device: %v, subscriptions needing a device id won't resolve", err)
 	}
+	st := store.Disk{Dir: dir}
+	tun, err := st.Tun()
+	if err != nil {
+		logger.Printf("could not read tun state: %v", err)
+	}
 	return &Server{
 		dir:      dir,
-		store:    store.Disk{Dir: dir},
+		store:    st,
 		log:      logger,
-		tun:      elevate.Restarted(),
+		tun:      tun,
 		device:   device,
 		probes:   map[string]probeResult{},
 		watchers: map[chan Status]struct{}{},
@@ -86,14 +94,16 @@ func (s *Server) Serve(ln net.Listener) error {
 }
 
 func (s *Server) Shutdown() {
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.stop()
 }
 
 func (s *Server) Restore() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
 
 	id, err := s.store.Active()
 	if err != nil || id == "" {
@@ -121,7 +131,7 @@ func (s *Server) handle(conn net.Conn) {
 	conn.SetDeadline(time.Now().Add(idle))
 
 	var req Req
-	if err := json.NewDecoder(conn).Decode(&req); err != nil {
+	if err := json.NewDecoder(io.LimitReader(conn, maxRequestSize)).Decode(&req); err != nil {
 		reply(conn, nil, fmt.Errorf("bad request: %w", err))
 		return
 	}
@@ -203,7 +213,9 @@ func (s *Server) watch(conn net.Conn) {
 	}
 }
 
-func (s *Server) broadcast() {
+func (s *Server) broadcast() Status {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	st := s.status()
 	for ch := range s.watchers {
 		select {
@@ -211,6 +223,7 @@ func (s *Server) broadcast() {
 		default:
 		}
 	}
+	return st
 }
 
 func reply(conn net.Conn, result any, err error) {
