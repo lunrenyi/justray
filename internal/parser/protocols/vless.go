@@ -29,7 +29,6 @@ func ParseVLess(uri string) (proxy.Node, error) {
 
 	q := u.Query()
 	n := proxy.Node{
-		ID:        id(uri),
 		Name:      cmp.Or(u.Fragment, host),
 		Protocol:  proxy.VLess,
 		Server:    host,
@@ -42,13 +41,14 @@ func ParseVLess(uri string) (proxy.Node, error) {
 	case "reality":
 		n.Reality = &proxy.Reality{PublicKey: q.Get("pbk"), ShortID: q.Get("sid")}
 		fallthrough
-	case "tls":
+	case "tls", "xtls":
 		n.TLS = &proxy.TLS{
 			SNI:         cmp.Or(q.Get("sni"), host),
 			ALPN:        splitComma(q.Get("alpn")),
 			Fingerprint: q.Get("fp"),
-			Insecure:    truthy(q.Get("allowInsecure")),
+			Insecure:    insecureFlag(q),
 		}
 	}
+	n.ID = nodeID(n)
 	return n, nil
 }

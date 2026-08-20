@@ -31,12 +31,13 @@ func ParseSOCKS(uri string) (proxy.Node, error) {
 			user, password = splitCreds(user)
 		}
 	}
-	return proxy.Node{
-		ID:       id(uri),
+	n := proxy.Node{
 		Name:     cmp.Or(u.Fragment, host),
 		Protocol: proxy.SOCKS,
 		Server:   host,
 		Port:     port,
 		Auth:     proxy.Auth{Username: user, Password: password},
-	}, nil
+	}
+	n.ID = nodeID(n)
+	return n, nil
 }

@@ -40,7 +40,7 @@ func IsLink(s string) bool { return parserFor(s) != nil }
 func ParseURI(uri string) (proxy.Node, error) {
 	parse := parserFor(uri)
 	if parse == nil {
-		return proxy.Node{}, fmt.Errorf("unknown scheme in %q", uri)
+		return proxy.Node{}, fmt.Errorf("unknown scheme in %.80q", uri)
 	}
 	return parse(strings.TrimSpace(uri))
 }
@@ -53,6 +53,9 @@ func ParseSubscription(raw []byte) ([]proxy.Node, error) {
 	}
 	if decoded, err := protocols.Unbase64(string(body)); err == nil {
 		body = decoded
+		if nodes, err := protocols.ParseClash(body); err == nil {
+			return nodes, nil
+		}
 	}
 
 	var nodes []proxy.Node

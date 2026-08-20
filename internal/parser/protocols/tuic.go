@@ -27,8 +27,7 @@ func ParseTUIC(uri string) (proxy.Node, error) {
 
 	q := u.Query()
 	password, _ := u.User.Password()
-	return proxy.Node{
-		ID:       id(uri),
+	n := proxy.Node{
 		Name:     cmp.Or(u.Fragment, host),
 		Protocol: proxy.TUIC,
 		Server:   host,
@@ -37,9 +36,11 @@ func ParseTUIC(uri string) (proxy.Node, error) {
 		TLS: &proxy.TLS{
 			SNI:      cmp.Or(q.Get("sni"), host),
 			ALPN:     splitComma(cmp.Or(q.Get("alpn"), "h3")),
-			Insecure: truthy(cmp.Or(q.Get("allow_insecure"), q.Get("insecure"))),
+			Insecure: insecureFlag(q),
 		},
 		Congestion:   cmp.Or(q.Get("congestion_control"), "bbr"),
 		UDPRelayMode: cmp.Or(q.Get("udp_relay_mode"), "native"),
-	}, nil
+	}
+	n.ID = nodeID(n)
+	return n, nil
 }

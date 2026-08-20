@@ -40,16 +40,21 @@ func Build(n proxy.Node, port int, logPath, tun string) (*option.Options, error)
 		return opts, nil
 	}
 
+	resolverIPs := resolvers()
 	opts.Inbounds = append(opts.Inbounds, option.Inbound{Type: C.TypeTun, Tag: "tun-in", Options: &option.TunInboundOptions{
 		InterfaceName: tun,
 		MTU:           1500,
 		Stack:         "gvisor",
 		Address: []netip.Prefix{
 			netip.MustParsePrefix("172.19.0.1/30"),
+			netip.MustParsePrefix("fdfe:dcba:9876::1/126"),
 		},
-		AutoRoute:    true,
-		StrictRoute:  true,
-		RouteAddress: append([]netip.Prefix{netip.MustParsePrefix("0.0.0.0/0")}, resolvers()...),
+		AutoRoute:   true,
+		StrictRoute: true,
+		RouteAddress: append([]netip.Prefix{
+			netip.MustParsePrefix("0.0.0.0/0"),
+			netip.MustParsePrefix("::/0"),
+		}, resolverIPs...),
 	}})
 	opts.DNS = &option.DNSOptions{RawDNSOptions: option.RawDNSOptions{Servers: []option.DNSServerOptions{
 		{Type: C.DNSTypeUDP, Tag: "remote", Options: &option.RemoteDNSServerOptions{
@@ -60,10 +65,21 @@ func Build(n proxy.Node, port int, logPath, tun string) (*option.Options, error)
 		}},
 	}}}
 	opts.Route.AutoDetectInterface = true
-	opts.Route.Rules = []option.Rule{{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
-		RawDefaultRule: option.RawDefaultRule{Port: []uint16{53}},
-		RuleAction:     option.RuleAction{Action: C.RuleActionTypeHijackDNS},
-	}}}
+	opts.Outbounds = append(opts.Outbounds, option.Outbound{Type: C.TypeDirect, Tag: "direct", Options: &option.DirectOutboundOptions{}})
+	resolverCIDRs := make([]string, len(resolverIPs))
+	for i, p := range resolverIPs {
+		resolverCIDRs[i] = p.String()
+	}
+	opts.Route.Rules = []option.Rule{
+		{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
+			RawDefaultRule: option.RawDefaultRule{Port: []uint16{53}},
+			RuleAction:     option.RuleAction{Action: C.RuleActionTypeHijackDNS},
+		}},
+		{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
+			RawDefaultRule: option.RawDefaultRule{IPCIDR: resolverCIDRs},
+			RuleAction:     option.RuleAction{Action: C.RuleActionTypeRoute, RouteOptions: option.RouteActionOptions{Outbound: "direct"}},
+		}},
+	}
 	return opts, nil
 }
 
@@ -77,8 +93,11 @@ func resolved(n proxy.Node) (proxy.Node, error) {
 	defer cancel()
 
 	ips, err := net.DefaultResolver.LookupNetIP(ctx, "ip", n.Server)
-	if err != nil || len(ips) == 0 {
+	if err != nil {
 		return n, fmt.Errorf("could not resolve %s: %w", n.Server, err)
+	}
+	if len(ips) == 0 {
+		return n, fmt.Errorf("no addresses for %s", n.Server)
 	}
 	switch {
 	case n.TLS != nil && n.TLS.SNI == "":
@@ -104,10 +123,14 @@ func resolvers() []netip.Prefix {
 			continue
 		}
 		a, err := netip.ParseAddr(f[1])
-		if err != nil || !a.Is4() || a.IsLoopback() {
+		if err != nil || a.IsLoopback() {
 			continue
 		}
-		out = append(out, netip.PrefixFrom(a, 32))
+		bits := 32
+		if a.Is6() {
+			bits = 128
+		}
+		out = append(out, netip.PrefixFrom(a, bits))
 	}
 	return out
 }
@@ -115,7 +138,10 @@ func resolvers() []netip.Prefix {
 func ProbeTag(i int) string { return "p" + strconv.Itoa(i) }
 
 func ProbeConfig(nodes []proxy.Node, logPath string) *option.Options {
-	opts := &option.Options{Log: &option.LogOptions{Level: LogLevel(), Output: logPath}}
+	opts := &option.Options{
+		Log:   &option.LogOptions{Level: LogLevel(), Output: logPath},
+		Route: &option.RouteOptions{AutoDetectInterface: true},
+	}
 	for i, n := range nodes {
 		_ = Add(opts, n, ProbeTag(i))
 	}
@@ -310,11 +336,14 @@ func buildTLS(n proxy.Node) *option.OutboundTLSOptions {
 				PublicKey: n.Reality.PublicKey,
 				ShortID:   n.Reality.ShortID,
 			},
+			UTLS: &option.OutboundUTLSOptions{Enabled: true, Fingerprint: "chrome"},
 		}
 		if n.TLS != nil {
 			tls.ServerName = n.TLS.SNI
+			tls.Insecure = n.TLS.Insecure
+			tls.ALPN = n.TLS.ALPN
 			if n.TLS.Fingerprint != "" {
-				tls.UTLS = &option.OutboundUTLSOptions{Enabled: true, Fingerprint: n.TLS.Fingerprint}
+				tls.UTLS.Fingerprint = n.TLS.Fingerprint
 			}
 		}
 		return tls
@@ -347,6 +376,20 @@ func buildTransport(n proxy.Node) *option.V2RayTransportOptions {
 		return &option.V2RayTransportOptions{
 			Type:        C.V2RayTransportTypeGRPC,
 			GRPCOptions: option.V2RayGRPCOptions{ServiceName: n.Transport.ServiceName},
+		}
+	case "http":
+		h := option.V2RayHTTPOptions{Path: n.Transport.Path}
+		if n.Transport.Host != "" {
+			h.Host = badoption.Listable[string]{n.Transport.Host}
+		}
+		return &option.V2RayTransportOptions{Type: C.V2RayTransportTypeHTTP, HTTPOptions: h}
+	case "httpupgrade":
+		return &option.V2RayTransportOptions{
+			Type: C.V2RayTransportTypeHTTPUpgrade,
+			HTTPUpgradeOptions: option.V2RayHTTPUpgradeOptions{
+				Path: n.Transport.Path,
+				Host: n.Transport.Host,
+			},
 		}
 	}
 	return nil

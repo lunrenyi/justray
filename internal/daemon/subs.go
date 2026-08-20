@@ -59,6 +59,8 @@ func (s *Server) addSub(rawURL string) (Sub, error) {
 }
 
 func (s *Server) removeSub(id string) error {
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -70,11 +72,14 @@ func (s *Server) removeSub(id string) error {
 	if len(kept) == len(subs) {
 		return fmt.Errorf("subscription %q not found", id)
 	}
+	if err := s.store.Save(kept); err != nil {
+		return err
+	}
 	if s.sub == id {
 		s.clear()
 		s.broadcast()
 	}
-	return s.store.Save(kept)
+	return nil
 }
 
 func (s *Server) refreshAll() ([]Sub, error) {
@@ -176,7 +181,21 @@ func (s *Server) fetch(rawURL string) ([]proxy.Node, string, store.Traffic, erro
 	}
 	req.Header = s.device.Clone()
 
-	resp, err := (&http.Client{Timeout: 20 * time.Second}).Do(req)
+	client := http.Client{
+		Timeout: 20 * time.Second,
+		CheckRedirect: func(r *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return fmt.Errorf("stopped after 10 redirects")
+			}
+			if r.URL.Host != via[0].URL.Host {
+				for k := range s.device {
+					r.Header.Del(k)
+				}
+			}
+			return nil
+		},
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, "", none, err
 	}
@@ -261,12 +280,13 @@ func usage(h http.Header) store.Traffic {
 
 func title(h http.Header) string {
 	if t := h.Get("Profile-Title"); t != "" {
-		t = strings.TrimPrefix(t, "base64:")
-		if decoded, err := base64.StdEncoding.DecodeString(t); err == nil {
-			return string(decoded)
-		}
-		if decoded, err := base64.RawURLEncoding.DecodeString(t); err == nil {
-			return string(decoded)
+		if b64, ok := strings.CutPrefix(t, "base64:"); ok {
+			if decoded, err := base64.StdEncoding.DecodeString(b64); err == nil {
+				return string(decoded)
+			}
+			if decoded, err := base64.RawURLEncoding.DecodeString(b64); err == nil {
+				return string(decoded)
+			}
 		}
 		return t
 	}

@@ -27,8 +27,7 @@ func ParseHY(uri string) (proxy.Node, error) {
 	if obfs == "" && q.Get("obfs") != "xplus" { // xplus is the only type there is, so a bare obfs= is the password
 		obfs = q.Get("obfs")
 	}
-	return proxy.Node{
-		ID:       id(uri),
+	n := proxy.Node{
 		Name:     cmp.Or(u.Fragment, host),
 		Protocol: proxy.HY1,
 		Server:   host,
@@ -37,10 +36,12 @@ func ParseHY(uri string) (proxy.Node, error) {
 		TLS: &proxy.TLS{
 			SNI:      cmp.Or(q.Get("peer"), q.Get("sni"), host),
 			ALPN:     splitComma(q.Get("alpn")),
-			Insecure: truthy(cmp.Or(q.Get("insecure"), q.Get("allowInsecure"))),
+			Insecure: insecureFlag(q),
 		},
 		ObfsPassword: obfs,
 		UpMbps:       cmp.Or(atoi(q.Get("upmbps")), 100),   // brutal refuses to run on a zero rate
 		DownMbps:     cmp.Or(atoi(q.Get("downmbps")), 100), // TODO: settings ui
-	}, nil
+	}
+	n.ID = nodeID(n)
+	return n, nil
 }

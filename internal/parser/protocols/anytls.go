@@ -26,8 +26,7 @@ func ParseAnyTLS(uri string) (proxy.Node, error) {
 	}
 
 	q := u.Query()
-	return proxy.Node{
-		ID:       id(uri),
+	n := proxy.Node{
 		Name:     cmp.Or(u.Fragment, host),
 		Protocol: proxy.AnyTLS,
 		Server:   host,
@@ -37,7 +36,9 @@ func ParseAnyTLS(uri string) (proxy.Node, error) {
 			SNI:         cmp.Or(q.Get("sni"), q.Get("peer"), host),
 			ALPN:        splitComma(q.Get("alpn")),
 			Fingerprint: q.Get("fp"),
-			Insecure:    truthy(cmp.Or(q.Get("insecure"), q.Get("allowInsecure"))),
+			Insecure:    insecureFlag(q),
 		},
-	}, nil
+	}
+	n.ID = nodeID(n)
+	return n, nil
 }

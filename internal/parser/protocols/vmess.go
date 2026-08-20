@@ -8,6 +8,7 @@ import (
 	"cmp"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/luynrs/justray/internal/parser/proxy"
@@ -15,25 +16,28 @@ import (
 
 // v2rayn schema
 type vmessLink struct {
-	PS   string  `json:"ps"`
-	Add  string  `json:"add"`
-	Port flexInt `json:"port"`
-	ID   string  `json:"id"`
-	AID  flexInt `json:"aid"`
-	SCY  string  `json:"scy"`
-	Net  string  `json:"net"`
-	Host string  `json:"host"`
-	Path string  `json:"path"`
-	TLS  string  `json:"tls"`
-	SNI  string  `json:"sni"`
-	ALPN string  `json:"alpn"`
-	FP   string  `json:"fp"`
+	PS   string     `json:"ps"`
+	Add  string     `json:"add"`
+	Port flexInt    `json:"port"`
+	ID   string     `json:"id"`
+	AID  flexInt    `json:"aid"`
+	SCY  string     `json:"scy"`
+	Net  string     `json:"net"`
+	Host string     `json:"host"`
+	Path string     `json:"path"`
+	TLS  flexString `json:"tls"`
+	SNI  string     `json:"sni"`
+	ALPN flexString `json:"alpn"`
+	FP   string     `json:"fp"`
 }
 
 // vmess://<base64 json>
 func ParseVMess(uri string) (proxy.Node, error) {
 	payload := strings.TrimPrefix(uri, "vmess://")
-	payload, _, _ = strings.Cut(payload, "#")
+	payload, frag, _ := strings.Cut(payload, "#")
+	if u, err := url.QueryUnescape(frag); err == nil {
+		frag = u
+	}
 
 	data, err := Unbase64(payload)
 	if err != nil {
@@ -48,9 +52,9 @@ func ParseVMess(uri string) (proxy.Node, error) {
 	}
 
 	net := strings.ToLower(cmp.Or(vm.Net, "tcp"))
+	host0 := strings.TrimSpace(strings.SplitN(vm.Host, ",", 2)[0])
 	n := proxy.Node{
-		ID:       id(uri),
-		Name:     cmp.Or(vm.PS, vm.Add),
+		Name:     cmp.Or(vm.PS, frag, vm.Add),
 		Protocol: proxy.VMess,
 		Server:   vm.Add,
 		Port:     int(vm.Port),
@@ -62,18 +66,19 @@ func ParseVMess(uri string) (proxy.Node, error) {
 		Transport: proxy.Transport{
 			Network: net,
 			Path:    vm.Path,
-			Host:    cmp.Or(vm.Host, vm.SNI),
+			Host:    cmp.Or(host0, vm.SNI),
 		},
 	}
 	if net == "grpc" {
 		n.Transport.ServiceName = vm.Path // grpc exports reuse "path" as name
 	}
-	if tls := strings.ToLower(vm.TLS); tls == "tls" || tls == "reality" {
+	if tls := strings.ToLower(string(vm.TLS)); tls == "tls" || tls == "reality" || tls == "xtls" {
 		n.TLS = &proxy.TLS{
-			SNI:         cmp.Or(vm.SNI, vm.Host, vm.Add),
-			ALPN:        splitComma(vm.ALPN),
+			SNI:         cmp.Or(vm.SNI, host0, vm.Add),
+			ALPN:        splitComma(string(vm.ALPN)),
 			Fingerprint: vm.FP,
 		}
 	}
+	n.ID = nodeID(n)
 	return n, nil
 }

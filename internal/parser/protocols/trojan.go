@@ -28,7 +28,6 @@ func ParseTrojan(uri string) (proxy.Node, error) {
 
 	q := u.Query()
 	n := proxy.Node{
-		ID:        id(uri),
 		Name:      cmp.Or(u.Fragment, host),
 		Protocol:  proxy.Trojan,
 		Server:    host,
@@ -41,8 +40,9 @@ func ParseTrojan(uri string) (proxy.Node, error) {
 			SNI:         cmp.Or(q.Get("sni"), q.Get("peer"), host),
 			ALPN:        splitComma(q.Get("alpn")),
 			Fingerprint: q.Get("fp"),
-			Insecure:    truthy(q.Get("allowInsecure")),
+			Insecure:    insecureFlag(q),
 		}
 	}
+	n.ID = nodeID(n)
 	return n, nil
 }

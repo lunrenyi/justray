@@ -22,11 +22,21 @@ func ParseSS(uri string) (proxy.Node, error) {
 	if unescaped, err := url.PathUnescape(remark); err == nil {
 		remark = unescaped
 	}
-	rest, _, _ = strings.Cut(rest, "?")
+	rest, query, hasQuery := strings.Cut(rest, "?")
+	if hasQuery {
+		qv, _ := url.ParseQuery(query)
+		if err := checkPlugin(qv.Get("plugin")); err != nil {
+			return proxy.Node{}, fmt.Errorf("ss: %w", err)
+		}
+	}
 
 	var method, password, hp string
 	if at := strings.LastIndexByte(rest, '@'); at >= 0 {
-		method, password = splitCreds(rest[:at])
+		userinfo := rest[:at]
+		if unescaped, err := url.PathUnescape(userinfo); err == nil {
+			userinfo = unescaped
+		}
+		method, password = splitCreds(userinfo)
 		hp = rest[at+1:]
 	} else {
 		decoded, err := Unbase64(rest)
@@ -50,18 +60,23 @@ func ParseSS(uri string) (proxy.Node, error) {
 		return proxy.Node{}, fmt.Errorf("ss: %w", err)
 	}
 
-	return proxy.Node{
-		ID:       id(uri),
+	n := proxy.Node{
 		Name:     cmp.Or(remark, host),
 		Protocol: proxy.SS,
 		Server:   host,
 		Port:     port,
 		Auth:     proxy.Auth{Method: method, Password: password},
-	}, nil
+	}
+	n.ID = nodeID(n)
+	return n, nil
 }
 
 // SIP002 credentials are b64
 func splitCreds(blob string) (method, password string) {
+	if strings.Contains(blob, ":") {
+		method, password, _ = strings.Cut(blob, ":")
+		return method, password
+	}
 	if decoded, err := Unbase64(blob); err == nil {
 		blob = string(decoded)
 	}

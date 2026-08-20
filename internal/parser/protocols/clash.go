@@ -68,14 +68,18 @@ type clashProxy struct {
 // Clash/Mihomo "proxies:" list
 func ParseClash(raw []byte) ([]proxy.Node, error) {
 	var doc struct {
-		Proxies []clashProxy `yaml:"proxies"`
+		Proxies []yaml.Node `yaml:"proxies"`
 	}
 	if err := yaml.Unmarshal(raw, &doc); err != nil {
 		return nil, fmt.Errorf("clash: %w", err)
 	}
 
 	var nodes []proxy.Node
-	for _, p := range doc.Proxies {
+	for _, raw := range doc.Proxies {
+		var p clashProxy
+		if err := raw.Decode(&p); err != nil {
+			continue
+		}
 		if n, err := clashNode(p); err == nil {
 			nodes = append(nodes, n)
 		}
@@ -91,7 +95,6 @@ func clashNode(p clashProxy) (proxy.Node, error) {
 		return proxy.Node{}, fmt.Errorf("clash: missing server/port")
 	}
 	n := proxy.Node{
-		ID:     id(fmt.Sprintf("clash:%s:%s:%d:%s:%s:%s", p.Type, p.Server, p.Port, p.UUID, p.Password, p.PrivateKey)),
 		Name:   cmp.Or(p.Name, p.Server),
 		Server: p.Server,
 		Port:   p.Port,
@@ -144,6 +147,9 @@ func clashNode(p clashProxy) (proxy.Node, error) {
 		}
 		n.Protocol = proxy.SS
 		n.Auth = proxy.Auth{Method: p.Cipher, Password: p.Password}
+		if err := checkPlugin(p.Plugin); err != nil {
+			return proxy.Node{}, fmt.Errorf("clash: %w", err)
+		}
 		if p.Plugin == "shadow-tls" && p.PluginOpts != nil {
 			n.ShadowTLS = &proxy.ShadowTLS{
 				Version:  cmp.Or(p.PluginOpts.Version, 3),
@@ -224,6 +230,7 @@ func clashNode(p clashProxy) (proxy.Node, error) {
 	default:
 		return proxy.Node{}, fmt.Errorf("clash: unsupported type %q", p.Type)
 	}
+	n.ID = nodeID(n)
 	return n, nil
 }
 
@@ -243,14 +250,25 @@ func (r *reserved) UnmarshalYAML(n *yaml.Node) error {
 		if err := n.Decode(&list); err != nil {
 			return err
 		}
+		if len(list) != 3 {
+			return fmt.Errorf("reserved: want 3 bytes, got %d", len(list))
+		}
 		for _, v := range list {
+			if v < 0 || v > 255 {
+				return fmt.Errorf("reserved: byte %d out of range", v)
+			}
 			*r = append(*r, uint8(v))
 		}
 		return nil
 	}
-	if b, err := Unbase64(n.Value); err == nil {
-		*r = b
+	b, err := Unbase64(n.Value)
+	if err != nil {
+		return err
 	}
+	if len(b) != 3 {
+		return fmt.Errorf("reserved: want 3 bytes, got %d", len(b))
+	}
+	*r = b
 	return nil
 }
 

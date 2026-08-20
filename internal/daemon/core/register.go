@@ -12,6 +12,7 @@ import (
 	"github.com/sagernet/sing-box/dns/transport"
 	"github.com/sagernet/sing-box/dns/transport/local"
 	"github.com/sagernet/sing-box/protocol/anytls"
+	"github.com/sagernet/sing-box/protocol/direct"
 	"github.com/sagernet/sing-box/protocol/http"
 	"github.com/sagernet/sing-box/protocol/hysteria"
 	"github.com/sagernet/sing-box/protocol/hysteria2"
@@ -42,6 +43,7 @@ func inboundRegistry() *inbound.Registry {
 
 func outboundRegistry() *outbound.Registry {
 	registry := outbound.NewRegistry()
+	direct.RegisterOutbound(registry)
 	vless.RegisterOutbound(registry)
 	vmess.RegisterOutbound(registry)
 	trojan.RegisterOutbound(registry)

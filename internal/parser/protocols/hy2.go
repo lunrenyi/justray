@@ -33,8 +33,7 @@ func ParseHY2(uri string) (proxy.Node, error) {
 	}
 
 	q := u.Query()
-	return proxy.Node{
-		ID:       id(uri),
+	n := proxy.Node{
 		Name:     cmp.Or(u.Fragment, host),
 		Protocol: proxy.HY2,
 		Server:   host,
@@ -42,9 +41,11 @@ func ParseHY2(uri string) (proxy.Node, error) {
 		Auth:     proxy.Auth{Password: auth},
 		TLS: &proxy.TLS{
 			SNI:      cmp.Or(q.Get("sni"), q.Get("peer"), host),
-			Insecure: truthy(q.Get("insecure")),
+			Insecure: insecureFlag(q),
 		},
 		Obfs:         q.Get("obfs"),
 		ObfsPassword: q.Get("obfs-password"),
-	}, nil
+	}
+	n.ID = nodeID(n)
+	return n, nil
 }
