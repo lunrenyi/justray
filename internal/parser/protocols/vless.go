@@ -22,7 +22,7 @@ func ParseVLess(uri string) (proxy.Node, error) {
 	if u.User == nil || u.User.Username() == "" {
 		return proxy.Node{}, fmt.Errorf("vless: missing uuid")
 	}
-	host, port, err := hostPort(u)
+	host, port, err := hostPort(u.Host)
 	if err != nil {
 		return proxy.Node{}, fmt.Errorf("vless: %w", err)
 	}

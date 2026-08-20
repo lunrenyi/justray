@@ -7,7 +7,13 @@ const (
 	VLess  Proto = "vless"
 	Trojan Proto = "trojan"
 	SS     Proto = "shadowsocks"
+	HY1    Proto = "hysteria"
 	HY2    Proto = "hysteria2"
+	TUIC   Proto = "tuic"
+	AnyTLS Proto = "anytls"
+	SOCKS  Proto = "socks"
+	HTTP   Proto = "http"
+	WG     Proto = "wireguard"
 )
 
 type Node struct {
@@ -20,16 +26,38 @@ type Node struct {
 	Transport    Transport
 	TLS          *TLS // nil means plaintext
 	Reality      *Reality
-	Obfs         string // hysteria2 obfs type, e.g. "salamander"
-	ObfsPassword string
+	Obfs         string // hysteria2
+	ObfsPassword string // hysteria2, hysteria xplus
+	UpMbps       int    // hysteria
+	DownMbps     int    // hysteria
+	Congestion   string // tuic
+	UDPRelayMode string // tuic
+	ShadowTLS    *ShadowTLS
+	WireGuard    *WireGuard
 }
 
 type Auth struct {
-	UUID     string // vmess, vless
-	Password string // trojan, ss, hysteria2
+	UUID     string // vmess, vless, tuic
+	Password string // trojan, ss, hysteria, anytls, tuic
+	Username string // socks, http
 	Method   string // ss cipher, vmess security
 	Flow     string // vless, e.g. xtls
 	AlterID  int    // legacy vmess
+}
+
+type ShadowTLS struct {
+	Version  int
+	Password string
+	SNI      string
+}
+
+type WireGuard struct {
+	PrivateKey    string
+	PeerPublicKey string
+	PreSharedKey  string
+	Address       []string
+	Reserved      []uint8
+	MTU           uint32
 }
 
 type Transport struct {

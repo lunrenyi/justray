@@ -11,19 +11,26 @@ import (
 	"github.com/sagernet/sing-box/dns"
 	"github.com/sagernet/sing-box/dns/transport"
 	"github.com/sagernet/sing-box/dns/transport/local"
+	"github.com/sagernet/sing-box/protocol/anytls"
+	"github.com/sagernet/sing-box/protocol/http"
+	"github.com/sagernet/sing-box/protocol/hysteria"
 	"github.com/sagernet/sing-box/protocol/hysteria2"
 	"github.com/sagernet/sing-box/protocol/mixed"
 	"github.com/sagernet/sing-box/protocol/shadowsocks"
+	"github.com/sagernet/sing-box/protocol/shadowtls"
+	"github.com/sagernet/sing-box/protocol/socks"
 	"github.com/sagernet/sing-box/protocol/trojan"
+	"github.com/sagernet/sing-box/protocol/tuic"
 	"github.com/sagernet/sing-box/protocol/tun"
 	"github.com/sagernet/sing-box/protocol/vless"
 	"github.com/sagernet/sing-box/protocol/vmess"
+	"github.com/sagernet/sing-box/protocol/wireguard"
 )
 
 // only the protocols justray actually speaks, not the vendor's full include
 // package (which also drags in tor, ssh, tailscale, caddy/ACME, cronet...)
 func Context(ctx context.Context) context.Context {
-	return sbox.Context(ctx, inboundRegistry(), outboundRegistry(), endpoint.NewRegistry(), dnsTransportRegistry(), boxservice.NewRegistry())
+	return sbox.Context(ctx, inboundRegistry(), outboundRegistry(), endpointRegistry(), dnsTransportRegistry(), boxservice.NewRegistry())
 }
 
 func inboundRegistry() *inbound.Registry {
@@ -39,7 +46,19 @@ func outboundRegistry() *outbound.Registry {
 	vmess.RegisterOutbound(registry)
 	trojan.RegisterOutbound(registry)
 	shadowsocks.RegisterOutbound(registry)
+	shadowtls.RegisterOutbound(registry)
+	hysteria.RegisterOutbound(registry)
 	hysteria2.RegisterOutbound(registry)
+	tuic.RegisterOutbound(registry)
+	anytls.RegisterOutbound(registry)
+	socks.RegisterOutbound(registry)
+	http.RegisterOutbound(registry)
+	return registry
+}
+
+func endpointRegistry() *endpoint.Registry {
+	registry := endpoint.NewRegistry()
+	wireguard.RegisterEndpoint(registry)
 	return registry
 }
 

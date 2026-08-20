@@ -28,6 +28,29 @@ type clashProxy struct {
 	ClientFingerprint string   `yaml:"client-fingerprint"`
 	ALPN              []string `yaml:"alpn"`
 	Obfs              string   `yaml:"obfs"`
+	ObfsPassword      string   `yaml:"obfs-password"`
+	Username          string   `yaml:"username"`
+	AuthStr           string   `yaml:"auth-str"`
+	AuthStrOld        string   `yaml:"auth_str"`
+	Up                mbps     `yaml:"up"`
+	Down              mbps     `yaml:"down"`
+	Congestion        string   `yaml:"congestion-controller"`
+	UDPRelayMode      string   `yaml:"udp-relay-mode"`
+
+	PrivateKey   string   `yaml:"private-key"`
+	PublicKey    string   `yaml:"public-key"`
+	PreSharedKey string   `yaml:"pre-shared-key"`
+	IP           string   `yaml:"ip"`
+	IPv6         string   `yaml:"ipv6"`
+	MTU          uint32   `yaml:"mtu"`
+	Reserved     reserved `yaml:"reserved"`
+
+	Plugin     string `yaml:"plugin"`
+	PluginOpts *struct {
+		Host     string `yaml:"host"`
+		Password string `yaml:"password"`
+		Version  int    `yaml:"version"`
+	} `yaml:"plugin-opts"`
 
 	WSOpts *struct {
 		Path    string            `yaml:"path"`
@@ -68,7 +91,7 @@ func clashNode(p clashProxy) (proxy.Node, error) {
 		return proxy.Node{}, fmt.Errorf("clash: missing server/port")
 	}
 	n := proxy.Node{
-		ID:     id(fmt.Sprintf("clash:%s:%s:%d:%s:%s", p.Type, p.Server, p.Port, p.UUID, p.Password)),
+		ID:     id(fmt.Sprintf("clash:%s:%s:%d:%s:%s:%s", p.Type, p.Server, p.Port, p.UUID, p.Password, p.PrivateKey)),
 		Name:   cmp.Or(p.Name, p.Server),
 		Server: p.Server,
 		Port:   p.Port,
@@ -121,7 +144,13 @@ func clashNode(p clashProxy) (proxy.Node, error) {
 		}
 		n.Protocol = proxy.SS
 		n.Auth = proxy.Auth{Method: p.Cipher, Password: p.Password}
-		n.Transport = proxy.Transport{Network: "tcp"}
+		if p.Plugin == "shadow-tls" && p.PluginOpts != nil {
+			n.ShadowTLS = &proxy.ShadowTLS{
+				Version:  cmp.Or(p.PluginOpts.Version, 3),
+				Password: p.PluginOpts.Password,
+				SNI:      cmp.Or(p.PluginOpts.Host, p.Server),
+			}
+		}
 
 	case "hysteria2", "hy2":
 		if p.Password == "" {
@@ -129,14 +158,116 @@ func clashNode(p clashProxy) (proxy.Node, error) {
 		}
 		n.Protocol = proxy.HY2
 		n.Auth = proxy.Auth{Password: p.Password}
-		n.Transport = proxy.Transport{Network: "quic"}
 		n.TLS = tls
-		n.Obfs = p.Obfs
+		n.Obfs, n.ObfsPassword = p.Obfs, p.ObfsPassword
+
+	case "hysteria":
+		auth := cmp.Or(p.AuthStr, p.AuthStrOld, p.Password)
+		if auth == "" {
+			return proxy.Node{}, fmt.Errorf("clash: hysteria missing auth")
+		}
+		n.Protocol = proxy.HY1
+		n.Auth = proxy.Auth{Password: auth}
+		n.TLS = tls
+		n.ObfsPassword = p.Obfs
+		n.UpMbps, n.DownMbps = cmp.Or(int(p.Up), 100), cmp.Or(int(p.Down), 100)
+
+	case "tuic":
+		if p.UUID == "" && p.Password == "" {
+			return proxy.Node{}, fmt.Errorf("clash: tuic missing uuid/password")
+		}
+		n.Protocol = proxy.TUIC
+		n.Auth = proxy.Auth{UUID: p.UUID, Password: p.Password}
+		n.TLS = tls
+		if len(n.TLS.ALPN) == 0 {
+			n.TLS.ALPN = []string{"h3"}
+		}
+		n.Congestion = cmp.Or(p.Congestion, "bbr")
+		n.UDPRelayMode = cmp.Or(p.UDPRelayMode, "native")
+
+	case "anytls":
+		if p.Password == "" {
+			return proxy.Node{}, fmt.Errorf("clash: anytls missing password")
+		}
+		n.Protocol = proxy.AnyTLS
+		n.Auth = proxy.Auth{Password: p.Password}
+		n.TLS = tls
+
+	case "socks5", "socks":
+		n.Protocol = proxy.SOCKS
+		n.Auth = proxy.Auth{Username: p.Username, Password: p.Password}
+		if p.TLS {
+			n.TLS = tls
+		}
+
+	case "http", "https":
+		n.Protocol = proxy.HTTP
+		n.Auth = proxy.Auth{Username: p.Username, Password: p.Password}
+		if p.TLS || strings.EqualFold(p.Type, "https") {
+			n.TLS = tls
+		}
+
+	case "wireguard":
+		if p.PrivateKey == "" || p.PublicKey == "" {
+			return proxy.Node{}, fmt.Errorf("clash: wireguard missing keys")
+		}
+		n.Protocol = proxy.WG
+		n.WireGuard = &proxy.WireGuard{
+			PrivateKey:    p.PrivateKey,
+			PeerPublicKey: p.PublicKey,
+			PreSharedKey:  p.PreSharedKey,
+			Address:       addresses(p.IP, p.IPv6),
+			Reserved:      p.Reserved,
+			MTU:           p.MTU,
+		}
 
 	default:
 		return proxy.Node{}, fmt.Errorf("clash: unsupported type %q", p.Type)
 	}
 	return n, nil
+}
+
+type mbps int
+
+func (m *mbps) UnmarshalYAML(n *yaml.Node) error {
+	value, _, _ := strings.Cut(strings.TrimSpace(n.Value), " ")
+	*m = mbps(atoi(value))
+	return nil
+}
+
+type reserved []uint8
+
+func (r *reserved) UnmarshalYAML(n *yaml.Node) error {
+	if n.Kind == yaml.SequenceNode {
+		var list []int
+		if err := n.Decode(&list); err != nil {
+			return err
+		}
+		for _, v := range list {
+			*r = append(*r, uint8(v))
+		}
+		return nil
+	}
+	if b, err := Unbase64(n.Value); err == nil {
+		*r = b
+	}
+	return nil
+}
+
+func addresses(v4, v6 string) []string {
+	var out []string
+	for _, a := range []string{v4, v6} {
+		switch {
+		case a == "":
+		case strings.Contains(a, "/"):
+			out = append(out, a)
+		case strings.Contains(a, ":"):
+			out = append(out, a+"/128")
+		default:
+			out = append(out, a+"/32")
+		}
+	}
+	return out
 }
 
 func clashTransport(p clashProxy) proxy.Transport {
@@ -153,7 +284,7 @@ func clashTransport(p clashProxy) proxy.Transport {
 		}
 	case "grpc":
 		if p.GRPCOpts != nil {
-			t.Path, t.ServiceName = p.GRPCOpts.ServiceName, p.GRPCOpts.ServiceName
+			t.ServiceName = p.GRPCOpts.ServiceName
 		}
 	}
 	return t

@@ -7,9 +7,7 @@ package protocols
 import (
 	"cmp"
 	"fmt"
-	"net"
 	"net/url"
-	"strconv"
 	"strings"
 
 	"github.com/luynrs/justray/internal/parser/proxy"
@@ -24,7 +22,7 @@ func ParseSS(uri string) (proxy.Node, error) {
 	if unescaped, err := url.PathUnescape(remark); err == nil {
 		remark = unescaped
 	}
-	rest, _, _ = strings.Cut(rest, "?") // plugin= and friends, which xray can't do anyway
+	rest, _, _ = strings.Cut(rest, "?")
 
 	var method, password, hp string
 	if at := strings.LastIndexByte(rest, '@'); at >= 0 {
@@ -47,23 +45,18 @@ func ParseSS(uri string) (proxy.Node, error) {
 		return proxy.Node{}, fmt.Errorf("ss: missing method/password")
 	}
 
-	host, p, err := net.SplitHostPort(strings.TrimSuffix(hp, "/")) // SIP002 allows an empty path
+	host, port, err := hostPort(strings.TrimSuffix(hp, "/")) // SIP002 allows an empty path
 	if err != nil {
 		return proxy.Node{}, fmt.Errorf("ss: %w", err)
 	}
-	port, err := strconv.Atoi(p)
-	if err != nil {
-		return proxy.Node{}, fmt.Errorf("ss: bad port %q", p)
-	}
 
 	return proxy.Node{
-		ID:        id(uri),
-		Name:      cmp.Or(remark, host),
-		Protocol:  proxy.SS,
-		Server:    host,
-		Port:      port,
-		Auth:      proxy.Auth{Method: method, Password: password},
-		Transport: proxy.Transport{Network: "tcp"},
+		ID:       id(uri),
+		Name:     cmp.Or(remark, host),
+		Protocol: proxy.SS,
+		Server:   host,
+		Port:     port,
+		Auth:     proxy.Auth{Method: method, Password: password},
 	}, nil
 }
 

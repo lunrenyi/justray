@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"net/url"
 	"strconv"
 	"strings"
@@ -27,10 +28,10 @@ func id(raw string) string {
 	return hex.EncodeToString(sum[:])[:12]
 }
 
-func hostPort(u *url.URL) (string, int, error) {
-	host, p := u.Hostname(), u.Port()
-	if host == "" || p == "" {
-		return "", 0, fmt.Errorf("missing host or port")
+func hostPort(hp string) (string, int, error) {
+	host, p, err := net.SplitHostPort(hp)
+	if err != nil {
+		return "", 0, err
 	}
 	port, err := strconv.Atoi(p)
 	if err != nil {
@@ -42,10 +43,15 @@ func hostPort(u *url.URL) (string, int, error) {
 func transport(q url.Values) proxy.Transport {
 	return proxy.Transport{
 		Network:     strings.ToLower(cmp.Or(q.Get("type"), "tcp")),
-		Path:        cmp.Or(q.Get("path"), q.Get("serviceName")),
+		Path:        q.Get("path"),
 		Host:        cmp.Or(q.Get("host"), q.Get("sni")),
 		ServiceName: q.Get("serviceName"),
 	}
+}
+
+func atoi(s string) int {
+	n, _ := strconv.Atoi(strings.TrimSpace(s))
+	return n
 }
 
 func splitComma(s string) []string {
@@ -67,7 +73,6 @@ func truthy(s string) bool {
 	return false
 }
 
-// flexInt is a json num that some exporters quote as a str
 type flexInt int
 
 func (f *flexInt) UnmarshalJSON(b []byte) error {

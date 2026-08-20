@@ -14,24 +14,35 @@ var parsers = map[string]func(string) (proxy.Node, error){
 	"vless":     protocols.ParseVLess,
 	"trojan":    protocols.ParseTrojan,
 	"ss":        protocols.ParseSS,
+	"hysteria":  protocols.ParseHY,
 	"hysteria2": protocols.ParseHY2,
-	"hy2":       protocols.ParseHY2,
+	"tuic":      protocols.ParseTUIC,
+	"anytls":    protocols.ParseAnyTLS,
+	"socks5":    protocols.ParseSOCKS,
 }
 
-func IsLink(s string) bool {
-	scheme, _, ok := strings.Cut(strings.TrimSpace(s), "://")
-	_, known := parsers[scheme]
-	return ok && known
+func parserFor(uri string) func(string) (proxy.Node, error) {
+	scheme, _, ok := strings.Cut(strings.TrimSpace(uri), "://")
+	if !ok {
+		return nil
+	}
+	switch scheme {
+	case "hy2":
+		scheme = "hysteria2"
+	case "socks":
+		scheme = "socks5"
+	}
+	return parsers[scheme]
 }
+
+func IsLink(s string) bool { return parserFor(s) != nil }
 
 func ParseURI(uri string) (proxy.Node, error) {
-	uri = strings.TrimSpace(uri)
-	scheme, _, _ := strings.Cut(uri, "://")
-	parse, ok := parsers[scheme]
-	if !ok {
+	parse := parserFor(uri)
+	if parse == nil {
 		return proxy.Node{}, fmt.Errorf("unknown scheme in %q", uri)
 	}
-	return parse(uri)
+	return parse(strings.TrimSpace(uri))
 }
 
 // clash yaml (b64)

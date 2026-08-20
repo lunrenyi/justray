@@ -1,7 +1,7 @@
 package protocols
 
 //
-// Hysteria 2
+// Hysteria v2
 //
 
 import (
@@ -27,20 +27,19 @@ func ParseHY2(uri string) (proxy.Node, error) {
 	if auth == "" {
 		return proxy.Node{}, fmt.Errorf("hysteria2: missing auth")
 	}
-	host, port, err := hostPort(u)
+	host, port, err := hostPort(u.Host)
 	if err != nil {
 		return proxy.Node{}, fmt.Errorf("hysteria2: %w", err)
 	}
 
 	q := u.Query()
 	return proxy.Node{
-		ID:        id(uri),
-		Name:      cmp.Or(u.Fragment, host),
-		Protocol:  proxy.HY2,
-		Server:    host,
-		Port:      port,
-		Auth:      proxy.Auth{Password: auth},
-		Transport: proxy.Transport{Network: "quic"},
+		ID:       id(uri),
+		Name:     cmp.Or(u.Fragment, host),
+		Protocol: proxy.HY2,
+		Server:   host,
+		Port:     port,
+		Auth:     proxy.Auth{Password: auth},
 		TLS: &proxy.TLS{
 			SNI:      cmp.Or(q.Get("sni"), q.Get("peer"), host),
 			Insecure: truthy(q.Get("insecure")),

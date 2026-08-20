@@ -21,7 +21,7 @@ func ParseTrojan(uri string) (proxy.Node, error) {
 	if u.User == nil || u.User.Username() == "" {
 		return proxy.Node{}, fmt.Errorf("trojan: missing password")
 	}
-	host, port, err := hostPort(u)
+	host, port, err := hostPort(u.Host)
 	if err != nil {
 		return proxy.Node{}, fmt.Errorf("trojan: %w", err)
 	}
