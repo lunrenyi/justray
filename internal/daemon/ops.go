@@ -32,11 +32,9 @@ func (s *Server) connect(id string) (Status, error) {
 	if !ok {
 		return Status{}, fmt.Errorf("node %q not found", id)
 	}
-	if err := s.start(n, sub); err != nil {
-		return Status{}, err
-	}
+	err = s.start(n, sub)
 	s.broadcast()
-	return s.status(), nil
+	return s.status(), err
 }
 
 func (s *Server) disconnect() (Status, error) {
@@ -120,14 +118,18 @@ func (s *Server) setTun(enable bool) (Status, error) {
 	defer s.mu.Unlock()
 
 	s.tun = enable
+	var err error
+	if s.inst != nil {
+		err = s.start(s.node, s.sub)
+	}
 	s.broadcast()
-	return s.status(), nil
+	return s.status(), err
 }
 
 func (s *Server) status() Status {
 	st := Status{Port: port, Tun: s.tun, LastErr: s.lastErr}
 	if s.inst != nil {
-		st.Connected, st.Sub, st.TunLive = true, s.sub, s.tunLive
+		st.Connected = true
 		st.NodeID, st.NodeName = s.node.ID, s.node.Name
 		st.Uptime = int64(time.Since(s.started).Seconds())
 	}
@@ -148,7 +150,7 @@ func (s *Server) nodes() ([]Node, error) {
 			item := Node{
 				ID: n.ID, Name: n.Name, Protocol: string(n.Protocol),
 				Server: n.Server, Port: n.Port,
-				Sub: sub.ID, SubName: sub.Name,
+				Sub: sub.ID,
 			}
 			if p, ok := s.probes[n.ID]; ok {
 				item.Probed, item.Alive, item.MS = true, p.alive, p.ms

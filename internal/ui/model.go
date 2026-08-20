@@ -25,7 +25,6 @@ type Model struct {
 	spin       spinner.Model
 	cursor     int
 	scroll     int
-	wheel      time.Time
 
 	adding    bool
 	url       textinput.Model
@@ -103,13 +102,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case pushed:
 		st := daemon.Status(msg)
-		switch {
-		case !st.Connected:
-			m.since = time.Time{}
-		case m.since.IsZero() || st.NodeID != m.status.NodeID:
-			m.since = time.Now().Add(-time.Duration(st.Uptime) * time.Second)
-		}
-		m.status, m.live = st, true
+		m.since = time.Now().Add(-time.Duration(st.Uptime) * time.Second)
+		m.status, m.live, m.err = st, true, ""
 		return m, next(m.statusCh)
 	}
 	return m, nil
@@ -196,17 +190,10 @@ func (m Model) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m.click(msg.X, msg.Y)
 	}
 
-	up := msg.Button == tea.MouseButtonWheelUp
-	if m.filtering || (!up && msg.Button != tea.MouseButtonWheelDown) {
-		return m, nil
-	}
-	if time.Since(m.wheel) < 20*time.Millisecond {
-		return m, nil
-	}
-	m.wheel = time.Now()
-	if up {
+	switch msg.Button {
+	case tea.MouseButtonWheelUp:
 		m.move(-1)
-	} else {
+	case tea.MouseButtonWheelDown:
 		m.move(1)
 	}
 	return m, nil

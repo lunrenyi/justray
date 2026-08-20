@@ -82,7 +82,6 @@ func (c *Client) Watch(onUpdate func(Status)) error {
 		return fmt.Errorf("watch: %w", err)
 	}
 	dec := json.NewDecoder(conn)
-	dec.DisallowUnknownFields()
 	for {
 		var st Status
 		if err := dec.Decode(&st); err != nil {

@@ -33,7 +33,6 @@ var (
 	Unknown = lipgloss.NewStyle().Foreground(gray)
 )
 
-// one segment of a switch, the same width whether it is active or not
 func Segment(s string, active bool) string {
 	if !active {
 		return " " + Dim.Render(s) + " "

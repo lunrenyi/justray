@@ -72,6 +72,7 @@ func (s *Server) removeSub(id string) error {
 	}
 	if s.sub == id {
 		s.clear()
+		s.broadcast()
 	}
 	return s.store.Save(kept)
 }
@@ -203,7 +204,7 @@ func (s *Server) fetch(rawURL string) ([]proxy.Node, string, store.Traffic, erro
 
 func info(sub store.Subscription) Sub {
 	return Sub{
-		ID: sub.ID, Name: sub.Name, URL: sub.URL,
+		ID: sub.ID, Name: sub.Name,
 		Nodes: len(sub.Nodes), UpdatedAt: sub.UpdatedAt,
 		Traffic: sub.Traffic, Direct: parser.IsLink(sub.URL),
 	}

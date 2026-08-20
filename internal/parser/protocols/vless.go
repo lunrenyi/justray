@@ -40,7 +40,7 @@ func ParseVLess(uri string) (proxy.Node, error) {
 
 	switch strings.ToLower(q.Get("security")) {
 	case "reality":
-		n.Reality = &proxy.Reality{PublicKey: q.Get("pbk"), ShortID: q.Get("sid"), SpiderX: q.Get("spx")}
+		n.Reality = &proxy.Reality{PublicKey: q.Get("pbk"), ShortID: q.Get("sid")}
 		fallthrough
 	case "tls":
 		n.TLS = &proxy.TLS{

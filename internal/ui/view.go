@@ -17,7 +17,7 @@ const (
 )
 
 func modeAt(x, w int) (tun, ok bool) {
-	proxyW, tunW := lipgloss.Width(modeProxy)+2, lipgloss.Width(modeTun)+2 // +2 for the caps style.Segment adds
+	proxyW, tunW := segW(modeProxy), segW(modeTun)
 	switch x -= w - proxyW - tunW; {
 	case x < 0:
 		return false, false
@@ -26,6 +26,8 @@ func modeAt(x, w int) (tun, ok bool) {
 	}
 	return true, true
 }
+
+func segW(s string) int { return lipgloss.Width(style.Segment(s, false)) }
 
 func (m Model) View() string {
 	if m.quitting {
@@ -227,9 +229,6 @@ func (m Model) footer() string {
 	case m.connected():
 		uptime := time.Duration(time.Since(m.since).Seconds()) * time.Second
 		status = style.Strong.Render(fmt.Sprintf("● %s · %s", m.status.NodeName, uptime))
-		if m.status.Tun != m.status.TunLive {
-			status += "  " + style.Dim.Render("reconnect to apply the new mode")
-		}
 	case m.live && m.status.LastErr != "":
 		status = style.Dim.Render("○ disconnected") + "  " + style.Err.Render("last error: "+m.status.LastErr)
 	case m.live:

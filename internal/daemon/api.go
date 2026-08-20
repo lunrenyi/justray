@@ -28,7 +28,6 @@ type Resp struct {
 type Sub struct {
 	ID        string
 	Name      string
-	URL       string
 	Nodes     int
 	UpdatedAt time.Time
 	Traffic   store.Traffic
@@ -42,7 +41,6 @@ type Node struct {
 	Server   string
 	Port     int
 	Sub      string
-	SubName  string
 
 	// false until Probe has run
 	Probed bool
@@ -52,12 +50,10 @@ type Node struct {
 
 type Status struct {
 	Connected bool
-	Sub       string
 	NodeID    string
 	NodeName  string
 	Uptime    int64 // seconds
 	LastErr   string
 	Port      int
-	Tun       bool // the mode the next connect will use
-	TunLive   bool // the mode the running engine actually has
+	Tun       bool
 }

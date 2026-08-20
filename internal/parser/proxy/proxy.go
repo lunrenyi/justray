@@ -49,5 +49,4 @@ type TLS struct {
 type Reality struct {
 	PublicKey string
 	ShortID   string
-	SpiderX   string
 }
