@@ -9,7 +9,7 @@
 #     services.justray.enable = true;    # runs justrayd as a systemd --user service
 #   }
 {
-  description = "A lightweight terminal-based VPN client";
+  description = "A fast, lightweight, and modern VPN client that just works";
 
   inputs = {
     nixpkgs.url = "git+https://github.com/NixOS/nixpkgs.git?ref=nixos-unstable&shallow=1";
@@ -27,7 +27,7 @@
           version = "0.1.0";
           src = ./.;
 
-          vendorHash = "sha256-UO5z8lD2lxnhrcEjHf8mTV8pXJKFYp6vwu2rP0+bRNg=";
+          vendorHash = "sha256-SG1v4g3ZPUQLSFfBTXiJgAmW9x+R9LR9CUipxROmRys=";
 
           subPackages = [ "cmd/justray" "cmd/justrayd" ];
           tags = [ "with_quic" "with_utls" "with_gvisor" ];
@@ -38,7 +38,7 @@
           '';
 
           meta = with pkgs.lib; {
-            description = "A lightweight terminal-based VPN client";
+            description = "A fast, lightweight, and modern VPN client that just works";
             homepage = "https://github.com/luynrs/justray";
             license = licenses.gpl3Plus;
             mainProgram = "justray";
@@ -52,16 +52,13 @@
         default = justrayFor system;
       });
 
-      apps = forAllSystems (system: {
-        justray = { type = "app"; program = "${justrayFor system}/bin/justray"; };
-        jray = { type = "app"; program = "${justrayFor system}/bin/jray"; };
-        justrayd = { type = "app"; program = "${justrayFor system}/bin/justrayd"; };
-        default = {
-          type = "app";
-          program = "${justrayFor system}/bin/justray";
-          meta.description = "A lightweight terminal-based VPN client";
-        };
-      });
+      apps = forAllSystems (system:
+        let pkg = justrayFor system; in {
+          justray = { type = "app"; program = "${pkg}/bin/justray"; };
+          jray = { type = "app"; program = "${pkg}/bin/jray"; };
+          justrayd = { type = "app"; program = "${pkg}/bin/justrayd"; };
+          default = { type = "app"; program = "${pkg}/bin/justray"; };
+        });
 
       devShells = forAllSystems (system:
         let pkgs = nixpkgs.legacyPackages.${system};
@@ -108,6 +105,5 @@
             };
           };
         };
-      homeManagerModules.justray = self.homeManagerModules.default;
     };
 }

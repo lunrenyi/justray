@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/log"
 	sbox "github.com/sagernet/sing-box"
 
+	"github.com/luynrs/justray/internal/daemon/lock"
 	"github.com/luynrs/justray/internal/daemon/store"
 	"github.com/luynrs/justray/internal/parser/proxy"
 )
@@ -66,6 +67,12 @@ func New(dir string, logger *log.Logger) *Server {
 }
 
 func Listen(socket string) (net.Listener, error) {
+	unlock, err := lock.File(socket + ".lock")
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+
 	if conn, err := net.DialTimeout("unix", socket, time.Second); err == nil {
 		conn.Close()
 		return nil, fmt.Errorf("another justrayd is already listening on %s", socket)
