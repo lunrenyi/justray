@@ -13,7 +13,7 @@ import (
 
 const (
 	modeProxy = " Proxy "
-	modeTun   = " TUN "
+	modeTun   = "  TUN  "
 )
 
 func modeAt(x, w int) (tun, ok bool) {
@@ -51,11 +51,15 @@ func (m Model) View() string {
 }
 
 func (m Model) titleLine() string {
+	left := style.Title.Render("JustRay")
+	if m.filtering || m.query != "" {
+		left += " " + style.Dim.Render("~ Search:") + " " + m.filter.View()
+	}
 	right := m.modeSwitch()
 	if m.connected() {
 		right = style.Dim.Render(fmt.Sprintf(":%d", m.status.Port)) + "  " + right
 	}
-	return m.clip(flush(style.Title.Render("JustRay"), right, m.w))
+	return m.clip(flush(left, right, m.w))
 }
 
 func (m Model) modeSwitch() string {
@@ -67,7 +71,7 @@ func (m Model) tree() string {
 	h := m.height()
 
 	lines := make([]string, 0, topLines+h)
-	lines = append(lines, m.titleLine(), m.filterLine())
+	lines = append(lines, m.titleLine(), "")
 
 	switch {
 	case len(rows) > 0:
@@ -79,25 +83,15 @@ func (m Model) tree() string {
 			lines = append(lines, m.row(r, m.scroll+i == cursor))
 		}
 	case m.query != "":
-		lines = append(lines, m.clip(style.Dim.Render(fmt.Sprintf("No matches for %q", m.query))))
+		lines = append(lines, m.clip("    "+style.Dim.Render(fmt.Sprintf("No matches for %q", m.query))))
 	default:
-		lines = append(lines, m.clip(style.Dim.Render("No subscriptions yet")))
+		lines = append(lines, m.clip("    "+style.Dim.Render("No subscriptions yet.")))
 	}
 
 	for len(lines) < topLines+h {
 		lines = append(lines, "")
 	}
 	return strings.Join(lines, "\n")
-}
-
-func (m Model) filterLine() string {
-	switch {
-	case m.filtering:
-		return m.clip(m.filter.View())
-	case m.query != "":
-		return m.clip(style.Dim.Render(fmt.Sprintf("~ %s · esc to clear", m.query)))
-	}
-	return ""
 }
 
 func (m Model) row(r row, selected bool) string {
@@ -208,8 +202,6 @@ func (m Model) keys() [][2]string {
 		return [][2]string{{"y", "Delete"}, {"any", "Cancel"}}
 	case m.adding:
 		return [][2]string{{"↵", "Add"}, {"esc", "Cancel"}}
-	case m.filtering:
-		return [][2]string{{"type", "Filter"}, {"↵", "Apply"}, {"esc", "Clear"}}
 	}
 	return [][2]string{
 		{"↑/↓", "Move"}, {"←/→", "Fold"}, {"↵", "Toggle"}, {"t", "Ping"}, {"r", "Refresh"},

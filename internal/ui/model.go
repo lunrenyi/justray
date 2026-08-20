@@ -53,7 +53,7 @@ func New(c *daemon.Client) Model {
 		collapsed: map[string]bool{},
 		spin:      spinner.New(spinner.WithSpinner(spinner.MiniDot)),
 		url:       input("Add:  ", "subscription URL, or a vless://, vmess://, trojan://, ss://, etc. link", 2048),
-		filter:    input("~ ", "filter by name, protocol, server…", 128),
+		filter:    input("", "type to filter...", 128),
 		statusCh:  make(chan daemon.Status),
 	}
 }
@@ -67,7 +67,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.w, m.h = msg.Width, msg.Height
 		m.url.Width = max(msg.Width-12, 10)
-		m.filter.Width = m.url.Width
 		m.clamp()
 
 	case tea.KeyMsg:

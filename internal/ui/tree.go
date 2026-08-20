@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	topLines    = 2 // title + filter
+	topLines    = 2 // title + gap
 	footerLines = 3 // status + help
 )
 
