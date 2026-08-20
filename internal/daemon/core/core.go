@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/netip"
 	"os"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,26 +25,58 @@ func Build(n proxy.Node, port int, logPath, tun string) (*option.Options, error)
 		return nil, err
 	}
 
+	resolverIPs := Resolvers()
+	resolverCIDRs := make([]string, len(resolverIPs))
+	for i, p := range resolverIPs {
+		resolverCIDRs[i] = p.String()
+	}
+
 	opts := &option.Options{
-		Log: &option.LogOptions{Level: LogLevel(), Output: logPath},
+		Log: &option.LogOptions{Level: logLevel(), Output: logPath},
 		Inbounds: []option.Inbound{
 			{Type: C.TypeMixed, Tag: "mixed-in", Options: &option.HTTPMixedInboundOptions{
 				ListenOptions: option.ListenOptions{Listen: addr("127.0.0.1"), ListenPort: uint16(port)},
 			}},
 		},
-		Route: &option.RouteOptions{Final: "proxy"},
+		Outbounds: []option.Outbound{
+			{Type: C.TypeDirect, Tag: "direct", Options: &option.DirectOutboundOptions{}},
+		},
+		DNS: &option.DNSOptions{RawDNSOptions: option.RawDNSOptions{Servers: []option.DNSServerOptions{
+			{Type: C.DNSTypeUDP, Tag: "remote", Options: &option.RemoteDNSServerOptions{
+				RawLocalDNSServerOptions: option.RawLocalDNSServerOptions{
+					DialerOptions: option.DialerOptions{Detour: "proxy"},
+				},
+				DNSServerAddressOptions: option.DNSServerAddressOptions{Server: cmp.Or(os.Getenv("JUSTRAY_DNS"), "1.1.1.1")},
+			}},
+		}}},
+		Route: &option.RouteOptions{
+			Final:               "proxy",
+			AutoDetectInterface: true,
+			Rules: []option.Rule{
+				{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
+					RawDefaultRule: option.RawDefaultRule{Port: []uint16{53}},
+					RuleAction:     option.RuleAction{Action: C.RuleActionTypeHijackDNS},
+				}},
+				{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
+					RawDefaultRule: option.RawDefaultRule{IPCIDR: resolverCIDRs},
+					RuleAction:     option.RuleAction{Action: C.RuleActionTypeRoute, RouteOptions: option.RouteActionOptions{Outbound: "direct"}},
+				}},
+			},
+		},
 	}
-	if err := Add(opts, n, "proxy"); err != nil {
+	if err := add(opts, n, "proxy"); err != nil {
 		return nil, err
 	}
-	if tun == "" {
-		return opts, nil
+	if tun != "" {
+		opts.Inbounds = append(opts.Inbounds, TunInbound(tun, resolverIPs))
 	}
+	return opts, nil
+}
 
-	resolverIPs := resolvers()
+func TunInbound(iface string, resolverIPs []netip.Prefix) option.Inbound {
 	tunOpts := &option.TunInboundOptions{
-		InterfaceName: tun,
-		MTU:           1500,
+		InterfaceName: iface,
+		MTU:           9000,
 		Stack:         "gvisor",
 		Address: []netip.Prefix{
 			netip.MustParsePrefix("172.19.0.1/30"),
@@ -58,38 +89,10 @@ func Build(n proxy.Node, port int, logPath, tun string) (*option.Options, error)
 			netip.MustParsePrefix("::/0"),
 		}, resolverIPs...),
 	}
-	if runtime.GOOS == "linux" {
-		tunOpts.ExcludeUID = []uint32{uint32(os.Getuid())}
-	}
-	opts.Inbounds = append(opts.Inbounds, option.Inbound{Type: C.TypeTun, Tag: "tun-in", Options: tunOpts})
-	opts.DNS = &option.DNSOptions{RawDNSOptions: option.RawDNSOptions{Servers: []option.DNSServerOptions{
-		{Type: C.DNSTypeUDP, Tag: "remote", Options: &option.RemoteDNSServerOptions{
-			RawLocalDNSServerOptions: option.RawLocalDNSServerOptions{
-				DialerOptions: option.DialerOptions{Detour: "proxy"},
-			},
-			DNSServerAddressOptions: option.DNSServerAddressOptions{Server: cmp.Or(os.Getenv("JUSTRAY_DNS"), "1.1.1.1")},
-		}},
-	}}}
-	opts.Route.AutoDetectInterface = true
-	opts.Outbounds = append(opts.Outbounds, option.Outbound{Type: C.TypeDirect, Tag: "direct", Options: &option.DirectOutboundOptions{}})
-	resolverCIDRs := make([]string, len(resolverIPs))
-	for i, p := range resolverIPs {
-		resolverCIDRs[i] = p.String()
-	}
-	opts.Route.Rules = []option.Rule{
-		{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
-			RawDefaultRule: option.RawDefaultRule{Port: []uint16{53}},
-			RuleAction:     option.RuleAction{Action: C.RuleActionTypeHijackDNS},
-		}},
-		{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
-			RawDefaultRule: option.RawDefaultRule{IPCIDR: resolverCIDRs},
-			RuleAction:     option.RuleAction{Action: C.RuleActionTypeRoute, RouteOptions: option.RouteActionOptions{Outbound: "direct"}},
-		}},
-	}
-	return opts, nil
+	return option.Inbound{Type: C.TypeTun, Tag: "tun-in", Options: tunOpts}
 }
 
-func LogLevel() string { return cmp.Or(os.Getenv("JUSTRAY_LOG"), "error") }
+func logLevel() string { return cmp.Or(os.Getenv("JUSTRAY_LOG"), "error") }
 
 func resolved(n proxy.Node) (proxy.Node, error) {
 	if _, err := netip.ParseAddr(n.Server); err == nil {
@@ -117,7 +120,7 @@ func resolved(n proxy.Node) (proxy.Node, error) {
 	return n, nil
 }
 
-func resolvers() []netip.Prefix {
+func Resolvers() []netip.Prefix {
 	b, err := os.ReadFile("/etc/resolv.conf")
 	if err != nil {
 		return nil
@@ -145,7 +148,7 @@ func ProbeTag(i int) string { return "p" + strconv.Itoa(i) }
 
 func ProbeConfig(nodes []proxy.Node, logPath string) *option.Options {
 	opts := &option.Options{
-		Log:   &option.LogOptions{Level: LogLevel(), Output: logPath},
+		Log:   &option.LogOptions{Level: logLevel(), Output: logPath},
 		Route: &option.RouteOptions{AutoDetectInterface: true},
 	}
 	resolvedNodes := make([]proxy.Node, len(nodes))
@@ -163,12 +166,12 @@ func ProbeConfig(nodes []proxy.Node, logPath string) *option.Options {
 	wg.Wait()
 
 	for i, n := range resolvedNodes {
-		_ = Add(opts, n, ProbeTag(i))
+		_ = add(opts, n, ProbeTag(i))
 	}
 	return opts
 }
 
-func Add(opts *option.Options, n proxy.Node, tag string) error {
+func add(opts *option.Options, n proxy.Node, tag string) error {
 	if n.Protocol == proxy.WG {
 		ep, err := wgEndpoint(n, tag)
 		if err != nil {
@@ -178,7 +181,7 @@ func Add(opts *option.Options, n proxy.Node, tag string) error {
 		return nil
 	}
 
-	out, err := Outbound(n, tag)
+	out, err := newOutbound(n, tag)
 	if err != nil {
 		return err
 	}
@@ -229,7 +232,7 @@ func wgEndpoint(n proxy.Node, tag string) (*option.Endpoint, error) {
 	}}, nil
 }
 
-func Outbound(n proxy.Node, tag string) (*option.Outbound, error) {
+func newOutbound(n proxy.Node, tag string) (*option.Outbound, error) {
 	tls := buildTLS(n)
 	if tls == nil && tlsOnly(n.Protocol) {
 		tls = &option.OutboundTLSOptions{Enabled: true}

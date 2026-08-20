@@ -19,7 +19,7 @@ import (
 const (
 	probeURL     = "http://cp.cloudflare.com/generate_204"
 	probeTimeout = 5 * time.Second
-	probeWorkers = 12
+	probeWorkers = 4
 )
 
 type probeResult struct {

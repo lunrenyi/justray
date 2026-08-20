@@ -9,8 +9,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/sagernet/netlink"
 	sbox "github.com/sagernet/sing-box"
+	"github.com/sagernet/sing-box/adapter"
+	C "github.com/sagernet/sing-box/constant"
 	"github.com/sagernet/sing-box/option"
+	"github.com/sagernet/sing/service"
 
 	"github.com/luynrs/justray/internal/daemon/core"
 	"github.com/luynrs/justray/internal/daemon/elevate"
@@ -85,12 +89,19 @@ func newEngine(opts option.Options) (*sbox.Box, error) {
 	return inst, err
 }
 
-func waitGone(iface string) {
+func waitGone(iface string) bool {
 	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); {
 		if _, err := net.InterfaceByName(iface); err != nil {
-			return
+			return true
 		}
 		time.Sleep(20 * time.Millisecond)
+	}
+	return false
+}
+
+func forceDeleteLink(iface string) {
+	if link, err := netlink.LinkByName(iface); err == nil {
+		netlink.LinkDel(link)
 	}
 }
 
@@ -161,14 +172,61 @@ func (s *Server) setTun(enable bool) (Status, error) {
 	if err := s.store.SetTun(enable); err != nil {
 		s.log.Printf("could not persist tun state: %v", err)
 	}
-	n, sub, connected := s.node, s.sub, s.inst != nil
+	inst, tunLive := s.inst, s.tunLive
 	s.mu.Unlock()
 
 	var err error
-	if connected {
-		err = s.start(n, sub)
+	if inst != nil && enable != tunLive {
+		if enable {
+			err = s.tunAdd(inst)
+		} else {
+			err = s.tunRemove(inst)
+		}
 	}
+
+	if err != nil && enable && elevate.Needed(err) {
+		go elevate.Tun(s.log, s.dir)
+		return s.finish(fmt.Errorf("granting tun permission, reconnecting…"))
+	}
+
+	s.mu.Lock()
+	if err == nil {
+		s.tunLive = enable
+	} else {
+		s.lastErr = err.Error()
+	}
+	s.mu.Unlock()
+
 	return s.finish(err)
+}
+
+func (s *Server) tunAdd(inst *sbox.Box) error {
+	inb := core.TunInbound(tunInterface, core.Resolvers())
+	ctx := service.ContextWith[adapter.NetworkManager](core.Context(context.Background()), inst.Network())
+	logger := inst.LogFactory().NewLogger("inbound/tun[tun-in]")
+
+	var err error
+	for i := 0; i < 3; i++ {
+		err = inst.Inbound().Create(ctx, inst.Router(), logger, "tun-in", C.TypeTun, inb.Options)
+		if err == nil || !errors.Is(err, syscall.EBUSY) {
+			return err
+		}
+		forceDeleteLink(tunInterface)
+		waitGone(tunInterface)
+	}
+	return err
+}
+
+func (s *Server) tunRemove(inst *sbox.Box) error {
+	err := inst.Inbound().Remove("tun-in")
+	if waitGone(tunInterface) {
+		return err
+	}
+	forceDeleteLink(tunInterface)
+	if !waitGone(tunInterface) {
+		return fmt.Errorf("%s still up after removing tun-in", tunInterface)
+	}
+	return err
 }
 
 func (s *Server) status() Status {
