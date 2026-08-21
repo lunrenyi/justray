@@ -147,7 +147,11 @@ func (s *Server) start(n proxy.Node, sub string) error {
 
 	s.stop()
 
-	opts, err := core.Build(n, port, coreLog(s.dir), iface)
+	if err := ClearLog(CoreLog(s.dir)); err != nil {
+		s.log.Printf("could not truncate core log: %v", err)
+	}
+
+	opts, err := core.Build(n, port, CoreLog(s.dir), iface)
 	var inst *sbox.Box
 	if err == nil {
 		inst, err = newEngine(*opts)

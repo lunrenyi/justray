@@ -43,6 +43,10 @@ func main() {
 		Prefix:          "justrayd",
 	})
 
+	if err := daemon.ClearLog(daemon.CoreLog(*dir)); err != nil {
+		logger.Printf("could not truncate core log: %v", err)
+	}
+
 	socket := daemon.Socket(*dir)
 	ln, err := daemon.Listen(socket)
 	if err != nil {

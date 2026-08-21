@@ -80,7 +80,7 @@ func (s *Server) removeSub(id string) error {
 	live := s.sub == id
 	s.mu.Unlock()
 
-	if activeID, err := s.store.Active(); err == nil && slices.ContainsFunc(removedNodes, func(n proxy.Node) bool { return n.ID == activeID }) {
+	if id, err := s.store.Active(); err == nil && slices.ContainsFunc(removedNodes, func(n proxy.Node) bool { return n.ID == id }) {
 		if err := s.store.SetActive(""); err != nil {
 			s.log.Printf("could not clear the active node: %v", err)
 		}

@@ -25,6 +25,7 @@ func EnsureDir(dir string) error {
 }
 
 func Socket(dir string) string    { return filepath.Join(dir, "justrayd.sock") }
-func DaemonLog(dir string) string { return filepath.Join(dir, "justrayd.log") }
+func DaemonLog(dir string) string { return filepath.Join(dir, "daemon.log") }
+func CoreLog(dir string) string   { return filepath.Join(dir, "core.log") }
 
-func coreLog(dir string) string { return filepath.Join(dir, "core.log") }
+func ClearLog(path string) error { return os.Truncate(path, 0) }

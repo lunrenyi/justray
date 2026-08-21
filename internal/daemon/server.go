@@ -51,19 +51,15 @@ func New(dir string, logger *log.Logger) *Server {
 		logger.Printf("device: %v, subscriptions needing a device id won't resolve", err)
 	}
 	st := store.Disk{Dir: dir}
-	tun, err := st.Tun()
+	state, err := st.State()
 	if err != nil {
-		logger.Printf("could not read tun state: %v", err)
-	}
-	// sing-box opens this itself in append-only mode
-	if err := os.Truncate(coreLog(dir), 0); err != nil && !os.IsNotExist(err) {
-		logger.Printf("could not truncate core log: %v", err)
+		logger.Printf("could not read state: %v", err)
 	}
 	return &Server{
 		dir:      dir,
 		store:    st,
 		log:      logger,
-		tun:      tun,
+		tun:      state.Tun,
 		device:   device,
 		probes:   map[string]probeResult{},
 		watchers: map[chan Status]struct{}{},

@@ -28,7 +28,7 @@ type probeResult struct {
 }
 
 func (s *Server) probeNodes(nodes []proxy.Node) (map[string]probeResult, error) {
-	inst, err := sbox.New(sbox.Options{Options: *core.ProbeConfig(nodes, coreLog(s.dir)), Context: core.Context(context.Background())})
+	inst, err := sbox.New(sbox.Options{Options: *core.ProbeConfig(nodes, CoreLog(s.dir)), Context: core.Context(context.Background())})
 	if err != nil {
 		return nil, fmt.Errorf("build probe engine: %w", err)
 	}

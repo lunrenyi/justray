@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/luynrs/justray/internal/parser/proxy"
@@ -26,6 +25,11 @@ type Traffic struct {
 	DownloadBytes int64     `yaml:"download_bytes,omitempty"`
 	TotalBytes    int64     `yaml:"total_bytes,omitempty"`
 	ExpiresAt     time.Time `yaml:"expires_at,omitempty"`
+}
+
+type State struct {
+	Active string `yaml:"active"`
+	Tun    bool   `yaml:"tun,omitempty"`
 }
 
 type Disk struct{ Dir string }
@@ -54,33 +58,37 @@ func (d Disk) Save(subs []Subscription) error {
 	return write(subsPath(d.Dir), data)
 }
 
-// the node id to reconnect to, "" if none
-func (d Disk) Active() (string, error) {
-	data, err := os.ReadFile(activePath(d.Dir))
+func (d Disk) State() (State, error) {
+	data, err := os.ReadFile(statePath(d.Dir))
 	if err != nil {
-		return "", skipMissing(err)
+		return State{}, skipMissing(err)
 	}
-	return strings.TrimSpace(string(data)), nil
+	var s State
+	return s, yaml.Unmarshal(data, &s)
 }
 
-func (d Disk) SetActive(nodeID string) error {
-	return write(activePath(d.Dir), []byte(nodeID))
+func (d Disk) Active() (string, error) {
+	s, err := d.State()
+	return s.Active, err
+}
+
+func (d Disk) SetActive(id string) error {
+	s, _ := d.State()
+	s.Active = id
+	data, _ := yaml.Marshal(s)
+	return write(statePath(d.Dir), data)
 }
 
 func (d Disk) Tun() (bool, error) {
-	data, err := os.ReadFile(tunPath(d.Dir))
-	if err != nil {
-		return false, skipMissing(err)
-	}
-	return strings.TrimSpace(string(data)) == "1", nil
+	s, err := d.State()
+	return s.Tun, err
 }
 
-func (d Disk) SetTun(enabled bool) error {
-	v := "0"
-	if enabled {
-		v = "1"
-	}
-	return write(tunPath(d.Dir), []byte(v))
+func (d Disk) SetTun(on bool) error {
+	s, _ := d.State()
+	s.Tun = on
+	data, _ := yaml.Marshal(s)
+	return write(statePath(d.Dir), data)
 }
 
 func skipMissing(err error) error {
@@ -117,6 +125,5 @@ func NewID() string {
 	return hex.EncodeToString(b[:])
 }
 
-func subsPath(dir string) string   { return filepath.Join(dir, "subscriptions.yaml") }
-func activePath(dir string) string { return filepath.Join(dir, "active") }
-func tunPath(dir string) string    { return filepath.Join(dir, "tun") }
+func subsPath(dir string) string  { return filepath.Join(dir, "subscriptions.yaml") }
+func statePath(dir string) string { return filepath.Join(dir, "state.yaml") }
