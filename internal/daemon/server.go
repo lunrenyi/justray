@@ -55,6 +55,10 @@ func New(dir string, logger *log.Logger) *Server {
 	if err != nil {
 		logger.Printf("could not read tun state: %v", err)
 	}
+	// sing-box opens this itself in append-only mode
+	if err := os.Truncate(coreLog(dir), 0); err != nil && !os.IsNotExist(err) {
+		logger.Printf("could not truncate core log: %v", err)
+	}
 	return &Server{
 		dir:      dir,
 		store:    st,

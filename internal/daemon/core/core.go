@@ -19,8 +19,10 @@ import (
 	"github.com/luynrs/justray/internal/parser/proxy"
 )
 
+const Tag = "proxy"
+
 func Build(n proxy.Node, port int, logPath, tun string) (*option.Options, error) {
-	n, err := resolved(n)
+	ep, obs, err := Proxy(n)
 	if err != nil {
 		return nil, err
 	}
@@ -44,13 +46,13 @@ func Build(n proxy.Node, port int, logPath, tun string) (*option.Options, error)
 		DNS: &option.DNSOptions{RawDNSOptions: option.RawDNSOptions{Servers: []option.DNSServerOptions{
 			{Type: C.DNSTypeUDP, Tag: "remote", Options: &option.RemoteDNSServerOptions{
 				RawLocalDNSServerOptions: option.RawLocalDNSServerOptions{
-					DialerOptions: option.DialerOptions{Detour: "proxy"},
+					DialerOptions: option.DialerOptions{Detour: Tag},
 				},
 				DNSServerAddressOptions: option.DNSServerAddressOptions{Server: cmp.Or(os.Getenv("JUSTRAY_DNS"), "1.1.1.1")},
 			}},
 		}}},
 		Route: &option.RouteOptions{
-			Final:               "proxy",
+			Final:               Tag,
 			AutoDetectInterface: true,
 			Rules: []option.Rule{
 				{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
@@ -64,13 +66,30 @@ func Build(n proxy.Node, port int, logPath, tun string) (*option.Options, error)
 			},
 		},
 	}
-	if err := add(opts, n, "proxy"); err != nil {
-		return nil, err
+	if ep != nil {
+		opts.Endpoints = append(opts.Endpoints, *ep)
 	}
+	opts.Outbounds = append(opts.Outbounds, obs...)
 	if tun != "" {
 		opts.Inbounds = append(opts.Inbounds, TunInbound(tun, resolverIPs))
 	}
 	return opts, nil
+}
+
+func Proxy(n proxy.Node) (*option.Endpoint, []option.Outbound, error) {
+	n, err := resolved(n)
+	if err != nil {
+		return nil, nil, err
+	}
+	var scratch option.Options
+	if err := add(&scratch, n, Tag); err != nil {
+		return nil, nil, err
+	}
+	var ep *option.Endpoint
+	if len(scratch.Endpoints) > 0 {
+		ep = &scratch.Endpoints[0]
+	}
+	return ep, scratch.Outbounds, nil
 }
 
 func TunInbound(iface string, resolverIPs []netip.Prefix) option.Inbound {

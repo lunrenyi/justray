@@ -24,7 +24,7 @@ import (
 
 const (
 	port         = 10808 // TODO: settings ui
-	tunInterface = "justray0"
+	tunInterface = "justray"
 )
 
 func (s *Server) connect(id string) (Status, error) {
@@ -115,13 +115,36 @@ func (s *Server) clear() {
 	}
 }
 
+func (s *Server) persistActive(id string) {
+	if err := s.store.SetActive(id); err != nil {
+		s.log.Printf("could not persist the active node: %v", err)
+	}
+}
+
 func (s *Server) start(n proxy.Node, sub string) error {
 	s.mu.Lock()
 	iface := ""
 	if s.tun {
 		iface = tunInterface
 	}
+	live := s.inst
+	hot := live != nil && s.tunLive == (iface != "")
 	s.mu.Unlock()
+
+	if hot {
+		err := s.swapProxy(live, n)
+		s.mu.Lock()
+		if err != nil {
+			s.lastErr = err.Error()
+			s.mu.Unlock()
+			return err
+		}
+		s.node, s.sub, s.started, s.lastErr = n, sub, time.Now(), ""
+		s.mu.Unlock()
+		s.persistActive(n.ID)
+		s.log.Printf("connected to %s (%s %s:%d)", n.Name, n.Protocol, n.Server, n.Port)
+		return nil
+	}
 
 	s.stop()
 
@@ -146,9 +169,7 @@ func (s *Server) start(n proxy.Node, sub string) error {
 			inst.Close()
 		}
 		if iface != "" && elevate.Needed(err) {
-			if err := s.store.SetActive(n.ID); err != nil {
-				s.log.Printf("could not persist the active node: %v", err)
-			}
+			s.persistActive(n.ID)
 			go elevate.Tun(s.log, s.dir)
 			return fmt.Errorf("granting tun permission, reconnecting…")
 		}
@@ -156,9 +177,7 @@ func (s *Server) start(n proxy.Node, sub string) error {
 	}
 
 	s.inst, s.node, s.sub, s.started, s.lastErr, s.tunLive = inst, n, sub, time.Now(), "", iface != ""
-	if err := s.store.SetActive(n.ID); err != nil {
-		s.log.Printf("could not persist the active node: %v", err)
-	}
+	s.persistActive(n.ID)
 	s.log.Printf("connected to %s (%s %s:%d)", n.Name, n.Protocol, n.Server, n.Port)
 	return nil
 }
@@ -200,9 +219,38 @@ func (s *Server) setTun(enable bool) (Status, error) {
 	return s.finish(err)
 }
 
+func (s *Server) swapProxy(inst *sbox.Box, n proxy.Node) error {
+	ep, obs, err := core.Proxy(n)
+	if err != nil {
+		return err
+	}
+
+	ctx := runtimeCtx(inst)
+	router := inst.Router()
+	logger := inst.LogFactory().NewLogger("outbound/" + core.Tag)
+
+	if ep != nil {
+		inst.Outbound().Remove(core.Tag)
+		inst.Outbound().Remove(core.Tag + "-stls")
+		return inst.Endpoint().Create(ctx, router, logger, ep.Tag, ep.Type, ep.Options)
+	}
+	inst.Endpoint().Remove(core.Tag)
+	inst.Outbound().Remove(core.Tag + "-stls")
+	for _, ob := range obs {
+		if err := inst.Outbound().Create(ctx, router, logger, ob.Tag, ob.Type, ob.Options); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func runtimeCtx(inst *sbox.Box) context.Context {
+	return service.ContextWith[adapter.NetworkManager](core.Context(context.Background()), inst.Network())
+}
+
 func (s *Server) tunAdd(inst *sbox.Box) error {
 	inb := core.TunInbound(tunInterface, core.Resolvers())
-	ctx := service.ContextWith[adapter.NetworkManager](core.Context(context.Background()), inst.Network())
+	ctx := runtimeCtx(inst)
 	logger := inst.LogFactory().NewLogger("inbound/tun[tun-in]")
 
 	var err error
