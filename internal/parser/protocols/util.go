@@ -26,7 +26,7 @@ func Unbase64(s string) ([]byte, error) {
 
 func id(raw string) string {
 	sum := sha1.Sum([]byte(raw))
-	return hex.EncodeToString(sum[:])[:12]
+	return hex.EncodeToString(sum[:])[:8]
 }
 
 func nodeID(n proxy.Node) string {

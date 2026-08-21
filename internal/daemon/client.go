@@ -51,6 +51,8 @@ func call[T any](c *Client, method string, args Args) (T, error) {
 }
 
 func (c *Client) Ping() error                    { _, err := call[any](c, "Ping", Args{}); return err }
+func (c *Client) Status() (Status, error)        { return call[Status](c, "Status", Args{}) }
+func (c *Client) Active() (string, error)        { return call[string](c, "Active", Args{}) }
 func (c *Client) Subs() ([]Sub, error)           { return call[[]Sub](c, "Subs", Args{}) }
 func (c *Client) AddSub(url string) (Sub, error) { return call[Sub](c, "AddSub", Args{URL: url}) }
 func (c *Client) RemoveSub(id string) error {

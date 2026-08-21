@@ -105,14 +105,13 @@ func forceDeleteLink(iface string) {
 	}
 }
 
+// clear stops the engine without touching the persisted active node: "down"
+// is a pause, not a "forget what I was connected to".
 func (s *Server) clear() {
 	s.stop()
 	s.mu.Lock()
 	s.lastErr = ""
 	s.mu.Unlock()
-	if err := s.store.SetActive(""); err != nil {
-		s.log.Printf("could not clear the active node: %v", err)
-	}
 }
 
 func (s *Server) persistActive(id string) {

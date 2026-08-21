@@ -112,7 +112,7 @@ func write(path string, data []byte) error {
 }
 
 func NewID() string {
-	var b [8]byte
+	var b [4]byte
 	rand.Read(b[:]) // documented never to fail
 	return hex.EncodeToString(b[:])
 }

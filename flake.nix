@@ -27,14 +27,23 @@
           version = "0.1.0";
           src = ./.;
 
-          vendorHash = "sha256-SG1v4g3ZPUQLSFfBTXiJgAmW9x+R9LR9CUipxROmRys=";
+          vendorHash = "sha256-b7A2xMBfIzG23WSL8QO9ZOnkhip6j+Qq6NKxdPi24B0=";
 
           subPackages = [ "cmd/justray" "cmd/justrayd" ];
           tags = [ "with_quic" "with_utls" "with_gvisor" ];
           ldflags = [ "-s" "-w" ];
 
+          nativeBuildInputs = [ pkgs.installShellFiles ];
+
           postInstall = ''
             ln -s justray $out/bin/jray
+
+            for cmd in justray jray; do
+              installShellCompletion --cmd "$cmd" \
+                --bash <($out/bin/$cmd completion bash) \
+                --zsh <($out/bin/$cmd completion zsh) \
+                --fish <($out/bin/$cmd completion fish)
+            done
           '';
 
           meta = with pkgs.lib; {

@@ -1,4 +1,4 @@
-package ui
+package tui
 
 import (
 	"io"
@@ -17,7 +17,6 @@ type Model struct {
 
 	subs  []daemon.Sub
 	nodes []daemon.Node
-	nameW int
 
 	collapsed  map[string]bool
 	probing    map[string]bool
@@ -97,7 +96,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if msg.nodes != nil {
 			m.nodes, m.probing = msg.nodes, nil
-			m.nameW = nameWidth(m.nodes)
 		}
 		m.clamp()
 

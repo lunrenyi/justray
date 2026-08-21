@@ -78,7 +78,7 @@ func TestNewID(t *testing.T) {
 	if a == b {
 		t.Fatalf("got same id %q", a)
 	}
-	if len(a) != 16 {
-		t.Fatalf("len(%q) = %d, want 16", a, len(a))
+	if len(a) != 8 {
+		t.Fatalf("len(%q) = %d, want 8", a, len(a))
 	}
 }

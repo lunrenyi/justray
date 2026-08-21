@@ -164,6 +164,12 @@ func (s *Server) dispatch(req Req) (any, error) {
 	switch req.Method {
 	case "Ping":
 		return "pong", nil
+	case "Status":
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return s.status(), nil
+	case "Active":
+		return s.store.Active()
 	case "Subs":
 		return s.subs()
 	case "AddSub":

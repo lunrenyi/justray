@@ -66,19 +66,27 @@ func (s *Server) removeSub(id string) error {
 		s.mu.Unlock()
 		return err
 	}
-	kept := slices.DeleteFunc(subs, func(sub store.Subscription) bool { return sub.ID == id })
-	if len(kept) == len(subs) {
+	i := slices.IndexFunc(subs, func(sub store.Subscription) bool { return sub.ID == id })
+	if i < 0 {
 		s.mu.Unlock()
 		return fmt.Errorf("subscription %q not found", id)
 	}
+	removedNodes := subs[i].Nodes
+	kept := slices.Delete(subs, i, i+1)
 	if err := s.store.Save(kept); err != nil {
 		s.mu.Unlock()
 		return err
 	}
-	active := s.sub == id
+	live := s.sub == id
 	s.mu.Unlock()
 
-	if active {
+	if activeID, err := s.store.Active(); err == nil && slices.ContainsFunc(removedNodes, func(n proxy.Node) bool { return n.ID == activeID }) {
+		if err := s.store.SetActive(""); err != nil {
+			s.log.Printf("could not clear the active node: %v", err)
+		}
+	}
+
+	if live {
 		s.clear()
 		s.broadcast()
 	}
@@ -102,17 +110,21 @@ func (s *Server) refreshAll() ([]Sub, error) {
 	}
 	wg.Wait()
 
-	out := make([]Sub, 0, len(subs))
+	out := make([]Sub, len(subs))
 	updated := make([]store.Subscription, 0, len(subs))
 	var failed error
+	failCount := 0
 	for i, err := range errs {
+		// subs[i] still holds its pre-refresh data on failure: fill() only
+		// mutates it after a successful fetch, so a stale row beats no row.
+		out[i] = info(subs[i])
 		if err != nil {
 			failed = err
+			failCount++
 			s.log.Printf("refresh %s: %v", subs[i].Name, err)
 			continue
 		}
 		updated = append(updated, subs[i])
-		out = append(out, info(subs[i]))
 	}
 
 	s.mu.Lock()
@@ -121,7 +133,7 @@ func (s *Server) refreshAll() ([]Sub, error) {
 		return nil, err
 	}
 	if failed != nil {
-		return out, fmt.Errorf("%d of %d subscriptions failed, last: %w", len(subs)-len(out), len(subs), failed)
+		return out, fmt.Errorf("%d of %d subscriptions failed, last: %w", failCount, len(subs), failed)
 	}
 	return out, nil
 }

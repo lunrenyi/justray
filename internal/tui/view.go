@@ -1,4 +1,4 @@
-package ui
+package tui
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/luynrs/justray/internal/daemon"
-	"github.com/luynrs/justray/internal/ui/style"
+	"github.com/luynrs/justray/internal/tui/style"
 )
 
 const (
@@ -109,11 +109,7 @@ func (m Model) row(r row, selected bool) string {
 	if r.kind == rowHeader {
 		return m.clip(caret + m.header(r.sub, selected))
 	}
-	right := info(r.node)
-	if l := latency(r.node); l != "" {
-		right += "  " + l
-	}
-	return m.clip(caret + flush(m.node(r.node, selected), right, m.w-2))
+	return m.clip(caret + flush(m.node(r.node, selected), info(r.node), m.w-2))
 }
 
 func (m Model) header(s daemon.Sub, selected bool) string {
@@ -144,34 +140,30 @@ func (m Model) subMeta(s daemon.Sub) string {
 	return style.Dim.Render(fmt.Sprintf("%d node%s · %s", s.Nodes, plural, age))
 }
 
-func nameWidth(nodes []daemon.Node) int {
-	w := 0
-	for _, n := range nodes {
-		w = max(w, lipgloss.Width(n.Name))
-	}
-	return min(w, 32)
-}
-
 func (m Model) node(n daemon.Node, selected bool) string {
-	name := style.Pad(style.Sanitize(n.Name), m.nameW)
+	name := style.Sanitize(n.Name)
 	if selected {
 		name = style.Accent.Render(name)
 	}
-	return "  " + m.dot(n) + " " + name
+	line := "  " + m.dot(n) + " " + name
+	if lat := latencyText(n); lat != "" {
+		line += " " + style.Dim.Render(lat)
+	}
+	return line
 }
 
 func info(n daemon.Node) string {
-	return style.Dim.Render(fmt.Sprintf("%s · %s:%d", n.Protocol, n.Server, n.Port))
+	return style.Dim.Render(fmt.Sprintf("%s:%d · %s", n.Server, n.Port, n.Protocol))
 }
 
-func latency(n daemon.Node) string {
+func latencyText(n daemon.Node) string {
 	switch {
 	case !n.Probed:
 		return ""
 	case n.Alive:
-		return style.Dim.Render(fmt.Sprintf("%dms", n.MS))
+		return fmt.Sprintf("%dms", n.MS)
 	}
-	return style.Dim.Render("timeout")
+	return "timeout"
 }
 
 func flush(left, right string, width int) string {

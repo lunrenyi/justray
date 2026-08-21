@@ -7,8 +7,10 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/log v1.0.0
+	github.com/sagernet/netlink v0.0.0-20240612041022-b9a21c07ac6a
 	github.com/sagernet/sing v0.8.13
 	github.com/sagernet/sing-box v1.13.19
+	github.com/spf13/cobra v1.10.2
 	golang.org/x/sys v0.47.0
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -42,6 +44,7 @@ require (
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/hashicorp/yamux v0.1.2 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/insomniacslk/dhcp v0.0.0-20260220084031-5adc3eb26f91 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
@@ -70,7 +73,6 @@ require (
 	github.com/sagernet/bbolt v0.0.0-20231014093535-ea5cb2fe9f0a // indirect
 	github.com/sagernet/fswatch v0.1.2 // indirect
 	github.com/sagernet/gvisor v0.0.0-20250811.0-sing-box-mod.1 // indirect
-	github.com/sagernet/netlink v0.0.0-20240612041022-b9a21c07ac6a // indirect
 	github.com/sagernet/nftables v0.3.0-mod.2 // indirect
 	github.com/sagernet/quic-go v0.59.0-sing-box-mod.4 // indirect
 	github.com/sagernet/sing-mux v0.3.5 // indirect
@@ -83,6 +85,7 @@ require (
 	github.com/sagernet/smux v1.5.50-sing-box-mod.1 // indirect
 	github.com/sagernet/wireguard-go v0.0.4 // indirect
 	github.com/sagernet/ws v0.0.0-20231204124109-acfe8907c854 // indirect
+	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/u-root/uio v0.0.0-20240224005618-d2acac8f3701 // indirect
 	github.com/vishvananda/netns v0.0.5 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
