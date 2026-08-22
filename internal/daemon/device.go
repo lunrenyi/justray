@@ -80,6 +80,8 @@ func readFile(p string) string {
 func run(name string, arg ...string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	out, _ := exec.CommandContext(ctx, name, arg...).Output()
+	cmd := exec.CommandContext(ctx, name, arg...)
+	hideWindow(cmd)
+	out, _ := cmd.Output()
 	return strings.TrimSpace(string(out))
 }

@@ -6,7 +6,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
-	"github.com/luynrs/justray/internal/daemon"
+	"github.com/luynrs/justray/internal/rpc"
 	"github.com/luynrs/justray/internal/tui/style"
 )
 
@@ -67,12 +67,12 @@ func init() {
 	subCmd.AddCommand(subAddCmd, subRemoveCmd, subListCmd)
 }
 
-func resolveSub(key string) (daemon.Sub, error) {
+func resolveSub(key string) (rpc.Sub, error) {
 	subs, err := client.Subs()
 	if err != nil {
-		return daemon.Sub{}, err
+		return rpc.Sub{}, err
 	}
-	return match(key, subs, func(s daemon.Sub) (string, string) { return s.ID, s.Name })
+	return match(key, subs, func(s rpc.Sub) (string, string) { return s.ID, s.Name })
 }
 
 func completeSub(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -80,10 +80,10 @@ func completeSub(cmd *cobra.Command, args []string, toComplete string) ([]string
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 	subs, err := client.Subs()
-	return completeNames(subs, err, func(s daemon.Sub) string { return s.Name })
+	return completeNames(subs, err, func(s rpc.Sub) string { return s.Name })
 }
 
-func showTree(subs []daemon.Sub, nodes []daemon.Node) {
+func showTree(subs []rpc.Sub, nodes []rpc.Node) {
 	for i, s := range subs {
 		if i > 0 {
 			fmt.Println()
@@ -113,7 +113,7 @@ func showTree(subs []daemon.Sub, nodes []daemon.Node) {
 	}
 }
 
-func nodeLine(n daemon.Node, branch string, nameW, infoW int) string {
+func nodeLine(n rpc.Node, branch string, nameW, infoW int) string {
 	name := style.Pad(n.Name, nameW)
 	info := style.Dim.Render(style.Pad(serverProto(n), infoW))
 	id := style.Dim.Render(n.ID)
@@ -123,18 +123,18 @@ func nodeLine(n daemon.Node, branch string, nameW, infoW int) string {
 	return fmt.Sprintf("%s %s  %s  %s", style.Dim.Render(branch), name, info, id)
 }
 
-func serverProto(n daemon.Node) string {
+func serverProto(n rpc.Node) string {
 	return fmt.Sprintf("%s:%d · %s", n.Server, n.Port, n.Protocol)
 }
 
-func subMeta(s daemon.Sub) string {
+func subMeta(s rpc.Sub) string {
 	if t := traffic(s); t != "" {
 		return t + " · " + style.Since(s.UpdatedAt)
 	}
 	return style.Since(s.UpdatedAt)
 }
 
-func traffic(s daemon.Sub) string {
+func traffic(s rpc.Sub) string {
 	used := s.Traffic.UploadBytes + s.Traffic.DownloadBytes
 	switch {
 	case s.Traffic.TotalBytes > 0:
@@ -145,8 +145,8 @@ func traffic(s daemon.Sub) string {
 	return ""
 }
 
-func filterBySub(nodes []daemon.Node, sub string) []daemon.Node {
-	var out []daemon.Node
+func filterBySub(nodes []rpc.Node, sub string) []rpc.Node {
+	var out []rpc.Node
 	for _, n := range nodes {
 		if n.Sub == sub {
 			out = append(out, n)

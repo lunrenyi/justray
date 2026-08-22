@@ -7,7 +7,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/luynrs/justray/internal/daemon"
+	"github.com/luynrs/justray/internal/rpc"
 	"github.com/luynrs/justray/internal/tui/style"
 )
 
@@ -112,7 +112,7 @@ func (m Model) row(r row, selected bool) string {
 	return m.clip(caret + flush(m.node(r.node, selected), info(r.node), m.w-2))
 }
 
-func (m Model) header(s daemon.Sub, selected bool) string {
+func (m Model) header(s rpc.Sub, selected bool) string {
 	arrow := "▾"
 	if m.collapsed[s.ID] {
 		arrow = "▸"
@@ -125,7 +125,7 @@ func (m Model) header(s daemon.Sub, selected bool) string {
 	return arrow + " " + name
 }
 
-func (m Model) subMeta(s daemon.Sub) string {
+func (m Model) subMeta(s rpc.Sub) string {
 	age := "never updated"
 	switch {
 	case m.refreshing[s.ID]:
@@ -140,7 +140,7 @@ func (m Model) subMeta(s daemon.Sub) string {
 	return style.Dim.Render(fmt.Sprintf("%d node%s · %s", s.Nodes, plural, age))
 }
 
-func (m Model) node(n daemon.Node, selected bool) string {
+func (m Model) node(n rpc.Node, selected bool) string {
 	name := style.Sanitize(n.Name)
 	if selected {
 		name = style.Accent.Render(name)
@@ -152,11 +152,11 @@ func (m Model) node(n daemon.Node, selected bool) string {
 	return line
 }
 
-func info(n daemon.Node) string {
+func info(n rpc.Node) string {
 	return style.Dim.Render(fmt.Sprintf("%s:%d · %s", n.Server, n.Port, n.Protocol))
 }
 
-func latencyText(n daemon.Node) string {
+func latencyText(n rpc.Node) string {
 	switch {
 	case !n.Probed:
 		return ""
@@ -174,7 +174,7 @@ func flush(left, right string, width int) string {
 	return left + strings.Repeat(" ", gap) + right
 }
 
-func (m Model) dot(n daemon.Node) string {
+func (m Model) dot(n rpc.Node) string {
 	switch {
 	case m.connected() && m.status.NodeID == n.ID:
 		return style.Strong.Render("●")
@@ -250,7 +250,7 @@ func (m Model) footer() string {
 	return "\n" + m.clip(status) + "\n" + m.clip(hints)
 }
 
-func usage(s daemon.Sub) string {
+func usage(s rpc.Sub) string {
 	t := s.Traffic
 	used := t.UploadBytes + t.DownloadBytes
 

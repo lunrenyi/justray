@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/luynrs/justray/internal/daemon"
+	"github.com/luynrs/justray/internal/rpc"
 )
 
 var upTunFlag, upProxyFlag bool
@@ -86,7 +86,7 @@ func connectNode(key string, mode *bool) error {
 	return nil
 }
 
-func switchMode(st daemon.Status, tun bool) error {
+func switchMode(st rpc.Status, tun bool) error {
 	if st.Tun == tun {
 		fmt.Println("Already connected via " + strings.ToUpper(modeWord(tun)))
 		return nil
@@ -103,12 +103,12 @@ func switchMode(st daemon.Status, tun bool) error {
 	return nil
 }
 
-func resolveNode(key string) (daemon.Node, error) {
+func resolveNode(key string) (rpc.Node, error) {
 	nodes, err := client.Nodes()
 	if err != nil {
-		return daemon.Node{}, err
+		return rpc.Node{}, err
 	}
-	return match(key, nodes, func(n daemon.Node) (string, string) { return n.ID, n.Name })
+	return match(key, nodes, func(n rpc.Node) (string, string) { return n.ID, n.Name })
 }
 
 func completeNode(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -116,5 +116,5 @@ func completeNode(cmd *cobra.Command, args []string, toComplete string) ([]strin
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 	nodes, err := client.Nodes()
-	return completeNames(nodes, err, func(n daemon.Node) string { return n.Name })
+	return completeNames(nodes, err, func(n rpc.Node) string { return n.Name })
 }

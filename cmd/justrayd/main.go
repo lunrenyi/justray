@@ -5,7 +5,6 @@ package main
 //
 
 import (
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -16,24 +15,19 @@ import (
 	"github.com/charmbracelet/log"
 
 	"github.com/luynrs/justray/internal/daemon"
+	"github.com/luynrs/justray/internal/rpc"
 )
 
 func main() {
-	dir := flag.String("config-dir", "", "config directory (default: $JUSTRAY_CONFIG_DIR, else the OS user config dir + /justray)")
-	flag.Parse()
-
-	if *dir == "" {
-		d, err := daemon.Dir()
-		if err != nil {
-			die("resolve config dir:", err)
-		}
-		*dir = d
+	dir, err := rpc.Dir()
+	if err != nil {
+		die("resolve config dir:", err)
 	}
-	if err := daemon.EnsureDir(*dir); err != nil {
+	if err := rpc.EnsureDir(dir); err != nil {
 		die("create config dir:", err)
 	}
 
-	logFile, err := os.OpenFile(daemon.DaemonLog(*dir), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	logFile, err := os.OpenFile(rpc.DaemonLog(dir), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
 		die("open log file:", err)
 	}
@@ -43,11 +37,11 @@ func main() {
 		Prefix:          "justrayd",
 	})
 
-	if err := daemon.ClearLog(daemon.CoreLog(*dir)); err != nil {
+	if err := rpc.ClearLog(rpc.CoreLog(dir)); err != nil {
 		logger.Printf("could not truncate core log: %v", err)
 	}
 
-	socket := daemon.Socket(*dir)
+	socket := rpc.Socket(dir)
 	ln, err := daemon.Listen(socket)
 	if err != nil {
 		if strings.Contains(err.Error(), "already listening") {
@@ -58,7 +52,7 @@ func main() {
 	}
 	logger.Printf("listening on %s", socket)
 
-	srv := daemon.New(*dir, logger)
+	srv := daemon.New(dir, logger)
 	srv.Restore()
 
 	sig := make(chan os.Signal, 1)

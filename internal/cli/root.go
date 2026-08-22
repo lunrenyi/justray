@@ -13,11 +13,11 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/luynrs/justray/internal/cli/detach"
-	"github.com/luynrs/justray/internal/daemon"
+	"github.com/luynrs/justray/internal/rpc"
 	"github.com/luynrs/justray/internal/tui"
 )
 
-var client *daemon.Client
+var client *rpc.Client
 
 const cmdGroup = "commands"
 
@@ -101,28 +101,28 @@ func setHelpText(c *cobra.Command) {
 }
 
 func connectDaemon() error {
-	dir, err := daemon.Dir()
+	dir, err := rpc.Dir()
 	if err != nil {
 		return fmt.Errorf("resolve config dir: %w", err)
 	}
-	if err := daemon.EnsureDir(dir); err != nil {
+	if err := rpc.EnsureDir(dir); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
 	}
 
-	client = daemon.NewClient(daemon.Socket(dir))
+	client = rpc.NewClient(rpc.Socket(dir))
 	if client.Ping() == nil {
 		return nil
 	}
-	if err := spawn(); err != nil {
+	if err := spawn(dir); err != nil {
 		return fmt.Errorf("start daemon: %w", err)
 	}
 	if err := wait(client, 10*time.Second); err != nil {
-		return fmt.Errorf("%w — see %s", err, daemon.DaemonLog(dir))
+		return fmt.Errorf("%w — see %s", err, rpc.DaemonLog(dir))
 	}
 	return nil
 }
 
-func spawn() error {
+func spawn(dir string) error {
 	bin, err := justrayd()
 	if err != nil {
 		return err
@@ -133,10 +133,23 @@ func spawn() error {
 	}
 	defer devNull.Close()
 
+	// a crash (unrecovered panic) writes straight to stderr, bypassing the
+	// daemon's own logger — send it to the daemon log instead of /dev/null,
+	// or it vanishes with no trace of why the process died.
+	errLog, err := os.OpenFile(rpc.DaemonLog(dir), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		return err
+	}
+	defer errLog.Close()
+
 	cmd := exec.Command(bin)
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = devNull, devNull, devNull
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = devNull, devNull, errLog
 	detach.Cmd(cmd)
-	return cmd.Start() // detached on purpose
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	go cmd.Wait() // reap the daemon when it exits, or it lingers as a zombie
+	return nil
 }
 
 func justrayd() (string, error) {
@@ -169,7 +182,7 @@ func nextToSelf(name string) string {
 	return p
 }
 
-func wait(c *daemon.Client, timeout time.Duration) error {
+func wait(c *rpc.Client, timeout time.Duration) error {
 	for deadline := time.Now().Add(timeout); time.Now().Before(deadline); {
 		if c.Ping() == nil {
 			return nil
@@ -183,11 +196,11 @@ func completionDaemon() bool {
 	if client != nil {
 		return true
 	}
-	d, err := daemon.Dir()
+	d, err := rpc.Dir()
 	if err != nil {
 		return false
 	}
-	client = daemon.NewClient(daemon.Socket(d))
+	client = rpc.NewClient(rpc.Socket(d))
 	return client.Ping() == nil
 }
 

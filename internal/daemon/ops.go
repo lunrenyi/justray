@@ -22,6 +22,7 @@ import (
 	"github.com/luynrs/justray/internal/daemon/store"
 	"github.com/luynrs/justray/internal/daemon/wintun"
 	"github.com/luynrs/justray/internal/parser/proxy"
+	"github.com/luynrs/justray/internal/rpc"
 )
 
 const (
@@ -101,7 +102,6 @@ func waitGone(iface string) bool {
 	return false
 }
 
-
 func (s *Server) clear() {
 	s.stop()
 	s.mu.Lock()
@@ -142,11 +142,11 @@ func (s *Server) start(n proxy.Node, sub string) error {
 
 	s.stop()
 
-	if err := ClearLog(CoreLog(s.dir)); err != nil {
+	if err := rpc.ClearLog(rpc.CoreLog(s.dir)); err != nil {
 		s.log.Printf("could not truncate core log: %v", err)
 	}
 
-	opts, err := core.Build(n, port, CoreLog(s.dir), iface)
+	opts, err := core.Build(n, port, rpc.CoreLog(s.dir), iface)
 	var inst *sbox.Box
 	if err == nil {
 		inst, err = newEngine(*opts)

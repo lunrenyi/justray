@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 )
+
 func cachedCopy(dir string) (string, error) {
 	self, err := os.Executable()
 	if err != nil {

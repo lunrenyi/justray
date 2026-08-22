@@ -9,14 +9,14 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/luynrs/justray/internal/daemon"
+	"github.com/luynrs/justray/internal/rpc"
 )
 
 type Model struct {
-	client *daemon.Client
+	client *rpc.Client
 
-	subs  []daemon.Sub
-	nodes []daemon.Node
+	subs  []rpc.Sub
+	nodes []rpc.Node
 
 	collapsed  map[string]bool
 	probing    map[string]bool
@@ -34,10 +34,10 @@ type Model struct {
 
 	confirmSub string
 
-	status     daemon.Status
+	status     rpc.Status
 	live       bool
 	since      time.Time
-	statusCh   chan daemon.Status
+	statusCh   chan rpc.Status
 	connecting bool
 
 	err string
@@ -46,14 +46,14 @@ type Model struct {
 	quitting bool
 }
 
-func New(c *daemon.Client) Model {
+func New(c *rpc.Client) Model {
 	return Model{
 		client:    c,
 		collapsed: map[string]bool{},
 		spin:      spinner.New(spinner.WithSpinner(spinner.MiniDot)),
 		url:       input("Add:  ", "subscription URL, or a vless://, vmess://, trojan://, ss://, etc. link", 2048),
 		filter:    input("", "type to filter...", 128),
-		statusCh:  make(chan daemon.Status),
+		statusCh:  make(chan rpc.Status),
 	}
 }
 
@@ -107,7 +107,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case pushed:
-		st := daemon.Status(msg)
+		st := rpc.Status(msg)
 		m.since = time.Now().Add(-time.Duration(st.Uptime) * time.Second)
 		m.status, m.live, m.err = st, true, ""
 		return m, next(m.statusCh)
@@ -220,7 +220,7 @@ func (m Model) quit() (tea.Model, tea.Cmd) {
 	return m, tea.Quit
 }
 
-func Run(c *daemon.Client) error {
+func Run(c *rpc.Client) error {
 	log.SetOutput(io.Discard)
 	_, err := tea.NewProgram(New(c), tea.WithAltScreen(), tea.WithMouseCellMotion()).Run()
 	return err

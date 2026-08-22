@@ -66,7 +66,12 @@ func Build(n proxy.Node, port int, logPath, tun string) (*option.Options, error)
 						Network: []string{"udp"},
 						Port:    []uint16{443},
 					},
-					RuleAction: option.RuleAction{Action: C.RuleActionTypeReject},
+					RuleAction: option.RuleAction{
+						Action: C.RuleActionTypeReject,
+						RejectOptions: option.RejectActionOptions{
+							Method: C.RuleActionRejectMethodDefault,
+						},
+					},
 				}},
 				{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
 					RawDefaultRule: option.RawDefaultRule{IPCIDR: resolverCIDRs},

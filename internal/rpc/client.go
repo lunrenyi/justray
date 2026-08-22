@@ -1,4 +1,4 @@
-package daemon
+package rpc
 
 import (
 	"encoding/json"
@@ -9,6 +9,8 @@ import (
 )
 
 type Client struct{ socket string }
+
+const idle = 60 * time.Second
 
 func NewClient(socket string) *Client { return &Client{socket} }
 

@@ -60,25 +60,23 @@ func (s *Server) removeSub(id string) error {
 	defer s.opMu.Unlock()
 
 	s.storeMu.Lock()
+	defer s.storeMu.Unlock()
+
 	subs, err := s.store.Subscriptions()
 	if err != nil {
-		s.storeMu.Unlock()
 		return err
 	}
 	i := slices.IndexFunc(subs, func(sub store.Subscription) bool { return sub.ID == id })
 	if i < 0 {
-		s.storeMu.Unlock()
 		return fmt.Errorf("subscription %q not found", id)
 	}
 	removedNodes := subs[i].Nodes
 	kept := slices.Delete(subs, i, i+1)
 	if err := s.store.Save(kept); err != nil {
-		s.storeMu.Unlock()
 		return err
 	}
-	s.storeMu.Unlock()
 
-	if id, err := s.store.Active(); err == nil && slices.ContainsFunc(removedNodes, func(n proxy.Node) bool { return n.ID == id }) {
+	if active, err := s.store.Active(); err == nil && slices.ContainsFunc(removedNodes, func(n proxy.Node) bool { return n.ID == active }) {
 		if err := s.store.SetActive(""); err != nil {
 			s.log.Printf("could not clear the active node: %v", err)
 		}
@@ -87,6 +85,7 @@ func (s *Server) removeSub(id string) error {
 	s.mu.Lock()
 	live := s.sub == id
 	s.mu.Unlock()
+
 	if live {
 		s.clear()
 		s.broadcast()

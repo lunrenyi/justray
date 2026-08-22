@@ -5,16 +5,16 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/luynrs/justray/internal/daemon"
+	"github.com/luynrs/justray/internal/rpc"
 )
 
 type loaded struct {
-	subs  []daemon.Sub
-	nodes []daemon.Node
+	subs  []rpc.Sub
+	nodes []rpc.Node
 	err   error
 }
 
-type pushed daemon.Status
+type pushed rpc.Status
 
 type connectResult struct{ err error }
 
@@ -24,7 +24,7 @@ func connectCmd(fn func() error) tea.Cmd {
 
 type tick struct{}
 
-func load(c *daemon.Client) tea.Msg {
+func load(c *rpc.Client) tea.Msg {
 	subs, err := c.Subs()
 	if err != nil {
 		return loaded{err: err}
@@ -33,11 +33,11 @@ func load(c *daemon.Client) tea.Msg {
 	return loaded{subs: subs, nodes: nodes, err: err}
 }
 
-func loadCmd(c *daemon.Client) tea.Cmd {
+func loadCmd(c *rpc.Client) tea.Cmd {
 	return func() tea.Msg { return load(c) }
 }
 
-func act(c *daemon.Client, fn func() error) tea.Cmd {
+func act(c *rpc.Client, fn func() error) tea.Cmd {
 	return func() tea.Msg {
 		if err := fn(); err != nil {
 			return loaded{err: err}
@@ -46,19 +46,19 @@ func act(c *daemon.Client, fn func() error) tea.Cmd {
 	}
 }
 
-func probeCmd(c *daemon.Client, sub, id string) tea.Cmd {
+func probeCmd(c *rpc.Client, sub, id string) tea.Cmd {
 	return func() tea.Msg {
 		nodes, err := c.Probe(sub, id)
 		return loaded{nodes: nodes, err: err}
 	}
 }
 
-func watch(c *daemon.Client, ch chan<- daemon.Status) tea.Cmd {
+func watch(c *rpc.Client, ch chan<- rpc.Status) tea.Cmd {
 	return func() tea.Msg {
 		go func() {
 			backoff := time.Second
 			for {
-				c.Watch(func(st daemon.Status) {
+				c.Watch(func(st rpc.Status) {
 					ch <- st
 					backoff = time.Second
 				})
@@ -72,7 +72,7 @@ func watch(c *daemon.Client, ch chan<- daemon.Status) tea.Cmd {
 	}
 }
 
-func next(ch <-chan daemon.Status) tea.Cmd {
+func next(ch <-chan rpc.Status) tea.Cmd {
 	return func() tea.Msg { return pushed(<-ch) }
 }
 

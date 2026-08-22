@@ -5,7 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/luynrs/justray/internal/daemon"
+	"github.com/luynrs/justray/internal/rpc"
 )
 
 const (
@@ -24,8 +24,8 @@ const (
 
 type row struct {
 	kind rowKind
-	sub  daemon.Sub
-	node daemon.Node
+	sub  rpc.Sub
+	node rpc.Node
 }
 
 func (r row) subID() string {
@@ -68,8 +68,8 @@ func (m Model) rows() []row {
 	return rows
 }
 
-func (m Model) subNodes(subID string) []daemon.Node {
-	var out []daemon.Node
+func (m Model) subNodes(subID string) []rpc.Node {
+	var out []rpc.Node
 	for _, n := range m.nodes {
 		if n.Sub == subID {
 			out = append(out, n)
@@ -78,8 +78,8 @@ func (m Model) subNodes(subID string) []daemon.Node {
 	return out
 }
 
-func matching(nodes []daemon.Node, q string) []daemon.Node {
-	var out []daemon.Node
+func matching(nodes []rpc.Node, q string) []rpc.Node {
+	var out []rpc.Node
 	for _, n := range nodes {
 		if strings.Contains(strings.ToLower(n.Name+" "+n.Protocol+" "+n.Server), q) {
 			out = append(out, n)
