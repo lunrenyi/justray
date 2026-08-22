@@ -29,12 +29,13 @@ func ParseVLess(uri string) (domain.Node, error) {
 
 	q := u.Query()
 	n := domain.Node{
-		Name:      cmp.Or(u.Fragment, host),
-		Protocol:  domain.VLess,
-		Server:    host,
-		Port:      port,
-		Auth:      domain.Auth{UUID: u.User.Username(), Flow: q.Get("flow")},
-		Transport: transport(q),
+		Name:           cmp.Or(u.Fragment, host),
+		Protocol:       domain.VLess,
+		Server:         host,
+		Port:           port,
+		Auth:           domain.Auth{UUID: u.User.Username(), Flow: q.Get("flow")},
+		Transport:      transport(q),
+		PacketEncoding: q.Get("packetEncoding"),
 	}
 
 	switch strings.ToLower(q.Get("security")) {

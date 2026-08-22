@@ -17,23 +17,24 @@ const (
 )
 
 type Node struct {
-	ID           string
-	Name         string
-	Protocol     Proto
-	Server       string
-	Port         int
-	Auth         Auth
-	Transport    Transport
-	TLS          *TLS // nil means plaintext
-	Reality      *Reality
-	Obfs         string // hysteria2
-	ObfsPassword string // hysteria2, hysteria xplus
-	UpMbps       int    // hysteria
-	DownMbps     int    // hysteria
-	Congestion   string // tuic
-	UDPRelayMode string // tuic
-	ShadowTLS    *ShadowTLS
-	WireGuard    *WireGuard
+	ID             string
+	Name           string
+	Protocol       Proto
+	Server         string
+	Port           int
+	Auth           Auth
+	Transport      Transport
+	TLS            *TLS // nil means plaintext
+	Reality        *Reality
+	Obfs           string // hysteria2
+	ObfsPassword   string // hysteria2, hysteria xplus
+	UpMbps         int    // hysteria
+	DownMbps       int    // hysteria
+	Congestion     string // tuic
+	UDPRelayMode   string // tuic
+	PacketEncoding string // vless, vmess: xudp, packetaddr; empty = xudp
+	ShadowTLS      *ShadowTLS
+	WireGuard      *WireGuard
 }
 
 type Auth struct {

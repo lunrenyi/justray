@@ -21,7 +21,7 @@ import (
 
 const Tag = "proxy"
 
-var packetEncoding = "packetaddr"
+func packetEncoding(n domain.Node) string { return cmp.Or(n.PacketEncoding, "xudp") }
 
 func Build(n domain.Node, port int, logPath, tun string) (*option.Options, error) {
 	ep, obs, err := Proxy(n)
@@ -249,11 +249,12 @@ func newOutbound(n domain.Node, tag string) (*option.Outbound, error) {
 
 	switch n.Protocol {
 	case domain.VLess:
+		pe := packetEncoding(n)
 		return &option.Outbound{Type: C.TypeVLESS, Tag: tag, Options: &option.VLESSOutboundOptions{
 			ServerOptions:               server(n),
 			UUID:                        n.Auth.UUID,
 			Flow:                        n.Auth.Flow,
-			PacketEncoding:              &packetEncoding,
+			PacketEncoding:              &pe,
 			OutboundTLSOptionsContainer: option.OutboundTLSOptionsContainer{TLS: tls},
 			Transport:                   buildTransport(n),
 		}}, nil
@@ -264,7 +265,7 @@ func newOutbound(n domain.Node, tag string) (*option.Outbound, error) {
 			UUID:                        n.Auth.UUID,
 			Security:                    cmp.Or(n.Auth.Method, "auto"),
 			AlterId:                     n.Auth.AlterID,
-			PacketEncoding:              "packetaddr",
+			PacketEncoding:              packetEncoding(n),
 			OutboundTLSOptionsContainer: option.OutboundTLSOptionsContainer{TLS: tls},
 			Transport:                   buildTransport(n),
 		}}, nil

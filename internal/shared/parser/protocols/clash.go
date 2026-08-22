@@ -36,6 +36,7 @@ type clashProxy struct {
 	Down              mbps     `yaml:"down"`
 	Congestion        string   `yaml:"congestion-controller"`
 	UDPRelayMode      string   `yaml:"udp-relay-mode"`
+	PacketEncoding    string   `yaml:"packet-encoding"`
 
 	PrivateKey   string   `yaml:"private-key"`
 	PublicKey    string   `yaml:"public-key"`
@@ -114,6 +115,7 @@ func clashNode(p clashProxy) (domain.Node, error) {
 		n.Protocol = domain.VLess
 		n.Auth = domain.Auth{UUID: p.UUID, Flow: p.Flow}
 		n.Transport = clashTransport(p)
+		n.PacketEncoding = p.PacketEncoding
 		if p.TLS || p.RealityOpts != nil {
 			n.TLS = tls
 		}
@@ -128,6 +130,7 @@ func clashNode(p clashProxy) (domain.Node, error) {
 		n.Protocol = domain.VMess
 		n.Auth = domain.Auth{UUID: p.UUID, AlterID: p.AlterID, Method: strings.ToLower(cmp.Or(p.Cipher, "auto"))}
 		n.Transport = clashTransport(p)
+		n.PacketEncoding = p.PacketEncoding
 		if p.TLS {
 			n.TLS = tls
 		}
