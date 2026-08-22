@@ -7,24 +7,17 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/luynrs/justray/internal/parser/proxy"
+	"github.com/luynrs/justray/internal/shared/domain"
 	"gopkg.in/yaml.v3"
 )
 
 type Subscription struct {
-	ID        string       `yaml:"id"`
-	Name      string       `yaml:"name"`
-	URL       string       `yaml:"url"`
-	Nodes     []proxy.Node `yaml:"nodes"`
-	UpdatedAt time.Time    `yaml:"updated_at"`
-	Traffic   Traffic      `yaml:"traffic,omitempty"`
-}
-
-type Traffic struct {
-	UploadBytes   int64     `yaml:"upload_bytes,omitempty"`
-	DownloadBytes int64     `yaml:"download_bytes,omitempty"`
-	TotalBytes    int64     `yaml:"total_bytes,omitempty"`
-	ExpiresAt     time.Time `yaml:"expires_at,omitempty"`
+	ID        string         `yaml:"id"`
+	Name      string         `yaml:"name"`
+	URL       string         `yaml:"url"`
+	Nodes     []domain.Node  `yaml:"nodes"`
+	UpdatedAt time.Time      `yaml:"updated_at"`
+	Traffic   domain.Traffic `yaml:"traffic,omitempty"`
 }
 
 type State struct {
@@ -32,6 +25,8 @@ type State struct {
 	Tun    bool   `yaml:"tun,omitempty"`
 }
 
+// Disk is the persistence boundary: subscriptions.yaml + the daemon's
+// active-node/tun state.
 type Disk struct{ Dir string }
 
 type file struct {

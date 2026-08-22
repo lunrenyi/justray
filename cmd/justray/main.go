@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/luynrs/justray/internal/cli"
+	"github.com/luynrs/justray/internal/client/cli"
 )
 
 func main() {

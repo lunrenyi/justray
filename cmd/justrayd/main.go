@@ -14,8 +14,12 @@ import (
 
 	"github.com/charmbracelet/log"
 
-	"github.com/luynrs/justray/internal/daemon"
-	"github.com/luynrs/justray/internal/rpc"
+	"github.com/luynrs/justray/internal/daemon/connection"
+	"github.com/luynrs/justray/internal/daemon/engine/singbox"
+	"github.com/luynrs/justray/internal/daemon/server"
+	"github.com/luynrs/justray/internal/daemon/store"
+	"github.com/luynrs/justray/internal/daemon/subscription"
+	"github.com/luynrs/justray/internal/shared/rpc"
 )
 
 func main() {
@@ -42,7 +46,7 @@ func main() {
 	}
 
 	socket := rpc.Socket(dir)
-	ln, err := daemon.Listen(socket)
+	ln, err := server.Listen(socket)
 	if err != nil {
 		if strings.Contains(err.Error(), "already listening") {
 			logger.Printf("%v, exiting", err)
@@ -52,7 +56,10 @@ func main() {
 	}
 	logger.Printf("listening on %s", socket)
 
-	srv := daemon.New(dir, logger)
+	st := store.Disk{Dir: dir}
+	conn := connection.New(dir, st, singbox.New, logger)
+	subs := subscription.New(st, logger)
+	srv := server.New(logger, conn, subs)
 	srv.Restore()
 
 	sig := make(chan os.Signal, 1)

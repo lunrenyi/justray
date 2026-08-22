@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/luynrs/justray/internal/parser/proxy"
+	"github.com/luynrs/justray/internal/shared/domain"
 )
 
 func TestStore(t *testing.T) {
@@ -19,10 +19,10 @@ func TestStore(t *testing.T) {
 		subs := []Subscription{{
 			ID: "a", Name: "test", URL: "https://example.com/sub",
 			UpdatedAt: time.Now().Truncate(time.Second).UTC(),
-			Traffic:   Traffic{UploadBytes: 1, DownloadBytes: 2, TotalBytes: 3},
-			Nodes: []proxy.Node{{
-				ID: "n1", Name: "node", Protocol: proxy.VLess,
-				Server: "1.2.3.4", Port: 443, Auth: proxy.Auth{UUID: "uuid"},
+			Traffic:   domain.Traffic{UploadBytes: 1, DownloadBytes: 2, TotalBytes: 3},
+			Nodes: []domain.Node{{
+				ID: "n1", Name: "node", Protocol: domain.VLess,
+				Server: "1.2.3.4", Port: 443, Auth: domain.Auth{UUID: "uuid"},
 			}},
 		}}
 		if err := d.Save(subs); err != nil {
