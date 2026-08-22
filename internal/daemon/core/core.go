@@ -8,7 +8,6 @@ import (
 	"net/netip"
 	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -16,10 +15,13 @@ import (
 	"github.com/sagernet/sing-box/option"
 	"github.com/sagernet/sing/common/json/badoption"
 
+	"github.com/luynrs/justray/internal/daemon/core/resolvers"
 	"github.com/luynrs/justray/internal/parser/proxy"
 )
 
 const Tag = "proxy"
+
+var packetEncoding = "packetaddr"
 
 func Build(n proxy.Node, port int, logPath, tun string) (*option.Options, error) {
 	ep, obs, err := Proxy(n)
@@ -27,7 +29,7 @@ func Build(n proxy.Node, port int, logPath, tun string) (*option.Options, error)
 		return nil, err
 	}
 
-	resolverIPs := Resolvers()
+	resolverIPs := resolvers.Get()
 	resolverCIDRs := make([]string, len(resolverIPs))
 	for i, p := range resolverIPs {
 		resolverCIDRs[i] = p.String()
@@ -44,7 +46,7 @@ func Build(n proxy.Node, port int, logPath, tun string) (*option.Options, error)
 			{Type: C.TypeDirect, Tag: "direct", Options: &option.DirectOutboundOptions{}},
 		},
 		DNS: &option.DNSOptions{RawDNSOptions: option.RawDNSOptions{Servers: []option.DNSServerOptions{
-			{Type: C.DNSTypeUDP, Tag: "remote", Options: &option.RemoteDNSServerOptions{
+			{Type: C.DNSTypeTCP, Tag: "remote", Options: &option.RemoteDNSServerOptions{
 				RawLocalDNSServerOptions: option.RawLocalDNSServerOptions{
 					DialerOptions: option.DialerOptions{Detour: Tag},
 				},
@@ -58,6 +60,13 @@ func Build(n proxy.Node, port int, logPath, tun string) (*option.Options, error)
 				{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
 					RawDefaultRule: option.RawDefaultRule{Port: []uint16{53}},
 					RuleAction:     option.RuleAction{Action: C.RuleActionTypeHijackDNS},
+				}},
+				{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
+					RawDefaultRule: option.RawDefaultRule{
+						Network: []string{"udp"},
+						Port:    []uint16{443},
+					},
+					RuleAction: option.RuleAction{Action: C.RuleActionTypeReject},
 				}},
 				{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
 					RawDefaultRule: option.RawDefaultRule{IPCIDR: resolverCIDRs},
@@ -137,30 +146,6 @@ func resolved(n proxy.Node) (proxy.Node, error) {
 	}
 	n.Server = ips[0].Unmap().String()
 	return n, nil
-}
-
-func Resolvers() []netip.Prefix {
-	b, err := os.ReadFile("/etc/resolv.conf")
-	if err != nil {
-		return nil
-	}
-	var out []netip.Prefix
-	for _, line := range strings.Split(string(b), "\n") {
-		f := strings.Fields(line)
-		if len(f) != 2 || f[0] != "nameserver" {
-			continue
-		}
-		a, err := netip.ParseAddr(f[1])
-		if err != nil || a.IsLoopback() {
-			continue
-		}
-		bits := 32
-		if a.Is6() {
-			bits = 128
-		}
-		out = append(out, netip.PrefixFrom(a, bits))
-	}
-	return out
 }
 
 func ProbeTag(i int) string { return "p" + strconv.Itoa(i) }
@@ -263,6 +248,7 @@ func newOutbound(n proxy.Node, tag string) (*option.Outbound, error) {
 			ServerOptions:               server(n),
 			UUID:                        n.Auth.UUID,
 			Flow:                        n.Auth.Flow,
+			PacketEncoding:              &packetEncoding,
 			OutboundTLSOptionsContainer: option.OutboundTLSOptionsContainer{TLS: tls},
 			Transport:                   buildTransport(n),
 		}}, nil
@@ -273,6 +259,7 @@ func newOutbound(n proxy.Node, tag string) (*option.Outbound, error) {
 			UUID:                        n.Auth.UUID,
 			Security:                    cmp.Or(n.Auth.Method, "auto"),
 			AlterId:                     n.Auth.AlterID,
+			PacketEncoding:              "packetaddr",
 			OutboundTLSOptionsContainer: option.OutboundTLSOptionsContainer{TLS: tls},
 			Transport:                   buildTransport(n),
 		}}, nil

@@ -31,6 +31,7 @@ type Server struct {
 
 	mu       sync.Mutex
 	opMu     sync.Mutex
+	storeMu  sync.Mutex
 	inst     *sbox.Box  // nil while disconnected
 	node     proxy.Node // the one inst is running
 	sub      string     // sub the active node belongs to
@@ -67,8 +68,6 @@ func New(dir string, logger *log.Logger) *Server {
 }
 
 func (s *Server) subscriptions() ([]store.Subscription, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	return s.store.Subscriptions()
 }
 
@@ -139,7 +138,7 @@ func (s *Server) Restore() {
 
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
-	conn.SetDeadline(time.Now().Add(idle))
+	conn.SetReadDeadline(time.Now().Add(idle))
 
 	var req Req
 	if err := json.NewDecoder(io.LimitReader(conn, maxRequestSize)).Decode(&req); err != nil {
@@ -150,6 +149,7 @@ func (s *Server) handle(conn net.Conn) {
 		s.watch(conn)
 		return
 	}
+	conn.SetDeadline(time.Time{})
 	result, err := s.dispatch(req)
 	conn.SetDeadline(time.Now().Add(idle))
 	reply(conn, result, err)

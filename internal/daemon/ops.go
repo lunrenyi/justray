@@ -9,7 +9,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/sagernet/netlink"
 	sbox "github.com/sagernet/sing-box"
 	"github.com/sagernet/sing-box/adapter"
 	C "github.com/sagernet/sing-box/constant"
@@ -17,8 +16,11 @@ import (
 	"github.com/sagernet/sing/service"
 
 	"github.com/luynrs/justray/internal/daemon/core"
+	"github.com/luynrs/justray/internal/daemon/core/resolvers"
 	"github.com/luynrs/justray/internal/daemon/elevate"
+	"github.com/luynrs/justray/internal/daemon/link"
 	"github.com/luynrs/justray/internal/daemon/store"
+	"github.com/luynrs/justray/internal/daemon/wintun"
 	"github.com/luynrs/justray/internal/parser/proxy"
 )
 
@@ -99,14 +101,7 @@ func waitGone(iface string) bool {
 	return false
 }
 
-func forceDeleteLink(iface string) {
-	if link, err := netlink.LinkByName(iface); err == nil {
-		netlink.LinkDel(link)
-	}
-}
 
-// clear stops the engine without touching the persisted active node: "down"
-// is a pause, not a "forget what I was connected to".
 func (s *Server) clear() {
 	s.stop()
 	s.mu.Lock()
@@ -252,7 +247,10 @@ func runtimeCtx(inst *sbox.Box) context.Context {
 }
 
 func (s *Server) tunAdd(inst *sbox.Box) error {
-	inb := core.TunInbound(tunInterface, core.Resolvers())
+	if _, err := wintun.Ensure(); err != nil {
+		return err
+	}
+	inb := core.TunInbound(tunInterface, resolvers.Get())
 	ctx := runtimeCtx(inst)
 	logger := inst.LogFactory().NewLogger("inbound/tun[tun-in]")
 
@@ -262,7 +260,7 @@ func (s *Server) tunAdd(inst *sbox.Box) error {
 		if err == nil || !errors.Is(err, syscall.EBUSY) {
 			return err
 		}
-		forceDeleteLink(tunInterface)
+		link.Delete(tunInterface)
 		waitGone(tunInterface)
 	}
 	return err
@@ -273,7 +271,7 @@ func (s *Server) tunRemove(inst *sbox.Box) error {
 	if waitGone(tunInterface) {
 		return err
 	}
-	forceDeleteLink(tunInterface)
+	link.Delete(tunInterface)
 	if !waitGone(tunInterface) {
 		return fmt.Errorf("%s still up after removing tun-in", tunInterface)
 	}

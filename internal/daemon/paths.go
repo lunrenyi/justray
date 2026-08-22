@@ -5,11 +5,7 @@ import (
 	"path/filepath"
 )
 
-// $JUSTRAY_CONFIG_DIR, .config/justray
 func Dir() (string, error) {
-	if d := os.Getenv("JUSTRAY_CONFIG_DIR"); d != "" {
-		return d, nil
-	}
 	base, err := os.UserConfigDir()
 	if err != nil {
 		return "", err
@@ -18,14 +14,16 @@ func Dir() (string, error) {
 }
 
 func EnsureDir(dir string) error {
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
+	for _, sub := range []string{"logs", "ipc"} {
+		if err := os.MkdirAll(filepath.Join(dir, sub), 0o700); err != nil {
+			return err
+		}
 	}
 	return os.Chmod(dir, 0o700)
 }
 
-func Socket(dir string) string    { return filepath.Join(dir, "justrayd.sock") }
-func DaemonLog(dir string) string { return filepath.Join(dir, "daemon.log") }
-func CoreLog(dir string) string   { return filepath.Join(dir, "core.log") }
+func Socket(dir string) string    { return filepath.Join(dir, "ipc", "justrayd.sock") }
+func DaemonLog(dir string) string { return filepath.Join(dir, "logs", "daemon.log") }
+func CoreLog(dir string) string   { return filepath.Join(dir, "logs", "core.log") }
 
 func ClearLog(path string) error { return os.Truncate(path, 0) }

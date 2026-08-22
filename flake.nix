@@ -93,6 +93,12 @@
               defaultText = lib.literalExpression "justray.packages.<system>.default";
               description = "The justray package providing the justray/jray TUI and the justrayd daemon.";
             };
+
+            execPath = lib.mkOption {
+              type = lib.types.str;
+              default = "${cfg.package}/bin/justrayd";
+              defaultText = lib.literalExpression ''"''${cfg.package}/bin/justrayd"'';
+            };
           };
 
           config = lib.mkIf cfg.enable {
@@ -105,10 +111,9 @@
                 Wants = [ "network-online.target" ];
               };
               Service = {
-                ExecStart = "${cfg.package}/bin/justrayd";
+                ExecStart = cfg.execPath;
                 Restart = "on-failure";
                 RestartSec = 3;
-                AmbientCapabilities = [ "CAP_NET_ADMIN" ];
               };
               Install.WantedBy = [ "default.target" ];
             };

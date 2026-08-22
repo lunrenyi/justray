@@ -126,4 +126,4 @@ func NewID() string {
 }
 
 func subsPath(dir string) string  { return filepath.Join(dir, "subscriptions.yaml") }
-func statePath(dir string) string { return filepath.Join(dir, "state.yaml") }
+func statePath(dir string) string { return filepath.Join(dir, "configuration.yaml") }

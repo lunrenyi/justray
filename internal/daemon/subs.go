@@ -37,7 +37,6 @@ func (s *Server) addSub(rawURL string) (Sub, error) {
 		return Sub{}, err
 	}
 
-	// fetched without the lock
 	sub := store.Subscription{ID: store.NewID(), URL: rawURL}
 	if err := s.fill(&sub); err != nil {
 		return Sub{}, err
@@ -46,8 +45,8 @@ func (s *Server) addSub(rawURL string) (Sub, error) {
 		sub.Name = host(rawURL)
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.storeMu.Lock()
+	defer s.storeMu.Unlock()
 
 	subs, err := s.store.Subscriptions()
 	if err != nil {
@@ -60,25 +59,24 @@ func (s *Server) removeSub(id string) error {
 	s.opMu.Lock()
 	defer s.opMu.Unlock()
 
-	s.mu.Lock()
+	s.storeMu.Lock()
 	subs, err := s.store.Subscriptions()
 	if err != nil {
-		s.mu.Unlock()
+		s.storeMu.Unlock()
 		return err
 	}
 	i := slices.IndexFunc(subs, func(sub store.Subscription) bool { return sub.ID == id })
 	if i < 0 {
-		s.mu.Unlock()
+		s.storeMu.Unlock()
 		return fmt.Errorf("subscription %q not found", id)
 	}
 	removedNodes := subs[i].Nodes
 	kept := slices.Delete(subs, i, i+1)
 	if err := s.store.Save(kept); err != nil {
-		s.mu.Unlock()
+		s.storeMu.Unlock()
 		return err
 	}
-	live := s.sub == id
-	s.mu.Unlock()
+	s.storeMu.Unlock()
 
 	if id, err := s.store.Active(); err == nil && slices.ContainsFunc(removedNodes, func(n proxy.Node) bool { return n.ID == id }) {
 		if err := s.store.SetActive(""); err != nil {
@@ -86,6 +84,9 @@ func (s *Server) removeSub(id string) error {
 		}
 	}
 
+	s.mu.Lock()
+	live := s.sub == id
+	s.mu.Unlock()
 	if live {
 		s.clear()
 		s.broadcast()
@@ -127,8 +128,8 @@ func (s *Server) refreshAll() ([]Sub, error) {
 		updated = append(updated, subs[i])
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.storeMu.Lock()
+	defer s.storeMu.Unlock()
 	if err := s.merge(updated); err != nil {
 		return nil, err
 	}
@@ -151,8 +152,8 @@ func (s *Server) refresh(id string) (Sub, error) {
 		return Sub{}, err
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.storeMu.Lock()
+	defer s.storeMu.Unlock()
 	if err := s.merge(subs[i : i+1]); err != nil {
 		return Sub{}, err
 	}
