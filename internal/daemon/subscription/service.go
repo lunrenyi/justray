@@ -1,6 +1,4 @@
-// Package subscription owns subscriptions.yaml: fetching, parsing, and
-// CRUD. It never touches the active connection — the server layer decides
-// what to do when a live subscription gets removed.
+// Package subscription owns subscriptions.yaml
 package subscription
 
 import (
@@ -68,8 +66,7 @@ func (s *Service) Add(rawURL string) (rpc.Sub, error) {
 	return info(sub), s.store.Save(append(subs, sub))
 }
 
-// Remove deletes a subscription and returns it, so the caller can decide
-// whether the currently connected node needs to be dropped along with it.
+// Remove deletes a subscription and returns it
 func (s *Service) Remove(id string) (store.Subscription, error) {
 	s.storeMu.Lock()
 	defer s.storeMu.Unlock()

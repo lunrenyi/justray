@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"net"
 	"time"
+
+	"github.com/luynrs/justray/internal/shared/domain"
 )
 
 type Client struct{ socket string }
 
-const idle = 60 * time.Second
+// IdleTimeout bounds how long either side waits on a quiet connection
+const IdleTimeout = 60 * time.Second
 
 func NewClient(socket string) *Client { return &Client{socket} }
 
@@ -30,7 +33,7 @@ func call[T any](c *Client, method string, args Args) (T, error) {
 		return out, err
 	}
 	defer conn.Close()
-	timeout := idle
+	timeout := IdleTimeout
 	if method == "Probe" {
 		timeout = 5 * time.Minute
 	}
@@ -73,6 +76,14 @@ func (c *Client) Probe(sub, id string) ([]Node, error) {
 
 func (c *Client) SetTun(enable bool) (Status, error) {
 	return call[Status](c, "SetTun", Args{Tun: enable})
+}
+
+func (c *Client) Settings() (domain.Settings, error) {
+	return call[domain.Settings](c, "Settings", Args{})
+}
+
+func (c *Client) SetSettings(s domain.Settings) (Status, error) {
+	return call[Status](c, "SetSettings", Args{Settings: s})
 }
 
 func (c *Client) Watch(onUpdate func(Status)) error {

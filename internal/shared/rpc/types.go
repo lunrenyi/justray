@@ -13,10 +13,11 @@ type Req struct {
 }
 
 type Args struct {
-	ID  string
-	Sub string
-	URL string
-	Tun bool
+	ID       string
+	Sub      string
+	URL      string
+	Tun      bool
+	Settings domain.Settings
 }
 
 type Resp struct {
@@ -56,4 +57,5 @@ type Status struct {
 	LastErr   string
 	Port      int
 	Tun       bool
+	Blocked   bool
 }

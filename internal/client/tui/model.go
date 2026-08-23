@@ -1,3 +1,4 @@
+// Package tui is the client terminal UI
 package tui
 
 import (
@@ -5,11 +6,20 @@ import (
 	"log"
 	"time"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 
+	"github.com/luynrs/justray/internal/client/tui/components"
+	"github.com/luynrs/justray/internal/client/tui/settings"
+	"github.com/luynrs/justray/internal/client/tui/subscriptions"
+	"github.com/luynrs/justray/internal/client/tui/tree"
 	"github.com/luynrs/justray/internal/shared/rpc"
+)
+
+const (
+	topLines    = 2 // title + gap
+	footerLines = 3 // status + help
 )
 
 type Model struct {
@@ -26,13 +36,12 @@ type Model struct {
 	scroll     int
 	wheel      time.Time
 
-	adding    bool
-	url       textinput.Model
+	editor    *subscriptions.Editor
+	confirm   components.Confirm
+	settings  *settings.Settings
 	filtering bool
 	filter    textinput.Model
 	query     string
-
-	confirmSub string
 
 	status     rpc.Status
 	live       bool
@@ -51,169 +60,45 @@ func New(c *rpc.Client) Model {
 		client:    c,
 		collapsed: map[string]bool{},
 		spin:      spinner.New(spinner.WithSpinner(spinner.MiniDot)),
-		url:       input("Add:  ", "subscription URL, or a vless://, vmess://, trojan://, ss://, etc. link", 2048),
-		filter:    input("", "type to filter...", 128),
+		editor:    subscriptions.NewEditor(),
+		filter:    components.Input("", "type to filter...", 128),
 		statusCh:  make(chan pushed),
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(loadCmd(m.client), watch(m.client, m.statusCh), next(m.statusCh), tickCmd())
+	return tea.Batch(func() tea.Msg { return load(m.client) }, watch(m.client, m.statusCh), next(m.statusCh), tickCmd())
 }
 
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		m.w, m.h = msg.Width, msg.Height
-		m.url.Width = max(msg.Width-12, 10)
-		m.clamp()
-
-	case tea.KeyMsg:
-		return m.key(msg)
-
-	case tea.MouseMsg:
-		return m.mouse(msg)
-
-	case tick:
-		return m, tickCmd()
-
-	case spinner.TickMsg:
-		if len(m.refreshing) == 0 && !m.connecting {
-			return m, nil
-		}
-		var cmd tea.Cmd
-		m.spin, cmd = m.spin.Update(msg)
-		return m, cmd
-
-	case loaded:
-		m.err = ""
-		if msg.err != nil {
-			m.err = msg.err.Error()
-			m.probing, m.refreshing = nil, nil
-		}
-		if msg.subs != nil {
-			m.subs, m.refreshing = msg.subs, nil
-		}
-		if msg.nodes != nil {
-			m.nodes, m.probing = msg.nodes, nil
-		}
-		m.clamp()
-
-	case connectResult:
-		m.connecting = false
-		m.err = ""
-		if msg.err != nil {
-			m.err = msg.err.Error()
-		}
-
-	case pushed:
-		if m.live = msg.live; msg.live {
-			m.since = time.Now().Add(-time.Duration(msg.st.Uptime) * time.Second)
-			m.status, m.err = msg.st, ""
-		}
-		return m, next(m.statusCh)
+func (m Model) data() tree.Data {
+	return tree.Data{
+		Subs:       m.subs,
+		Nodes:      m.nodes,
+		Collapsed:  m.collapsed,
+		Probing:    m.probing,
+		Refreshing: m.refreshing,
+		Query:      m.query,
+		Status:     m.status,
+		Live:       m.live,
+		Spinner:    m.spin.View(),
 	}
-	return m, nil
 }
 
-func (m Model) key(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	k := msg.String()
-	if k == "ctrl+c" {
-		return m.quit()
-	}
+func (m Model) rows() []tree.Row { return m.data().Rows() }
 
-	switch {
-	case m.confirmSub != "":
-		id := m.confirmSub
-		m.confirmSub = ""
-		if k == "y" {
-			return m.remove(id)
-		}
-		return m, nil
+func (m Model) at() (tree.Row, bool) { return tree.At(m.rows(), m.cursor) }
 
-	case m.adding:
-		return m.addKey(msg)
+func (m Model) connected() bool { return m.live && m.status.Connected }
 
-	case m.filtering:
-		return m.filterKey(msg)
-	}
+func (m Model) height() int { return max(m.h-topLines-footerLines, 1) }
 
-	switch k {
-	case "up", "k":
-		m.move(-1)
-	case "down", "j":
-		m.move(1)
-	case "left", "h":
-		return m.collapse()
-	case "right", "l":
-		return m.expand()
-	case "enter":
-		return m.activate()
-	case "t":
-		return m.probe()
-	case "T":
-		return m.probeAll()
-	case "r":
-		return m.refresh()
-	case "R":
-		return m.refreshAll()
-	case "m":
-		return m.setTun(!m.status.Tun)
-	case "a":
-		return m, m.startAdding()
-	case "/":
-		return m, m.startFiltering()
-	case "d":
-		if r, ok := m.at(); ok {
-			m.confirmSub = r.subID()
-		}
-	case "q":
-		return m.quit()
-	case "esc":
-		if m.query != "" {
-			m.query = ""
-			m.clamp()
-		}
-	}
-	return m, nil
+func (m *Model) move(delta int) {
+	m.cursor += delta
+	m.clamp()
 }
 
-func (m Model) click(x, y int) (tea.Model, tea.Cmd) {
-	if y == 0 {
-		if tun, ok := modeAt(x, m.w); ok {
-			return m.setTun(tun)
-		}
-		return m, nil
-	}
-	focused, ok := m.point(y)
-	if r, _ := m.at(); ok && (focused || r.kind == rowHeader) {
-		return m.activate()
-	}
-	return m, nil
-}
-
-func (m Model) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	if m.adding || m.confirmSub != "" {
-		return m, nil
-	}
-	if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
-		return m.click(msg.X, msg.Y)
-	}
-
-	up := msg.Button == tea.MouseButtonWheelUp
-	if m.filtering || (!up && msg.Button != tea.MouseButtonWheelDown) {
-		return m, nil
-	}
-	if time.Since(m.wheel) < 20*time.Millisecond {
-		return m, nil
-	}
-	m.wheel = time.Now()
-	if up {
-		m.move(-1)
-	} else {
-		m.move(1)
-	}
-	return m, nil
+func (m *Model) clamp() {
+	m.cursor, m.scroll = tree.Clamp(m.rows(), m.cursor, m.scroll, m.height())
 }
 
 func (m Model) quit() (tea.Model, tea.Cmd) {
@@ -223,6 +108,6 @@ func (m Model) quit() (tea.Model, tea.Cmd) {
 
 func Run(c *rpc.Client) error {
 	log.SetOutput(io.Discard)
-	_, err := tea.NewProgram(New(c), tea.WithAltScreen(), tea.WithMouseCellMotion()).Run()
+	_, err := tea.NewProgram(New(c)).Run()
 	return err
 }

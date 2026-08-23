@@ -1,8 +1,6 @@
 package protocols
 
-//
 // TUIC v5
-//
 
 import (
 	"cmp"

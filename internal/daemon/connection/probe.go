@@ -55,7 +55,7 @@ func (s *Service) Probe(sub, id string) ([]rpc.Node, error) {
 		return nil, fmt.Errorf("nothing to probe")
 	}
 
-	results, err := s.probeAll(targets, rpc.CoreLog(s.dir))
+	results, err := s.probeAll(targets, s.current(), rpc.EngineLog(s.dir))
 	if err != nil {
 		return nil, err
 	}

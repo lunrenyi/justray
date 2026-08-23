@@ -21,44 +21,83 @@ import (
 	"github.com/luynrs/justray/internal/shared/domain"
 )
 
-// Engine drives one running proxy/TUN session for a single node: it's the
-// only concrete type in the codebase that reaches into sing-box directly.
+// Engine wraps one running sing-box instance
 type Engine struct {
-	port    int
-	logPath string
+	settings domain.Settings
+	logPath  string
 
-	inst  *sbox.Box
-	iface string // non-empty while a TUN inbound is up
+	inst   *sbox.Box
+	staged *sbox.Box // built but not started kill-switch instance
+	tun    bool      // whether a TUN inbound is up
 }
 
 // New builds a fresh, unstarted Engine bound to a local proxy port and log path.
-func New(port int, logPath string) engine.Engine {
-	return &Engine{port: port, logPath: logPath}
+func New(s domain.Settings, logPath string) engine.Engine {
+	return &Engine{settings: s, logPath: logPath}
 }
 
-func (e *Engine) Start(n domain.Node, iface string) error {
-	opts, err := Build(n, e.port, e.logPath, iface)
+func (e *Engine) Start(n domain.Node, tun bool) error {
+	opts, err := Build(n, e.settings, e.logPath, tun)
 	if err != nil {
 		return err
 	}
 
-	inst, err := newBox(*opts)
-	for i := 0; i < 2 && err != nil && iface != "" && errors.Is(err, syscall.EBUSY); i++ {
-		if inst != nil {
-			inst.Close()
-		}
-		waitGone(iface)
-		inst, err = newBox(*opts)
-	}
+	var inst *sbox.Box
+	err = rideOutEBusy(func() error {
+		var last error
+		inst, last = newBox(*opts)
+		return last
+	})
 	if err != nil {
-		if inst != nil {
-			inst.Close()
-		}
 		return err
 	}
 
-	e.inst, e.iface = inst, iface
+	e.inst, e.tun = inst, tun
 	return nil
+}
+
+func (e *Engine) Stage() error {
+	if e.staged != nil {
+		_ = e.staged.Close()
+		e.staged = nil
+	}
+	// sbox.New alone does not start the instance, newBox does
+	inst, err := sbox.New(sbox.Options{Options: *BlockConfig(e.settings, e.logPath), Context: Context(context.Background())})
+	if err != nil {
+		if inst != nil {
+			inst.Close()
+		}
+		return err
+	}
+	e.staged = inst
+	return nil
+}
+
+func (e *Engine) Block() error {
+	inst := e.staged
+	e.staged = nil
+	if inst == nil {
+		var err error
+		if inst, err = newBox(*BlockConfig(e.settings, e.logPath)); err != nil {
+			return err
+		}
+	}
+	if err := rideOutEBusy(inst.Start); err != nil {
+		inst.Close()
+		return err
+	}
+	e.inst, e.tun = inst, true
+	return nil
+}
+
+func rideOutEBusy(op func() error) error {
+	err := op()
+	for i := 0; i < 2 && err != nil && errors.Is(err, syscall.EBUSY); i++ {
+		link.Delete(domain.TunInterface)
+		waitGone(domain.TunInterface)
+		err = op()
+	}
+	return err
 }
 
 func newBox(opts option.Options) (*sbox.Box, error) {
@@ -66,11 +105,17 @@ func newBox(opts option.Options) (*sbox.Box, error) {
 	if err == nil {
 		err = inst.Start()
 	}
-	return inst, err
+	if err != nil {
+		if inst != nil {
+			inst.Close()
+		}
+		return nil, err
+	}
+	return inst, nil
 }
 
 func (e *Engine) Swap(n domain.Node) error {
-	ep, obs, err := Proxy(n)
+	ep, obs, err := Proxy(n, e.settings)
 	if err != nil {
 		return err
 	}
@@ -94,52 +139,51 @@ func (e *Engine) Swap(n domain.Node) error {
 	return nil
 }
 
-func (e *Engine) TunAdd(iface string) error {
+func (e *Engine) TunAdd() error {
 	if _, err := wintun.Ensure(); err != nil {
 		return err
 	}
-	inb := TunInbound(iface, resolvers.Get())
+	inb := TunInbound(e.settings, resolvers.Get())
 	ctx := e.runtimeCtx()
 	logger := e.inst.LogFactory().NewLogger("inbound/tun[tun-in]")
 
-	var err error
-	for i := 0; i < 3; i++ {
-		err = e.inst.Inbound().Create(ctx, e.inst.Router(), logger, "tun-in", C.TypeTun, inb.Options)
-		if err == nil || !errors.Is(err, syscall.EBUSY) {
-			break
-		}
-		link.Delete(iface)
-		waitGone(iface)
-	}
+	err := rideOutEBusy(func() error {
+		return e.inst.Inbound().Create(ctx, e.inst.Router(), logger, "tun-in", C.TypeTun, inb.Options)
+	})
 	if err == nil {
-		e.iface = iface
+		e.tun = true
 	}
 	return err
 }
 
-func (e *Engine) TunRemove(iface string) error {
+func (e *Engine) TunRemove() error {
+	iface := domain.TunInterface
 	err := e.inst.Inbound().Remove("tun-in")
 	if waitGone(iface) {
-		e.iface = ""
+		e.tun = false
 		return err
 	}
 	link.Delete(iface)
 	if !waitGone(iface) {
 		return fmt.Errorf("%s still up after removing tun-in", iface)
 	}
-	e.iface = ""
+	e.tun = false
 	return err
 }
 
 func (e *Engine) Close() error {
+	if e.staged != nil {
+		_ = e.staged.Close()
+		e.staged = nil
+	}
 	if e.inst == nil {
 		return nil
 	}
 	err := e.inst.Close()
-	if e.iface != "" {
-		waitGone(e.iface)
+	if e.tun {
+		waitGone(domain.TunInterface)
 	}
-	e.inst, e.iface = nil, ""
+	e.inst, e.tun = nil, false
 	return err
 }
 

@@ -1,8 +1,6 @@
 package main
 
-//
 // DAEMON ENTRYPOINT
-//
 
 import (
 	"fmt"
@@ -41,8 +39,8 @@ func main() {
 		Prefix:          "justrayd",
 	})
 
-	if err := rpc.ClearLog(rpc.CoreLog(dir)); err != nil {
-		logger.Printf("could not truncate core log: %v", err)
+	if err := rpc.ClearLog(rpc.EngineLog(dir)); err != nil {
+		logger.Printf("could not truncate engine log: %v", err)
 	}
 
 	socket := rpc.Socket(dir)
@@ -64,6 +62,10 @@ func main() {
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+
+	done := make(chan struct{})
+	defer close(done)
+	go srv.AutoRefresh(done)
 
 	served := make(chan error, 1)
 	go func() { served <- srv.Serve(ln) }()

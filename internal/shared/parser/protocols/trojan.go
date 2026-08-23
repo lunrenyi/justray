@@ -1,8 +1,6 @@
 package protocols
 
-//
 // Trojan
-//
 
 import (
 	"cmp"

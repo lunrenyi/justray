@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/spf13/cobra"
 
 	"github.com/luynrs/justray/internal/client/cli/detach"
@@ -133,9 +133,7 @@ func spawn(dir string) error {
 	}
 	defer devNull.Close()
 
-	// a crash (unrecovered panic) writes straight to stderr, bypassing the
-	// daemon's own logger — send it to the daemon log instead of /dev/null,
-	// or it vanishes with no trace of why the process died.
+	// a panic writes straight to stderr, past the logger — keep it in the log
 	errLog, err := os.OpenFile(rpc.DaemonLog(dir), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return err

@@ -5,40 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/progress"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
-
-const (
-	green  = lipgloss.Color("#22c55e")
-	yellow = lipgloss.Color("#f59e0b")
-	red    = lipgloss.Color("#ef4444")
-	gray   = lipgloss.Color("#6b7280")
-)
-
-var (
-	Title  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("4"))
-	Accent = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
-	Strong = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
-	Name   = lipgloss.NewStyle().Bold(true)
-	Dim    = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
-	Err    = lipgloss.NewStyle().Foreground(red)
-
-	pill    = lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Background(lipgloss.Color("4"))
-	pillCap = lipgloss.NewStyle().Foreground(lipgloss.Color("4"))
-
-	Alive   = lipgloss.NewStyle().Foreground(green)
-	Dead    = lipgloss.NewStyle().Foreground(red)
-	Pending = lipgloss.NewStyle().Foreground(yellow)
-	Unknown = lipgloss.NewStyle().Foreground(gray)
-)
-
-func Segment(s string, active bool) string {
-	if !active {
-		return " " + Dim.Render(s) + " "
-	}
-	return pillCap.Render("▐") + pill.Render(s) + pillCap.Render("▌")
-}
 
 func Clip(s string, width int) string {
 	if width <= 0 {
@@ -62,6 +30,37 @@ func Pad(s string, w int) string {
 	}
 }
 
+// Flush right-aligns right, at least two spaces apart
+func Flush(left, right string, width int) string {
+	if right == "" {
+		return left
+	}
+	gap := max(width-lipgloss.Width(left)-lipgloss.Width(right), 2)
+	return left + strings.Repeat(" ", gap) + right
+}
+
+func Fit(body string, n int) string {
+	lines := strings.Split(body, "\n")
+	for len(lines) < n {
+		lines = append(lines, "")
+	}
+	return strings.Join(lines[:max(n, 0)], "\n")
+}
+
+func Indent(s string) string {
+	var b strings.Builder
+	for line := range strings.Lines(s) {
+		b.WriteString("  " + line)
+	}
+	return b.String()
+}
+
+func FirstLine(s string) string {
+	line, _, _ := strings.Cut(s, "\n")
+	return line
+}
+
+// Sanitize drops control characters from node names
 func Sanitize(s string) string {
 	return strings.Map(func(r rune) rune {
 		if r < 0x20 || r == 0x7f {
@@ -69,19 +68,6 @@ func Sanitize(s string) string {
 		}
 		return r
 	}, s)
-}
-
-func Bar(fraction float64) string {
-	color := green
-	switch {
-	case fraction >= 0.9:
-		color = red
-	case fraction >= 0.7:
-		color = yellow
-	}
-	b := progress.New(progress.WithSolidFill(string(color)), progress.WithoutPercentage(), progress.WithWidth(12))
-	b.EmptyColor = "8"
-	return b.ViewAs(fraction)
 }
 
 func Bytes(b int64) string {

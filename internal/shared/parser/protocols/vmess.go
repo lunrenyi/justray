@@ -1,8 +1,6 @@
 package protocols
 
-//
 // VMESS
-//
 
 import (
 	"cmp"

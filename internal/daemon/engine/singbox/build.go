@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -23,23 +22,23 @@ const Tag = "proxy"
 
 func packetEncoding(n domain.Node) string { return cmp.Or(n.PacketEncoding, "xudp") }
 
-func Build(n domain.Node, port int, logPath, tun string) (*option.Options, error) {
-	ep, obs, err := Proxy(n)
+func Build(n domain.Node, s domain.Settings, logPath string, tun bool) (*option.Options, error) {
+	ep, obs, err := Proxy(n, s)
 	if err != nil {
 		return nil, err
 	}
 
 	resolverIPs := resolvers.Get()
-	resolverCIDRs := make([]string, len(resolverIPs))
-	for i, p := range resolverIPs {
-		resolverCIDRs[i] = p.String()
+	resolverCIDRs := make([]string, 0, len(resolverIPs))
+	for _, p := range resolverIPs {
+		resolverCIDRs = append(resolverCIDRs, p.String())
 	}
 
 	opts := &option.Options{
-		Log: &option.LogOptions{Level: logLevel(), Output: logPath},
+		Log: &option.LogOptions{Level: s.LogLevel, Output: logPath},
 		Inbounds: []option.Inbound{
 			{Type: C.TypeMixed, Tag: "mixed-in", Options: &option.HTTPMixedInboundOptions{
-				ListenOptions: option.ListenOptions{Listen: addr("127.0.0.1"), ListenPort: uint16(port)},
+				ListenOptions: option.ListenOptions{Listen: addr("127.0.0.1"), ListenPort: uint16(s.Port)},
 			}},
 		},
 		Outbounds: []option.Outbound{
@@ -48,50 +47,29 @@ func Build(n domain.Node, port int, logPath, tun string) (*option.Options, error
 		DNS: &option.DNSOptions{RawDNSOptions: option.RawDNSOptions{Servers: []option.DNSServerOptions{
 			{Type: C.DNSTypeTCP, Tag: "remote", Options: &option.RemoteDNSServerOptions{
 				RawLocalDNSServerOptions: option.RawLocalDNSServerOptions{
-					DialerOptions: option.DialerOptions{Detour: Tag},
+					DialerOptions: option.DialerOptions{Detour: final(s)},
 				},
-				DNSServerAddressOptions: option.DNSServerAddressOptions{Server: cmp.Or(os.Getenv("JUSTRAY_DNS"), "1.1.1.1")},
+				DNSServerAddressOptions: option.DNSServerAddressOptions{Server: s.DNS},
 			}},
 		}}},
 		Route: &option.RouteOptions{
-			Final:               Tag,
+			Final:               final(s),
 			AutoDetectInterface: true,
-			Rules: []option.Rule{
-				{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
-					RawDefaultRule: option.RawDefaultRule{Port: []uint16{53}},
-					RuleAction:     option.RuleAction{Action: C.RuleActionTypeHijackDNS},
-				}},
-				{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
-					RawDefaultRule: option.RawDefaultRule{
-						Network: []string{"udp"},
-						Port:    []uint16{443},
-					},
-					RuleAction: option.RuleAction{
-						Action: C.RuleActionTypeReject,
-						RejectOptions: option.RejectActionOptions{
-							Method: C.RuleActionRejectMethodDefault,
-						},
-					},
-				}},
-				{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
-					RawDefaultRule: option.RawDefaultRule{IPCIDR: resolverCIDRs},
-					RuleAction:     option.RuleAction{Action: C.RuleActionTypeRoute, RouteOptions: option.RouteActionOptions{Outbound: "direct"}},
-				}},
-			},
+			Rules:               rules(s, resolverCIDRs),
 		},
 	}
 	if ep != nil {
 		opts.Endpoints = append(opts.Endpoints, *ep)
 	}
 	opts.Outbounds = append(opts.Outbounds, obs...)
-	if tun != "" {
-		opts.Inbounds = append(opts.Inbounds, TunInbound(tun, resolverIPs))
+	if tun {
+		opts.Inbounds = append(opts.Inbounds, TunInbound(s, resolverIPs))
 	}
 	return opts, nil
 }
 
-func Proxy(n domain.Node) (*option.Endpoint, []option.Outbound, error) {
-	n, err := resolved(n)
+func Proxy(n domain.Node, s domain.Settings) (*option.Endpoint, []option.Outbound, error) {
+	n, err := resolved(n, s)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -106,35 +84,116 @@ func Proxy(n domain.Node) (*option.Endpoint, []option.Outbound, error) {
 	return ep, scratch.Outbounds, nil
 }
 
-func TunInbound(iface string, resolverIPs []netip.Prefix) option.Inbound {
-	tunOpts := &option.TunInboundOptions{
-		InterfaceName: iface,
-		MTU:           9000,
-		Stack:         "gvisor",
-		Address: []netip.Prefix{
-			netip.MustParsePrefix("172.19.0.1/30"),
-			netip.MustParsePrefix("fdfe:dcba:9876::1/126"),
+// BlockConfig is a tun that rejects everything
+func BlockConfig(s domain.Settings, logPath string) *option.Options {
+	return &option.Options{
+		Log:      &option.LogOptions{Level: s.LogLevel, Output: logPath},
+		Inbounds: []option.Inbound{TunInbound(s, resolvers.Get())},
+		Route: &option.RouteOptions{
+			AutoDetectInterface: true,
+			Rules: []option.Rule{{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
+				RawDefaultRule: option.RawDefaultRule{Inbound: []string{"tun-in"}},
+				RuleAction:     reject,
+			}}},
 		},
-		AutoRoute:   true,
-		StrictRoute: true,
-		RouteAddress: append([]netip.Prefix{
-			netip.MustParsePrefix("0.0.0.0/0"),
-			netip.MustParsePrefix("::/0"),
-		}, resolverIPs...),
+	}
+}
+
+var reject = option.RuleAction{
+	Action:        C.RuleActionTypeReject,
+	RejectOptions: option.RejectActionOptions{Method: C.RuleActionRejectMethodDefault},
+}
+
+
+func match(list []string, action option.RuleAction) []option.Rule {
+	cidrs, domains, names, paths := domain.SplitRules(list)
+
+	var out []option.Rule
+	for _, m := range []option.RawDefaultRule{
+		{ProcessName: names}, {ProcessPath: paths},
+		{IPCIDR: cidrs}, {DomainSuffix: domains},
+	} {
+		if len(m.ProcessName)+len(m.ProcessPath)+len(m.IPCIDR)+len(m.DomainSuffix) == 0 {
+			continue
+		}
+		out = append(out, option.Rule{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
+			RawDefaultRule: m,
+			RuleAction:     action,
+		}})
+	}
+	return out
+}
+
+func rules(s domain.Settings, direct []string) []option.Rule {
+	// without sniffing a TUN connection carries only an address
+	out := []option.Rule{{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
+		RuleAction: option.RuleAction{Action: C.RuleActionTypeSniff},
+	}}}
+
+	if s.DNSHijack == "on" {
+		out = append(out, option.Rule{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
+			RawDefaultRule: option.RawDefaultRule{Port: []uint16{53}},
+			RuleAction:     option.RuleAction{Action: C.RuleActionTypeHijackDNS},
+		}})
+	}
+	if s.BlockQUIC == "on" {
+		out = append(out, option.Rule{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
+			RawDefaultRule: option.RawDefaultRule{
+				Network: []string{"udp"},
+				Port:    []uint16{443},
+			},
+			RuleAction: reject,
+		}})
+	}
+	toDirect := option.RuleAction{Action: C.RuleActionTypeRoute, RouteOptions: option.RouteActionOptions{Outbound: "direct"}}
+	toProxy := option.RuleAction{Action: C.RuleActionTypeRoute, RouteOptions: option.RouteActionOptions{Outbound: Tag}}
+
+	out = append(out, match(s.Blocked, reject)...)
+
+	if s.BypassLocal == "on" {
+		out = append(out, option.Rule{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
+			RawDefaultRule: option.RawDefaultRule{IPIsPrivate: true},
+			RuleAction:     toDirect,
+		}})
+	}
+	out = append(out, option.Rule{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
+		RawDefaultRule: option.RawDefaultRule{IPCIDR: direct},
+		RuleAction:     toDirect,
+	}})
+	return append(out, match(s.Except, except(s, toDirect, toProxy))...)
+}
+
+func TunInbound(s domain.Settings, resolverIPs []netip.Prefix) option.Inbound {
+	var address, routes []netip.Prefix
+	if s.IPv4() {
+		address = append(address, netip.MustParsePrefix("172.19.0.1/30"))
+		routes = append(routes, netip.MustParsePrefix("0.0.0.0/0"))
+	}
+	if s.IPv6() {
+		address = append(address, netip.MustParsePrefix("fdfe:dcba:9876::1/126"))
+		routes = append(routes, netip.MustParsePrefix("::/0"))
+	}
+
+	tunOpts := &option.TunInboundOptions{
+		InterfaceName: domain.TunInterface,
+		MTU:           uint32(s.TunMTU),
+		Stack:         s.TunStack,
+		Address:       address,
+		AutoRoute:     true,
+		StrictRoute:   s.TunStrict == "on",
+		RouteAddress:  append(routes, resolverIPs...),
 	}
 	return option.Inbound{Type: C.TypeTun, Tag: "tun-in", Options: tunOpts}
 }
 
-func logLevel() string { return cmp.Or(os.Getenv("JUSTRAY_LOG"), "error") }
-
-func resolved(n domain.Node) (domain.Node, error) {
+func resolved(n domain.Node, s domain.Settings) (domain.Node, error) {
 	if _, err := netip.ParseAddr(n.Server); err == nil {
 		return n, nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 
-	ips, err := net.DefaultResolver.LookupNetIP(ctx, "ip", n.Server)
+	ips, err := net.DefaultResolver.LookupNetIP(ctx, network(s), n.Server)
 	if err != nil {
 		return n, fmt.Errorf("could not resolve %s: %w", n.Server, err)
 	}
@@ -153,24 +212,34 @@ func resolved(n domain.Node) (domain.Node, error) {
 	return n, nil
 }
 
+func network(s domain.Settings) string {
+	switch s.IPVersion {
+	case "ipv4":
+		return "ip4"
+	case "ipv6":
+		return "ip6"
+	}
+	return "ip"
+}
+
 func ProbeTag(i int) string { return "p" + strconv.Itoa(i) }
 
-func ProbeConfig(nodes []domain.Node, logPath string) *option.Options {
+func ProbeConfig(nodes []domain.Node, s domain.Settings, logPath string) *option.Options {
 	opts := &option.Options{
-		Log:   &option.LogOptions{Level: logLevel(), Output: logPath},
+		Log:   &option.LogOptions{Level: s.LogLevel, Output: logPath},
 		Route: &option.RouteOptions{AutoDetectInterface: true},
 	}
 	resolvedNodes := make([]domain.Node, len(nodes))
 	var wg sync.WaitGroup
 	for i, n := range nodes {
 		wg.Add(1)
-		go func(i int, n domain.Node) {
+		go func() {
 			defer wg.Done()
-			if r, err := resolved(n); err == nil {
+			if r, err := resolved(n, s); err == nil {
 				n = r
 			}
 			resolvedNodes[i] = n
-		}(i, n)
+		}()
 	}
 	wg.Wait()
 
@@ -428,4 +497,20 @@ func buildTransport(n domain.Node) *option.V2RayTransportOptions {
 		}
 	}
 	return nil
+}
+
+// final is the outbound nothing claimed
+func final(s domain.Settings) string {
+	if s.Mode == domain.DirectAll {
+		return "direct"
+	}
+	return Tag
+}
+
+// except routes the Except list opposite to the mode
+func except(s domain.Settings, toDirect, toProxy option.RuleAction) option.RuleAction {
+	if s.Mode == domain.DirectAll {
+		return toProxy
+	}
+	return toDirect
 }

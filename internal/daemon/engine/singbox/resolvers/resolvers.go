@@ -7,9 +7,5 @@ func add(dst []netip.Prefix, seen map[netip.Addr]bool, a netip.Addr) []netip.Pre
 		return dst
 	}
 	seen[a] = true
-	bits := 32
-	if a.Is6() {
-		bits = 128
-	}
-	return append(dst, netip.PrefixFrom(a.Unmap(), bits))
+	return append(dst, netip.PrefixFrom(a.Unmap(), a.Unmap().BitLen()))
 }

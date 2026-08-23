@@ -1,8 +1,6 @@
 package main
 
-//
 // CLIENT ENTRYPOINT
-//
 
 import (
 	"fmt"

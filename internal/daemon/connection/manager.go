@@ -1,7 +1,7 @@
 package connection
 
 import (
-	"fmt"
+	"errors"
 	"slices"
 	"time"
 
@@ -10,6 +10,8 @@ import (
 	"github.com/luynrs/justray/internal/shared/domain"
 	"github.com/luynrs/justray/internal/shared/rpc"
 )
+
+const elevateMsg = "granting tun permission, reconnecting…"
 
 // Restore reconnects to whatever node/mode was persisted from the last run.
 func (s *Service) Restore() {
@@ -37,10 +39,7 @@ func (s *Service) Restore() {
 	s.broadcast()
 }
 
-// ForgetIfRemoved clears the persisted active node and disconnects if it
-// belonged to a subscription that just got deleted. subscription.Service
-// can't do this itself: both the live connection and the persisted active
-// id are connection's private state.
+// ForgetIfRemoved drops the active node when its subscription is deleted.
 func (s *Service) ForgetIfRemoved(subID string, nodes []domain.Node) {
 	if active, err := s.store.Active(); err == nil && slices.ContainsFunc(nodes, func(n domain.Node) bool { return n.ID == active }) {
 		if err := s.store.SetActive(""); err != nil {
@@ -58,12 +57,9 @@ func (s *Service) ForgetIfRemoved(subID string, nodes []domain.Node) {
 
 func (s *Service) start(n domain.Node, sub string) error {
 	s.mu.Lock()
-	iface := ""
-	if s.tun {
-		iface = TunIface
-	}
+	tun := s.tun
 	live := s.eng
-	hot := live != nil && s.tunLive == (iface != "")
+	hot := live != nil && !s.blocking && s.tunLive == tun
 	s.mu.Unlock()
 
 	if hot {
@@ -75,35 +71,31 @@ func (s *Service) start(n domain.Node, sub string) error {
 			return err
 		}
 		s.node, s.sub, s.started, s.lastErr = n, sub, time.Now(), ""
-		s.mu.Unlock()
-		s.persistActive(n.ID)
-		s.log.Printf("connected to %s (%s %s:%d)", n.Name, n.Protocol, n.Server, n.Port)
-		return nil
-	}
+	} else {
+		s.stop()
 
-	s.stop()
-
-	if err := rpc.ClearLog(rpc.CoreLog(s.dir)); err != nil {
-		s.log.Printf("could not truncate core log: %v", err)
-	}
-
-	eng := s.newEngine(Port, rpc.CoreLog(s.dir))
-	err := eng.Start(n, iface)
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err != nil {
-		s.lastErr = err.Error()
-		eng.Close()
-		if iface != "" && elevate.Needed(err) {
-			s.persistActive(n.ID)
-			go elevate.Tun(s.log, s.dir)
-			return fmt.Errorf("granting tun permission, reconnecting…")
+		if err := rpc.ClearLog(rpc.EngineLog(s.dir)); err != nil {
+			s.log.Printf("could not truncate engine log: %v", err)
 		}
-		return err
-	}
 
-	s.eng, s.node, s.sub, s.started, s.lastErr, s.tunLive = eng, n, sub, time.Now(), "", iface != ""
+		eng := s.newEngine(s.current(), rpc.EngineLog(s.dir))
+		err := eng.Start(n, tun)
+
+		s.mu.Lock()
+		if err != nil {
+			s.lastErr = err.Error()
+			s.mu.Unlock()
+			eng.Close()
+			if tun && elevate.Needed(err) {
+				s.persistActive(n.ID)
+				go elevate.Tun(s.log, s.dir)
+				return errors.New(elevateMsg)
+			}
+			return err
+		}
+		s.eng, s.node, s.sub, s.started, s.lastErr, s.tunLive = eng, n, sub, time.Now(), "", tun
+	}
+	defer s.mu.Unlock()
 	s.persistActive(n.ID)
 	s.log.Printf("connected to %s (%s %s:%d)", n.Name, n.Protocol, n.Server, n.Port)
 	return nil
@@ -112,7 +104,7 @@ func (s *Service) start(n domain.Node, sub string) error {
 func (s *Service) stop() {
 	s.mu.Lock()
 	eng := s.eng
-	s.eng, s.node, s.sub, s.tunLive = nil, domain.Node{}, "", false
+	s.eng, s.node, s.sub, s.tunLive, s.blocking = nil, domain.Node{}, "", false, false
 	s.mu.Unlock()
 
 	if eng == nil {
@@ -124,11 +116,47 @@ func (s *Service) stop() {
 }
 
 func (s *Service) clear() {
-	s.stop()
-	s.persistActive("")
 	s.mu.Lock()
 	s.lastErr = ""
+	block := s.tun && s.settings.KillSwitch == "on"
 	s.mu.Unlock()
+
+	if !block {
+		s.stop()
+		s.persistActive("")
+		return
+	}
+
+	// staged before the live session goes down, so there is no gap without a TUN
+	eng := s.newEngine(s.current(), rpc.EngineLog(s.dir))
+	if err := eng.Stage(); err != nil {
+		s.log.Printf("kill switch: %v", err)
+		s.stop()
+		s.persistActive("")
+		s.mu.Lock()
+		s.lastErr = err.Error()
+		s.mu.Unlock()
+		return
+	}
+
+	s.mu.Lock()
+	old := s.eng
+	s.eng, s.node, s.sub, s.tunLive, s.blocking = eng, domain.Node{}, "", true, true
+	s.mu.Unlock()
+	s.persistActive("")
+
+	if old != nil {
+		if err := old.Close(); err != nil {
+			s.log.Printf("closing the engine: %v", err)
+		}
+	}
+	if err := eng.Block(); err != nil {
+		s.log.Printf("kill switch: %v", err)
+		s.stop()
+		s.mu.Lock()
+		s.lastErr = err.Error()
+		s.mu.Unlock()
+	}
 }
 
 func (s *Service) persistActive(id string) {

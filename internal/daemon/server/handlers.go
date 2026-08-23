@@ -14,7 +14,7 @@ const maxRequestSize = 1 << 20
 
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
-	conn.SetReadDeadline(time.Now().Add(idle))
+	conn.SetReadDeadline(time.Now().Add(rpc.IdleTimeout))
 
 	var req rpc.Req
 	if err := json.NewDecoder(io.LimitReader(conn, maxRequestSize)).Decode(&req); err != nil {
@@ -27,7 +27,7 @@ func (s *Server) handle(conn net.Conn) {
 	}
 	conn.SetDeadline(time.Time{})
 	result, err := s.dispatch(req)
-	conn.SetDeadline(time.Now().Add(idle))
+	conn.SetDeadline(time.Now().Add(rpc.IdleTimeout))
 	reply(conn, result, err)
 }
 
@@ -60,12 +60,15 @@ func (s *Server) dispatch(req rpc.Req) (any, error) {
 		return s.conn.Disconnect()
 	case "SetTun":
 		return s.conn.SetTun(a.Tun)
+	case "Settings":
+		return s.conn.Settings(), nil
+	case "SetSettings":
+		return s.conn.SetSettings(a.Settings)
 	}
 	return nil, fmt.Errorf("unknown method %q", req.Method)
 }
 
-// removeSub deletes the subscription and, if it's the one currently
-// connected, drops the connection along with it.
+// removeSub drops the live connection when the deleted sub owned it
 func (s *Server) removeSub(id string) error {
 	sub, err := s.subs.Remove(id)
 	if err != nil {
@@ -104,14 +107,14 @@ func (s *Server) watch(conn net.Conn) {
 }
 
 func reply(conn net.Conn, result any, err error) {
-	if err != nil {
-		json.NewEncoder(conn).Encode(rpc.Resp{Error: err.Error()})
-		return
+	resp := rpc.Resp{OK: true}
+	if err == nil {
+		var raw []byte
+		raw, err = json.Marshal(result)
+		resp.Result = raw
 	}
-	raw, err := json.Marshal(result)
 	if err != nil {
-		json.NewEncoder(conn).Encode(rpc.Resp{Error: err.Error()})
-		return
+		resp.OK, resp.Error = false, err.Error()
 	}
-	json.NewEncoder(conn).Encode(rpc.Resp{OK: true, Result: raw})
+	json.NewEncoder(conn).Encode(resp)
 }

@@ -22,24 +22,21 @@ func (s *Service) RefreshAll() ([]rpc.Sub, error) {
 	var wg sync.WaitGroup
 	for i := range subs {
 		wg.Add(1)
-		go func(i int) {
+		go func() {
 			defer wg.Done()
 			errs[i] = s.fill(&subs[i])
-		}(i)
+		}()
 	}
 	wg.Wait()
 
 	out := make([]rpc.Sub, len(subs))
 	updated := make([]store.Subscription, 0, len(subs))
 	var failed error
-	failCount := 0
 	for i, err := range errs {
-		// subs[i] still holds its pre-refresh data on failure: fill() only
-		// mutates it after a successful fetch, so a stale row beats no row.
+		// on failure subs[i] keeps its pre-refresh data
 		out[i] = info(subs[i])
 		if err != nil {
 			failed = err
-			failCount++
 			s.log.Printf("refresh %s: %v", subs[i].Name, err)
 			continue
 		}
@@ -52,7 +49,7 @@ func (s *Service) RefreshAll() ([]rpc.Sub, error) {
 		return nil, err
 	}
 	if failed != nil {
-		return out, fmt.Errorf("%d of %d subscriptions failed, last: %w", failCount, len(subs), failed)
+		return out, fmt.Errorf("%d of %d subscriptions failed, last: %w", len(subs)-len(updated), len(subs), failed)
 	}
 	return out, nil
 }

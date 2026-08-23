@@ -11,9 +11,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// elevatedArg guards against re-prompting UAC forever: Restore() retries a
-// persisted connection on every daemon startup, so one denied/failed relaunch
-// would otherwise loop indefinitely.
+// elevatedArg stops Restore() from re-prompting UAC on every startup
 const elevatedArg = "--elevated"
 
 func Needed(err error) bool {

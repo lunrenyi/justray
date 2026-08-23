@@ -1,7 +1,6 @@
 package connection
 
-// Watch registers a new status subscriber. Cancel deregisters it and, once
-// the last watcher is gone, clears the probe cache.
+// Watch registers a status subscriber
 func (s *Service) Watch() (initial Status, ch <-chan Status, cancel func()) {
 	c := make(chan Status, 1)
 	s.mu.Lock()

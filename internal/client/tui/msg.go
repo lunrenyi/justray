@@ -3,8 +3,9 @@ package tui
 import (
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
+	"github.com/luynrs/justray/internal/shared/domain"
 	"github.com/luynrs/justray/internal/shared/rpc"
 )
 
@@ -34,10 +35,6 @@ func load(c *rpc.Client) tea.Msg {
 	}
 	nodes, err := c.Nodes()
 	return loaded{subs: subs, nodes: nodes, err: err}
-}
-
-func loadCmd(c *rpc.Client) tea.Cmd {
-	return func() tea.Msg { return load(c) }
 }
 
 func act(c *rpc.Client, fn func() error) tea.Cmd {
@@ -82,4 +79,16 @@ func next(ch <-chan pushed) tea.Cmd {
 
 func tickCmd() tea.Cmd {
 	return tea.Tick(time.Second, func(time.Time) tea.Msg { return tick{} })
+}
+
+type settingsLoaded struct {
+	s   domain.Settings
+	err error
+}
+
+func settingsCmd(c *rpc.Client) tea.Cmd {
+	return func() tea.Msg {
+		s, err := c.Settings()
+		return settingsLoaded{s: s, err: err}
+	}
 }

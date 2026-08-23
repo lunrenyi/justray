@@ -1,8 +1,6 @@
 package protocols
 
-//
 // Shadowsocks
-//
 
 import (
 	"cmp"
@@ -13,8 +11,7 @@ import (
 	"github.com/luynrs/justray/internal/shared/domain"
 )
 
-// ss://base64(method:password)@host:port#remark (SIP002) or the legacy
-// ss://base64(method:password@host:port)#remark
+// SIP002 ss://base64(method:password)@host:port#remark, or the legacy form
 func ParseSS(uri string) (domain.Node, error) {
 	rest := strings.TrimPrefix(uri, "ss://")
 

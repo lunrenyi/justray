@@ -55,19 +55,19 @@ func TestStore(t *testing.T) {
 	t.Run("tun", func(t *testing.T) {
 		d := Disk{Dir: t.TempDir()}
 
-		if on, err := d.Tun(); err != nil || on {
+		if on, err := tun(d); err != nil || on {
 			t.Fatalf("empty dir: got %v, %v; want false, nil", on, err)
 		}
 		if err := d.SetTun(true); err != nil {
 			t.Fatalf("SetTun(true): %v", err)
 		}
-		if on, err := d.Tun(); err != nil || !on {
+		if on, err := tun(d); err != nil || !on {
 			t.Fatalf("got %v, %v; want true, nil", on, err)
 		}
 		if err := d.SetTun(false); err != nil {
 			t.Fatalf("SetTun(false): %v", err)
 		}
-		if on, err := d.Tun(); err != nil || on {
+		if on, err := tun(d); err != nil || on {
 			t.Fatalf("got %v, %v; want false, nil", on, err)
 		}
 	})
@@ -81,4 +81,9 @@ func TestNewID(t *testing.T) {
 	if len(a) != 8 {
 		t.Fatalf("len(%q) = %d, want 8", a, len(a))
 	}
+}
+
+func tun(d Disk) (bool, error) {
+	s, err := d.State()
+	return s.Tun, err
 }

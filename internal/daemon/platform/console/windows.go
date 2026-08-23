@@ -7,8 +7,7 @@ import (
 	"syscall"
 )
 
-// justrayd runs detached with no console, so a child console app would
-// otherwise get a fresh, visible one.
+// justrayd runs detached, so a child console app would pop a visible window
 func Hide(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 }

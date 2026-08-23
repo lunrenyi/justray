@@ -1,8 +1,6 @@
 package protocols
 
-//
 // VLESS
-//
 
 import (
 	"cmp"

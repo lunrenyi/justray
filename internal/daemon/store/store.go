@@ -21,12 +21,12 @@ type Subscription struct {
 }
 
 type State struct {
-	Active string `yaml:"active"`
-	Tun    bool   `yaml:"tun,omitempty"`
+	Active   string          `yaml:"active"`
+	Tun      bool            `yaml:"tun,omitempty"`
+	Settings domain.Settings `yaml:"settings,omitempty"`
 }
 
-// Disk is the persistence boundary: subscriptions.yaml + the daemon's
-// active-node/tun state.
+// Disk reads and writes subscriptions.yaml and configuration.yaml
 type Disk struct{ Dir string }
 
 type file struct {
@@ -68,21 +68,27 @@ func (d Disk) Active() (string, error) {
 }
 
 func (d Disk) SetActive(id string) error {
-	s, _ := d.State()
-	s.Active = id
-	data, _ := yaml.Marshal(s)
-	return write(statePath(d.Dir), data)
-}
-
-func (d Disk) Tun() (bool, error) {
-	s, err := d.State()
-	return s.Tun, err
+	return d.update(func(s *State) { s.Active = id })
 }
 
 func (d Disk) SetTun(on bool) error {
-	s, _ := d.State()
-	s.Tun = on
-	data, _ := yaml.Marshal(s)
+	return d.update(func(s *State) { s.Tun = on })
+}
+
+func (d Disk) SetSettings(in domain.Settings) error {
+	return d.update(func(s *State) { s.Settings = in })
+}
+
+func (d Disk) update(edit func(*State)) error {
+	s, err := d.State()
+	if err != nil {
+		return err
+	}
+	edit(&s)
+	data, err := yaml.Marshal(s)
+	if err != nil {
+		return err
+	}
 	return write(statePath(d.Dir), data)
 }
 

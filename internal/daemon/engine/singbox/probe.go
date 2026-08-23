@@ -17,14 +17,13 @@ import (
 )
 
 const (
-	probeURL     = "http://cp.cloudflare.com/generate_204"
 	probeTimeout = 5 * time.Second
 	probeWorkers = 4
 )
 
 // Probe dials every node through a throwaway engine and reports reachability.
-func Probe(nodes []domain.Node, logPath string) (map[string]engine.Result, error) {
-	inst, err := sbox.New(sbox.Options{Options: *ProbeConfig(nodes, logPath), Context: Context(context.Background())})
+func Probe(nodes []domain.Node, s domain.Settings, logPath string) (map[string]engine.Result, error) {
+	inst, err := sbox.New(sbox.Options{Options: *ProbeConfig(nodes, s, logPath), Context: Context(context.Background())})
 	if err != nil {
 		return nil, fmt.Errorf("build probe engine: %w", err)
 	}
@@ -49,7 +48,7 @@ func Probe(nodes []domain.Node, logPath string) (map[string]engine.Result, error
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			ms, err := delay(dialer)
+			ms, err := delay(dialer, s.ProbeURL)
 			mu.Lock()
 			out[n.ID] = engine.Result{Alive: err == nil, MS: ms}
 			mu.Unlock()
@@ -59,7 +58,7 @@ func Probe(nodes []domain.Node, logPath string) (map[string]engine.Result, error
 	return out, nil
 }
 
-func delay(dialer N.Dialer) (int, error) {
+func delay(dialer N.Dialer, url string) (int, error) {
 	client := &http.Client{
 		Timeout: probeTimeout,
 		Transport: &http.Transport{
@@ -71,7 +70,7 @@ func delay(dialer N.Dialer) (int, error) {
 	defer client.CloseIdleConnections()
 
 	start := time.Now()
-	resp, err := client.Get(probeURL)
+	resp, err := client.Get(url)
 	ms := int(time.Since(start).Milliseconds())
 	if err != nil {
 		return ms, err

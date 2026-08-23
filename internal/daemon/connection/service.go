@@ -1,8 +1,8 @@
-// Package connection owns the active VPN session: which node is connected,
-// in TUN or proxy mode, and drives an engine.Engine to make it so.
+// Package connection owns the active session and drives an engine.Engine
 package connection
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -10,15 +10,11 @@ import (
 	"github.com/charmbracelet/log"
 
 	"github.com/luynrs/justray/internal/daemon/engine"
+	"github.com/luynrs/justray/internal/daemon/platform/autostart"
 	"github.com/luynrs/justray/internal/daemon/platform/elevate"
 	"github.com/luynrs/justray/internal/daemon/store"
 	"github.com/luynrs/justray/internal/shared/domain"
 	"github.com/luynrs/justray/internal/shared/rpc"
-)
-
-const (
-	Port     = 10808 // TODO: settings ui
-	TunIface = "justray"
 )
 
 type Status = rpc.Status
@@ -32,15 +28,17 @@ type Service struct {
 
 	opMu sync.Mutex
 
-	mu      sync.Mutex
-	eng     engine.Engine
-	node    domain.Node
-	sub     string
-	started time.Time
-	lastErr string
-	tun     bool
-	tunLive bool
-	probes  map[string]engine.Result
+	mu       sync.Mutex
+	eng      engine.Engine
+	node     domain.Node
+	sub      string
+	started  time.Time
+	lastErr  string
+	tun      bool
+	tunLive  bool
+	blocking bool
+	settings domain.Settings
+	probes   map[string]engine.Result
 
 	watchers map[chan Status]struct{}
 }
@@ -50,6 +48,11 @@ func New(dir string, st store.Disk, newEngine engine.New, probe engine.Probe, lo
 	if err != nil && logger != nil {
 		logger.Printf("could not read state: %v", err)
 	}
+	settings, err := state.Settings.Normalize()
+	if err != nil && logger != nil {
+		logger.Printf("stored settings rejected, falling back to defaults: %v", err)
+		settings, _ = domain.Settings{}.Normalize()
+	}
 	return &Service{
 		store:     st,
 		newEngine: newEngine,
@@ -57,9 +60,90 @@ func New(dir string, st store.Disk, newEngine engine.New, probe engine.Probe, lo
 		log:       logger,
 		dir:       dir,
 		tun:       state.Tun,
+		settings:  settings,
 		probes:    map[string]engine.Result{},
 		watchers:  map[chan Status]struct{}{},
 	}
+}
+
+// Settings is for the client: it reads the autostart the OS actually has.
+func (s *Service) Settings() domain.Settings {
+	out := s.current()
+	out.Autostart = toggle(autostart.Enabled())
+	return out
+}
+
+func (s *Service) current() domain.Settings {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.settings
+}
+
+// RefreshEvery is the subscription refresh interval in hours, 0 when off.
+func (s *Service) RefreshEvery() int { return s.current().RefreshEvery }
+
+func toggle(on bool) string {
+	if on {
+		return "on"
+	}
+	return "off"
+}
+
+func (s *Service) SetSettings(in domain.Settings) (Status, error) {
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
+
+	in, err := in.Normalize()
+	if err != nil {
+		return s.Status(), err
+	}
+
+	// the OS comes first: if it refuses, nothing is persisted anywhere
+	if in.Autostart != toggle(autostart.Enabled()) {
+		var err error
+		if in.Autostart == "on" {
+			err = autostart.Enable()
+		} else {
+			err = autostart.Disable()
+		}
+		if err != nil {
+			s.log.Printf("autostart: %v", err)
+			return s.Status(), err
+		}
+	}
+	if err := s.store.SetSettings(in); err != nil {
+		return s.Status(), err
+	}
+
+	s.mu.Lock()
+	old := s.settings
+	s.settings = in
+	blocked := s.blocking
+	n, sub := s.node, s.sub
+	live := s.eng != nil && !blocked
+	s.mu.Unlock()
+
+	// a blocked session has nothing to rebuild
+	if blocked {
+		if in.KillSwitch != "on" {
+			s.stop()
+		}
+		return s.finish(nil)
+	}
+
+	if !live || !engineChanged(old, in) {
+		return s.finish(nil)
+	}
+	s.stop()
+	return s.finish(s.start(n, sub))
+}
+
+func engineChanged(x, y domain.Settings) bool {
+	x.ProbeURL, y.ProbeURL = "", ""
+	x.RefreshEvery, y.RefreshEvery = 0, 0
+	x.KillSwitch, y.KillSwitch = "", ""
+	x.Autostart, y.Autostart = "", ""
+	return !x.Equal(y)
 }
 
 func (s *Service) Connect(id string) (Status, error) {
@@ -103,21 +187,29 @@ func (s *Service) SetTun(enable bool) (Status, error) {
 	if err := s.store.SetTun(enable); err != nil {
 		s.log.Printf("could not persist tun state: %v", err)
 	}
-	eng, tunLive := s.eng, s.tunLive
+	eng, tunLive, blocking := s.eng, s.tunLive, s.blocking
 	s.mu.Unlock()
+
+	// the kill switch is only a TUN; turning TUN off takes it down with it
+	if blocking {
+		if !enable {
+			s.stop()
+		}
+		return s.finish(nil)
+	}
 
 	var err error
 	if eng != nil && enable != tunLive {
 		if enable {
-			err = eng.TunAdd(TunIface)
+			err = eng.TunAdd()
 		} else {
-			err = eng.TunRemove(TunIface)
+			err = eng.TunRemove()
 		}
 	}
 
 	if err != nil && enable && elevate.Needed(err) {
 		go elevate.Tun(s.log, s.dir)
-		return s.finish(fmt.Errorf("granting tun permission, reconnecting…"))
+		return s.finish(errors.New(elevateMsg))
 	}
 
 	s.mu.Lock()
@@ -150,8 +242,8 @@ func (s *Service) Status() Status {
 }
 
 func (s *Service) status() Status {
-	st := Status{Port: Port, Tun: s.tun, LastErr: s.lastErr}
-	if s.eng != nil {
+	st := Status{Port: s.settings.Port, Tun: s.tun, LastErr: s.lastErr, Blocked: s.blocking}
+	if s.eng != nil && !s.blocking {
 		st.Connected = true
 		st.NodeID, st.NodeName = s.node.ID, s.node.Name
 		st.Uptime = int64(time.Since(s.started).Seconds())

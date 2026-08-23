@@ -1,8 +1,6 @@
 package protocols
 
-//
 // Hysteria v2
-//
 
 import (
 	"cmp"

@@ -1,8 +1,6 @@
 package protocols
 
-//
 // AnyTLS
-//
 
 import (
 	"cmp"

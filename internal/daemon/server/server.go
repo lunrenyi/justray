@@ -1,6 +1,4 @@
-// Package server is the RPC transport: it owns the socket and dispatches
-// requests to connection.Service and subscription.Service. It holds no VPN
-// state of its own.
+// Package server is the RPC transport over the unix socket
 package server
 
 import (
@@ -15,8 +13,6 @@ import (
 	"github.com/luynrs/justray/internal/daemon/platform/lock"
 	"github.com/luynrs/justray/internal/daemon/subscription"
 )
-
-const idle = 60 * time.Second
 
 type Server struct {
 	log  *log.Logger
