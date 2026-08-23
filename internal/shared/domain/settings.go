@@ -15,6 +15,7 @@ const (
 	DefaultLogLevel = "error"
 	DefaultTunMTU   = 9000
 	DefaultTunStack = "gvisor"
+	DefaultRefresh  = 6
 	DefaultProbeURL = "http://connectivitycheck.gstatic.com/generate_204"
 	TunInterface    = "justray"
 )
@@ -50,8 +51,8 @@ type Settings struct {
 	BypassLocal string `yaml:"bypass_local,omitempty"` // on/off, empty = on
 	TunMTU      int    `yaml:"tun_mtu,omitempty"`
 	TunStack    string `yaml:"tun_stack,omitempty"`
-	TunStrict   string `yaml:"tun_strict_route,omitempty"` // on/off, empty = on
-	BlockQUIC   string `yaml:"block_quic,omitempty"`       // on/off, empty = on
+	TunStrict   string `yaml:"tun_strict_route,omitempty"` // on/off, empty = off
+	BlockQUIC   string `yaml:"block_quic,omitempty"`       // on/off, empty = off
 }
 
 func (s Settings) IPv4() bool { return s.IPVersion != "ipv6" }
@@ -112,9 +113,9 @@ func (s Settings) Normalize() (Settings, error) {
 		v    *string
 		def  string
 	}{
-		{"strict route", &s.TunStrict, "on"},
+		{"strict route", &s.TunStrict, "off"},
 		{"dns hijack", &s.DNSHijack, "on"},
-		{"block quic", &s.BlockQUIC, "on"},
+		{"block quic", &s.BlockQUIC, "off"},
 		{"local networks", &s.BypassLocal, "on"},
 		{"autostart", &s.Autostart, "off"},
 		{"kill switch", &s.KillSwitch, "off"},

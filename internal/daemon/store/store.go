@@ -56,7 +56,7 @@ func (d Disk) Save(subs []Subscription) error {
 func (d Disk) State() (State, error) {
 	data, err := os.ReadFile(statePath(d.Dir))
 	if err != nil {
-		return State{}, skipMissing(err)
+		return State{Settings: domain.Settings{RefreshEvery: domain.DefaultRefresh}}, skipMissing(err)
 	}
 	var s State
 	return s, yaml.Unmarshal(data, &s)

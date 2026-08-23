@@ -14,25 +14,28 @@ func (s *Server) AutoRefresh(done <-chan struct{}) {
 		}
 
 		every := time.Duration(s.conn.RefreshEvery()) * time.Hour
-		if every == 0 || !s.stale(every) {
+		if every == 0 {
 			continue
 		}
-		if _, err := s.subs.RefreshAll(); err != nil {
-			s.log.Printf("auto refresh: %v", err)
+		for _, id := range s.stale(every) {
+			if _, err := s.subs.Refresh(id); err != nil {
+				s.log.Printf("auto refresh: %v", err)
+			}
 		}
 	}
 }
 
-func (s *Server) stale(every time.Duration) bool {
+func (s *Server) stale(every time.Duration) []string {
 	list, err := s.subs.List()
 	if err != nil {
 		s.log.Printf("auto refresh: %v", err)
-		return false
+		return nil
 	}
+	var out []string
 	for _, sub := range list {
 		if time.Since(sub.UpdatedAt) >= every {
-			return true
+			out = append(out, sub.ID)
 		}
 	}
-	return false
+	return out
 }

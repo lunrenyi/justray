@@ -75,32 +75,13 @@ var tabs = []tab{
 			set:  func(s *domain.Settings, in string) error { s.ProbeURL = strings.TrimSpace(in); return nil },
 		},
 	}},
-	{name: "Device", fields: []field{
+	{name: "Network", fields: []field{
 		{
 			name: "Kill switch",
 			enum: domain.Toggle,
 			get:  func(s domain.Settings) string { return s.KillSwitch },
 			set:  func(s *domain.Settings, in string) error { s.KillSwitch = in; return nil },
 		},
-		{
-			name: "Strict route",
-			enum: domain.Toggle,
-			get:  func(s domain.Settings) string { return s.TunStrict },
-			set:  func(s *domain.Settings, in string) error { s.TunStrict = in; return nil },
-		},
-		{
-			name: "Stack",
-			enum: domain.TunStacks,
-			get:  func(s domain.Settings) string { return s.TunStack },
-			set:  func(s *domain.Settings, in string) error { s.TunStack = in; return nil },
-		},
-		{
-			name: "MTU",
-			get:  func(s domain.Settings) string { return strconv.Itoa(s.TunMTU) },
-			set:  setInt(func(s *domain.Settings) *int { return &s.TunMTU }),
-		},
-	}},
-	{name: "Tunnel", fields: []field{
 		{
 			name: "DNS",
 			enum: domain.Toggle,
@@ -119,7 +100,32 @@ var tabs = []tab{
 			set:  func(s *domain.Settings, in string) error { s.IPVersion = in; return nil },
 		},
 		{
-			name: "Local networks direct",
+			name: "Stack",
+			enum: domain.TunStacks,
+			get:  func(s domain.Settings) string { return s.TunStack },
+			set:  func(s *domain.Settings, in string) error { s.TunStack = in; return nil },
+		},
+		{
+			name: "MTU",
+			get:  func(s domain.Settings) string { return strconv.Itoa(s.TunMTU) },
+			set:  setInt(func(s *domain.Settings) *int { return &s.TunMTU }),
+		},
+		{
+			name: "Strict route",
+			enum: domain.Toggle,
+			get:  func(s domain.Settings) string { return s.TunStrict },
+			set:  func(s *domain.Settings, in string) error { s.TunStrict = in; return nil },
+		},
+	}},
+	{name: "Routing", fields: []field{
+		{
+			name: "Mode",
+			enum: domain.Modes,
+			get:  func(s domain.Settings) string { return s.Mode },
+			set:  func(s *domain.Settings, in string) error { s.Mode = in; return nil },
+		},
+		{
+			name: "Direct LAN",
 			enum: domain.Toggle,
 			get:  func(s domain.Settings) string { return s.BypassLocal },
 			set:  func(s *domain.Settings, in string) error { s.BypassLocal = in; return nil },
@@ -129,14 +135,6 @@ var tabs = []tab{
 			enum: domain.Toggle,
 			get:  func(s domain.Settings) string { return s.BlockQUIC },
 			set:  func(s *domain.Settings, in string) error { s.BlockQUIC = in; return nil },
-		},
-	}},
-	{name: "Routing", fields: []field{
-		{
-			name: "Mode",
-			enum: domain.Modes,
-			get:  func(s domain.Settings) string { return s.Mode },
-			set:  func(s *domain.Settings, in string) error { s.Mode = in; return nil },
 		},
 	}, lists: []list{
 		{"Except", func(v *domain.Settings) *[]string { return &v.Except }},
