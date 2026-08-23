@@ -14,7 +14,10 @@ type loaded struct {
 	err   error
 }
 
-type pushed rpc.Status
+type pushed struct {
+	st   rpc.Status
+	live bool
+}
 
 type connectResult struct{ err error }
 
@@ -53,15 +56,16 @@ func probeCmd(c *rpc.Client, sub, id string) tea.Cmd {
 	}
 }
 
-func watch(c *rpc.Client, ch chan<- rpc.Status) tea.Cmd {
+func watch(c *rpc.Client, ch chan<- pushed) tea.Cmd {
 	return func() tea.Msg {
 		go func() {
 			backoff := time.Second
 			for {
 				c.Watch(func(st rpc.Status) {
-					ch <- st
+					ch <- pushed{st: st, live: true}
 					backoff = time.Second
 				})
+				ch <- pushed{}
 				time.Sleep(backoff)
 				if backoff < 10*time.Second {
 					backoff *= 2
@@ -72,8 +76,8 @@ func watch(c *rpc.Client, ch chan<- rpc.Status) tea.Cmd {
 	}
 }
 
-func next(ch <-chan rpc.Status) tea.Cmd {
-	return func() tea.Msg { return pushed(<-ch) }
+func next(ch <-chan pushed) tea.Cmd {
+	return func() tea.Msg { return <-ch }
 }
 
 func tickCmd() tea.Cmd {

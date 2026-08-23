@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"maps"
 
-	"github.com/luynrs/justray/internal/daemon/engine/singbox"
 	"github.com/luynrs/justray/internal/shared/domain"
 	"github.com/luynrs/justray/internal/shared/rpc"
 )
@@ -56,7 +55,7 @@ func (s *Service) Probe(sub, id string) ([]rpc.Node, error) {
 		return nil, fmt.Errorf("nothing to probe")
 	}
 
-	results, err := singbox.Probe(targets, rpc.CoreLog(s.dir))
+	results, err := s.probeAll(targets, rpc.CoreLog(s.dir))
 	if err != nil {
 		return nil, err
 	}

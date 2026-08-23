@@ -57,7 +57,7 @@ func main() {
 	logger.Printf("listening on %s", socket)
 
 	st := store.Disk{Dir: dir}
-	conn := connection.New(dir, st, singbox.New, logger)
+	conn := connection.New(dir, st, singbox.New, singbox.Probe, logger)
 	subs := subscription.New(st, logger)
 	srv := server.New(logger, conn, subs)
 	srv.Restore()

@@ -125,6 +125,7 @@ func (s *Service) stop() {
 
 func (s *Service) clear() {
 	s.stop()
+	s.persistActive("")
 	s.mu.Lock()
 	s.lastErr = ""
 	s.mu.Unlock()

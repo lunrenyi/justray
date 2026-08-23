@@ -26,6 +26,7 @@ type Status = rpc.Status
 type Service struct {
 	store     store.Disk
 	newEngine engine.New
+	probeAll  engine.Probe
 	log       *log.Logger
 	dir       string
 
@@ -44,7 +45,7 @@ type Service struct {
 	watchers map[chan Status]struct{}
 }
 
-func New(dir string, st store.Disk, newEngine engine.New, logger *log.Logger) *Service {
+func New(dir string, st store.Disk, newEngine engine.New, probe engine.Probe, logger *log.Logger) *Service {
 	state, err := st.State()
 	if err != nil && logger != nil {
 		logger.Printf("could not read state: %v", err)
@@ -52,6 +53,7 @@ func New(dir string, st store.Disk, newEngine engine.New, logger *log.Logger) *S
 	return &Service{
 		store:     st,
 		newEngine: newEngine,
+		probeAll:  probe,
 		log:       logger,
 		dir:       dir,
 		tun:       state.Tun,

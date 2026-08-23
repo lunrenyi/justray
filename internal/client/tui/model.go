@@ -37,7 +37,7 @@ type Model struct {
 	status     rpc.Status
 	live       bool
 	since      time.Time
-	statusCh   chan rpc.Status
+	statusCh   chan pushed
 	connecting bool
 
 	err string
@@ -53,7 +53,7 @@ func New(c *rpc.Client) Model {
 		spin:      spinner.New(spinner.WithSpinner(spinner.MiniDot)),
 		url:       input("Add:  ", "subscription URL, or a vless://, vmess://, trojan://, ss://, etc. link", 2048),
 		filter:    input("", "type to filter...", 128),
-		statusCh:  make(chan rpc.Status),
+		statusCh:  make(chan pushed),
 	}
 }
 
@@ -107,9 +107,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case pushed:
-		st := rpc.Status(msg)
-		m.since = time.Now().Add(-time.Duration(st.Uptime) * time.Second)
-		m.status, m.live, m.err = st, true, ""
+		if m.live = msg.live; msg.live {
+			m.since = time.Now().Add(-time.Duration(msg.st.Uptime) * time.Second)
+			m.status, m.err = msg.st, ""
+		}
 		return m, next(m.statusCh)
 	}
 	return m, nil
