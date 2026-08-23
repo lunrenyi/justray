@@ -57,10 +57,7 @@ func (e *Engine) Start(n domain.Node, tun bool) error {
 }
 
 func (e *Engine) Stage() error {
-	if e.staged != nil {
-		_ = e.staged.Close()
-		e.staged = nil
-	}
+	e.dropStaged()
 	// sbox.New alone does not start the instance, newBox does
 	inst, err := sbox.New(sbox.Options{Options: *BlockConfig(e.settings, e.logPath), Context: Context(context.Background())})
 	if err != nil {
@@ -72,15 +69,11 @@ func (e *Engine) Stage() error {
 	e.staged = inst
 	return nil
 }
-
 func (e *Engine) Block() error {
 	inst := e.staged
 	e.staged = nil
 	if inst == nil {
-		var err error
-		if inst, err = newBox(*BlockConfig(e.settings, e.logPath)); err != nil {
-			return err
-		}
+		return errors.New("kill switch: nothing staged")
 	}
 	if err := rideOutEBusy(inst.Start); err != nil {
 		inst.Close()
@@ -171,11 +164,15 @@ func (e *Engine) TunRemove() error {
 	return err
 }
 
-func (e *Engine) Close() error {
+func (e *Engine) dropStaged() {
 	if e.staged != nil {
-		_ = e.staged.Close()
+		e.staged.Close()
 		e.staged = nil
 	}
+}
+
+func (e *Engine) Close() error {
+	e.dropStaged()
 	if e.inst == nil {
 		return nil
 	}

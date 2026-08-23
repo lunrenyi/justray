@@ -159,9 +159,13 @@ func ParseRule(raw string) (string, error) {
 	if p, err := ParsePrefix(rule); err == nil {
 		return p.String(), nil
 	}
-	rule = strings.Trim(strings.TrimPrefix(rule, "*."), ".")
-	if rule == "" || strings.Contains(rule, "://") || strings.ContainsAny(rule, "\t\n\r@?#") {
+	rule, star := strings.CutPrefix(rule, "*.")
+	rule = strings.Trim(rule, ".")
+	if rule == "" || strings.Contains(rule, "://") || strings.ContainsAny(rule, "\t\n\r@?#*") {
 		return "", fmt.Errorf("%q is not a network, a domain or a program", raw)
+	}
+	if star {
+		rule = "*." + rule
 	}
 	return rule, nil
 }
@@ -173,6 +177,8 @@ func SplitRules(list []string) (cidrs, domains, names, paths []string) {
 		switch {
 		case isPrefix(rule):
 			cidrs = append(cidrs, rule)
+		case strings.HasPrefix(lower, "*."):
+			domains = append(domains, lower[1:])
 		case strings.ContainsAny(rule, `/\`):
 			paths = append(paths, rule)
 		case strings.Contains(rule, " "), strings.HasSuffix(lower, ".exe"):

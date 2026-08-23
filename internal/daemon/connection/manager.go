@@ -62,15 +62,12 @@ func (s *Service) start(n domain.Node, sub string) error {
 	hot := live != nil && !s.blocking && s.tunLive == tun
 	s.mu.Unlock()
 
+	eng := live
 	if hot {
-		err := live.Swap(n)
-		s.mu.Lock()
-		if err != nil {
-			s.lastErr = err.Error()
-			s.mu.Unlock()
+		if err := live.Swap(n); err != nil {
+			s.setErr(err)
 			return err
 		}
-		s.node, s.sub, s.started, s.lastErr = n, sub, time.Now(), ""
 	} else {
 		s.stop()
 
@@ -78,13 +75,9 @@ func (s *Service) start(n domain.Node, sub string) error {
 			s.log.Printf("could not truncate engine log: %v", err)
 		}
 
-		eng := s.newEngine(s.current(), rpc.EngineLog(s.dir))
-		err := eng.Start(n, tun)
-
-		s.mu.Lock()
-		if err != nil {
-			s.lastErr = err.Error()
-			s.mu.Unlock()
+		eng = s.newEngine(s.current(), rpc.EngineLog(s.dir))
+		if err := eng.Start(n, tun); err != nil {
+			s.setErr(err)
 			eng.Close()
 			if tun && elevate.Needed(err) {
 				s.persistActive(n.ID)
@@ -93,9 +86,12 @@ func (s *Service) start(n domain.Node, sub string) error {
 			}
 			return err
 		}
-		s.eng, s.node, s.sub, s.started, s.lastErr, s.tunLive = eng, n, sub, time.Now(), "", tun
 	}
-	defer s.mu.Unlock()
+
+	s.mu.Lock()
+	s.eng, s.node, s.sub, s.started, s.lastErr, s.tunLive = eng, n, sub, time.Now(), "", tun
+	s.mu.Unlock()
+
 	s.persistActive(n.ID)
 	s.log.Printf("connected to %s (%s %s:%d)", n.Name, n.Protocol, n.Server, n.Port)
 	return nil
@@ -121,42 +117,41 @@ func (s *Service) clear() {
 	block := s.tun && s.settings.KillSwitch == "on"
 	s.mu.Unlock()
 
+	s.persistActive("")
 	if !block {
 		s.stop()
-		s.persistActive("")
 		return
 	}
-
-	// staged before the live session goes down, so there is no gap without a TUN
-	eng := s.newEngine(s.current(), rpc.EngineLog(s.dir))
-	if err := eng.Stage(); err != nil {
+	if err := s.block(); err != nil {
 		s.log.Printf("kill switch: %v", err)
 		s.stop()
-		s.persistActive("")
-		s.mu.Lock()
-		s.lastErr = err.Error()
-		s.mu.Unlock()
-		return
+		s.setErr(err)
+	}
+}
+func (s *Service) block() error {
+	eng := s.newEngine(s.current(), rpc.EngineLog(s.dir))
+	if err := eng.Stage(); err != nil {
+		eng.Close()
+		return err
 	}
 
 	s.mu.Lock()
 	old := s.eng
 	s.eng, s.node, s.sub, s.tunLive, s.blocking = eng, domain.Node{}, "", true, true
 	s.mu.Unlock()
-	s.persistActive("")
 
 	if old != nil {
 		if err := old.Close(); err != nil {
 			s.log.Printf("closing the engine: %v", err)
 		}
 	}
-	if err := eng.Block(); err != nil {
-		s.log.Printf("kill switch: %v", err)
-		s.stop()
-		s.mu.Lock()
-		s.lastErr = err.Error()
-		s.mu.Unlock()
-	}
+	return eng.Block()
+}
+
+func (s *Service) setErr(err error) {
+	s.mu.Lock()
+	s.lastErr = err.Error()
+	s.mu.Unlock()
 }
 
 func (s *Service) persistActive(id string) {

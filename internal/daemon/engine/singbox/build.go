@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/netip"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -44,14 +45,16 @@ func Build(n domain.Node, s domain.Settings, logPath string, tun bool) (*option.
 		Outbounds: []option.Outbound{
 			{Type: C.TypeDirect, Tag: "direct", Options: &option.DirectOutboundOptions{}},
 		},
-		DNS: &option.DNSOptions{RawDNSOptions: option.RawDNSOptions{Servers: []option.DNSServerOptions{
-			{Type: C.DNSTypeTCP, Tag: "remote", Options: &option.RemoteDNSServerOptions{
-				RawLocalDNSServerOptions: option.RawLocalDNSServerOptions{
-					DialerOptions: option.DialerOptions{Detour: final(s)},
-				},
-				DNSServerAddressOptions: option.DNSServerAddressOptions{Server: s.DNS},
-			}},
-		}}},
+		DNS: &option.DNSOptions{RawDNSOptions: option.RawDNSOptions{
+			DNSClientOptions: option.DNSClientOptions{Strategy: dnsStrategy[s.IPVersion]},
+			Servers: []option.DNSServerOptions{
+				{Type: C.DNSTypeTCP, Tag: "remote", Options: &option.RemoteDNSServerOptions{
+					RawLocalDNSServerOptions: option.RawLocalDNSServerOptions{
+						DialerOptions: option.DialerOptions{Detour: strings.TrimPrefix(final(s), "direct")}, // a detour to a bare direct outbound is rejected by sing-box
+					},
+					DNSServerAddressOptions: option.DNSServerAddressOptions{Server: s.DNS},
+				}},
+			}}},
 		Route: &option.RouteOptions{
 			Final:               final(s),
 			AutoDetectInterface: true,
@@ -104,7 +107,6 @@ var reject = option.RuleAction{
 	RejectOptions: option.RejectActionOptions{Method: C.RuleActionRejectMethodDefault},
 }
 
-
 func match(list []string, action option.RuleAction) []option.Rule {
 	cidrs, domains, names, paths := domain.SplitRules(list)
 
@@ -125,10 +127,11 @@ func match(list []string, action option.RuleAction) []option.Rule {
 }
 
 func rules(s domain.Settings, direct []string) []option.Rule {
-	// without sniffing a TUN connection carries only an address
-	out := []option.Rule{{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
-		RuleAction: option.RuleAction{Action: C.RuleActionTypeSniff},
-	}}}
+	// a TUN connection carries only an address, a mixed-in one only a domain
+	out := []option.Rule{
+		{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{RuleAction: option.RuleAction{Action: C.RuleActionTypeSniff}}},
+		{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{RuleAction: option.RuleAction{Action: C.RuleActionTypeResolve}}},
+	}
 
 	if s.DNSHijack == "on" {
 		out = append(out, option.Rule{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
@@ -148,6 +151,11 @@ func rules(s domain.Settings, direct []string) []option.Rule {
 	toDirect := option.RuleAction{Action: C.RuleActionTypeRoute, RouteOptions: option.RouteActionOptions{Outbound: "direct"}}
 	toProxy := option.RuleAction{Action: C.RuleActionTypeRoute, RouteOptions: option.RouteActionOptions{Outbound: Tag}}
 
+	toExcept := toDirect
+	if s.Mode == domain.DirectAll {
+		toExcept = toProxy
+	}
+
 	out = append(out, match(s.Blocked, reject)...)
 
 	if s.BypassLocal == "on" {
@@ -160,7 +168,7 @@ func rules(s domain.Settings, direct []string) []option.Rule {
 		RawDefaultRule: option.RawDefaultRule{IPCIDR: direct},
 		RuleAction:     toDirect,
 	}})
-	return append(out, match(s.Except, except(s, toDirect, toProxy))...)
+	return append(out, match(s.Except, toExcept)...)
 }
 
 func TunInbound(s domain.Settings, resolverIPs []netip.Prefix) option.Inbound {
@@ -210,6 +218,11 @@ func resolved(n domain.Node, s domain.Settings) (domain.Node, error) {
 	}
 	n.Server = ips[0].Unmap().String()
 	return n, nil
+}
+
+var dnsStrategy = map[string]option.DomainStrategy{
+	"ipv4": option.DomainStrategy(C.DomainStrategyIPv4Only),
+	"ipv6": option.DomainStrategy(C.DomainStrategyIPv6Only),
 }
 
 func network(s domain.Settings) string {
@@ -505,12 +518,4 @@ func final(s domain.Settings) string {
 		return "direct"
 	}
 	return Tag
-}
-
-// except routes the Except list opposite to the mode
-func except(s domain.Settings, toDirect, toProxy option.RuleAction) option.RuleAction {
-	if s.Mode == domain.DirectAll {
-		return toProxy
-	}
-	return toDirect
 }

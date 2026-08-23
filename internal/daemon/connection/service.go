@@ -100,13 +100,11 @@ func (s *Service) SetSettings(in domain.Settings) (Status, error) {
 
 	// the OS comes first: if it refuses, nothing is persisted anywhere
 	if in.Autostart != toggle(autostart.Enabled()) {
-		var err error
-		if in.Autostart == "on" {
-			err = autostart.Enable()
-		} else {
-			err = autostart.Disable()
+		apply := autostart.Enable
+		if in.Autostart == "off" {
+			apply = autostart.Disable
 		}
-		if err != nil {
+		if err := apply(); err != nil {
 			s.log.Printf("autostart: %v", err)
 			return s.Status(), err
 		}
@@ -123,10 +121,12 @@ func (s *Service) SetSettings(in domain.Settings) (Status, error) {
 	live := s.eng != nil && !blocked
 	s.mu.Unlock()
 
-	// a blocked session has nothing to rebuild
 	if blocked {
-		if in.KillSwitch != "on" {
+		switch {
+		case in.KillSwitch != "on":
 			s.stop()
+		case engineChanged(old, in):
+			s.clear()
 		}
 		return s.finish(nil)
 	}

@@ -1,7 +1,6 @@
 package settings
 
 import (
-	"cmp"
 	"fmt"
 	"slices"
 	"strconv"
@@ -16,16 +15,14 @@ import (
 )
 
 type field struct {
-	name        string
-	bare        bool   // the row is its own value, like a routing rule
-	header      bool   // a list heading, not a setting
-	empty       string // shown when the value is unset; "auto" if left blank
-	hidden      func(domain.Settings) bool
-	get         func(domain.Settings) string
-	set         func(*domain.Settings, string) error
-	enum        []string
-	placeholder string // shown in the editor while the row is empty
-	remove      func(*domain.Settings)
+	name   string
+	bare   bool   // the row is its own value, like a routing rule
+	header bool   // a list heading, not a setting
+	hint   string // the editor placeholder, and the value shown while unset
+	get    func(domain.Settings) string
+	set    func(*domain.Settings, string) error
+	enum   []string
+	remove func(*domain.Settings)
 }
 
 type tab struct {
@@ -49,9 +46,9 @@ var tabs = []tab{
 			set:  func(s *domain.Settings, in string) error { s.Autostart = in; return nil },
 		},
 		{
-			name:  "Refresh subscriptions",
-			empty: "never",
-			get:   func(s domain.Settings) string { return hours(s.RefreshEvery) },
+			name: "Refresh subscriptions",
+			hint: "never",
+			get:  func(s domain.Settings) string { return hours(s.RefreshEvery) },
 			set: func(s *domain.Settings, in string) error {
 				v, err := parseHours(in)
 				if err != nil {
@@ -111,10 +108,9 @@ var tabs = []tab{
 			set:  func(s *domain.Settings, in string) error { s.DNSHijack = in; return nil },
 		},
 		{
-			name:   "DNS server",
-			hidden: func(s domain.Settings) bool { return s.DNSHijack == "off" },
-			get:    func(s domain.Settings) string { return s.DNS },
-			set:    func(s *domain.Settings, in string) error { s.DNS = strings.TrimSpace(in); return nil },
+			name: "DNS server",
+			get:  func(s domain.Settings) string { return s.DNS },
+			set:  func(s *domain.Settings, in string) error { s.DNS = strings.TrimSpace(in); return nil },
 		},
 		{
 			name: "IP version",
@@ -302,7 +298,7 @@ func (s *Settings) activate() tea.Cmd {
 	}
 
 	s.editing, s.err = true, ""
-	s.input.Placeholder = cmp.Or(f.placeholder, f.empty)
+	s.input.Placeholder = f.hint
 	s.input.SetValue(f.get(s.cur))
 	s.input.CursorEnd()
 	return s.input.Focus()
@@ -358,12 +354,7 @@ func (s *Settings) assign(f field, v string) {
 
 func (s *Settings) rows() []field {
 	t := tabs[s.tab]
-	out := make([]field, 0, len(t.fields))
-	for _, f := range t.fields {
-		if f.hidden == nil || !f.hidden(s.cur) {
-			out = append(out, f)
-		}
-	}
+	out := slices.Clone(t.fields)
 	for _, l := range t.lists {
 		out = append(out, s.listRows(l)...)
 	}
@@ -391,20 +382,20 @@ func (s *Settings) listRows(l list) []field {
 			return nil
 		}
 		out = append(out, field{
-			name:        entries[i],
-			bare:        true,
-			placeholder: "empty removes it",
-			get:         func(v domain.Settings) string { return (*l.at(&v))[i] },
-			set:         set,
-			remove:      func(v *domain.Settings) { _ = set(v, "") }, // empty input never errors
+			name:   entries[i],
+			bare:   true,
+			hint:   "empty removes it",
+			get:    func(v domain.Settings) string { return (*l.at(&v))[i] },
+			set:    set,
+			remove: func(v *domain.Settings) { _ = set(v, "") }, // empty input never errors
 		})
 	}
 
 	return append(out, field{
-		name:        "+ add domain, network or app",
-		bare:        true,
-		placeholder: "example.com, 10.0.0.0/8, firefox",
-		get:         func(domain.Settings) string { return "" },
+		name: "+ add domain, network or app",
+		bare: true,
+		hint: "example.com, 10.0.0.0/8, firefox",
+		get:  func(domain.Settings) string { return "" },
 		set: func(v *domain.Settings, in string) error {
 			if in = strings.TrimSpace(in); in == "" {
 				return nil

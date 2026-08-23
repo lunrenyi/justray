@@ -169,7 +169,7 @@ func (s *Settings) valueLines(f field, selected bool, bar string) (lines, choice
 
 	v := f.get(s.cur)
 	if v == "" {
-		v = cmp.Or(f.empty, "auto")
+		v = cmp.Or(f.hint, "auto")
 	}
 	return []string{bar + style.Dim.Render(v)}, []string{""}
 }
