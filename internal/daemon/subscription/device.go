@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/luynrs/justray/internal/daemon/platform/console"
+	"github.com/luynrs/justray/internal/daemon/platform/device"
 )
 
 // Device info; X-Hwid is required, the rest cosmetic
@@ -40,13 +41,11 @@ func deviceHeaders() (http.Header, error) {
 		set("X-Ver-OS", run("sw_vers", "-productVersion"))
 		set("X-Device-Model", run("sysctl", "-n", "hw.model"))
 	case "windows":
-		ps := func(q string) string { // wmic is gone as of Win11 24H2
-			return run("powershell", "-NoProfile", "-Command", q)
-		}
+		hwid, ver, model := device.Info()
 		set("X-Device-OS", "Windows")
-		set("X-Hwid", hash(ps("(Get-CimInstance Win32_ComputerSystemProduct).UUID")))
-		set("X-Ver-OS", ps("(Get-CimInstance Win32_OperatingSystem).Version"))
-		set("X-Device-Model", ps("(Get-CimInstance Win32_ComputerSystem).Model"))
+		set("X-Hwid", hash(hwid))
+		set("X-Ver-OS", ver)
+		set("X-Device-Model", model)
 	default:
 		set("X-Device-OS", runtime.GOOS)
 	}
