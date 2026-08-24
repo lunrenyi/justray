@@ -27,7 +27,7 @@
           version = "0.1.0";
           src = ./.;
 
-          vendorHash = "sha256-yo7MVsQlZFKmKzoHbJTl37oQYNJzAqS1rVBraXkI7hY=";
+          vendorHash = "sha256-55Pxp8CNu4toUFuZQN15/a0WwYz0nlRsTG4VqLLE4+I=";
 
           subPackages = [ "cmd/justray" "cmd/justrayd" ];
           tags = [ "with_quic" "with_utls" "with_gvisor" ];

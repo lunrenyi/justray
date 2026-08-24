@@ -3,12 +3,12 @@ module github.com/luynrs/justray
 go 1.26
 
 require (
-	charm.land/bubbles/v2 v2.2.0
+	charm.land/bubbles/v2 v2.2.1
 	charm.land/bubbletea/v2 v2.0.9
 	charm.land/lipgloss/v2 v2.0.6
 	github.com/charmbracelet/log v1.0.0
 	github.com/sagernet/netlink v0.0.0-20240612041022-b9a21c07ac6a
-	github.com/sagernet/sing v0.8.13
+	github.com/sagernet/sing v0.8.14
 	github.com/sagernet/sing-box v1.13.19
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/sys v0.47.0
