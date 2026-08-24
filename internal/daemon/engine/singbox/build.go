@@ -198,15 +198,9 @@ func resolved(n domain.Node, s domain.Settings) (domain.Node, error) {
 	if _, err := netip.ParseAddr(n.Server); err == nil {
 		return n, nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
-	defer cancel()
-
-	ips, err := net.DefaultResolver.LookupNetIP(ctx, network(s), n.Server)
+	ip, err := lookup(n.Server, s)
 	if err != nil {
-		return n, fmt.Errorf("could not resolve %s: %w", n.Server, err)
-	}
-	if len(ips) == 0 {
-		return n, fmt.Errorf("no addresses for %s", n.Server)
+		return n, err
 	}
 	switch {
 	case n.TLS != nil && n.TLS.SNI == "":
@@ -219,8 +213,45 @@ func resolved(n domain.Node, s domain.Settings) (domain.Node, error) {
 	if n.Transport.Host == "" {
 		n.Transport.Host = n.Server
 	}
-	n.Server = ips[0].Unmap().String()
+	n.Server = ip
 	return n, nil
+}
+
+var (
+	dnsMu    sync.Mutex
+	dnsCache = map[string]dnsEntry{}
+)
+
+type dnsEntry struct {
+	ip  string
+	exp time.Time
+}
+
+func lookup(host string, s domain.Settings) (string, error) {
+	key := s.IPVersion + ":" + host
+
+	dnsMu.Lock()
+	e, ok := dnsCache[key]
+	dnsMu.Unlock()
+	if ok && time.Now().Before(e.exp) {
+		return e.ip, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	ips, err := net.DefaultResolver.LookupNetIP(ctx, network(s), host)
+	switch {
+	case err != nil:
+		return "", fmt.Errorf("could not resolve %s: %w", host, err)
+	case len(ips) == 0:
+		return "", fmt.Errorf("no addresses for %s", host)
+	}
+
+	e = dnsEntry{ips[0].Unmap().String(), time.Now().Add(10 * time.Minute)} // ttl
+	dnsMu.Lock()
+	dnsCache[key] = e
+	dnsMu.Unlock()
+	return e.ip, nil
 }
 
 var dnsStrategy = map[string]option.DomainStrategy{

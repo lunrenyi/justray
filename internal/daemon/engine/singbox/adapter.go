@@ -29,6 +29,8 @@ type Engine struct {
 	inst   *sbox.Box
 	staged *sbox.Box // built but not started kill-switch instance
 	tun    bool      // whether a TUN inbound is up
+	ep     *option.Endpoint
+	obs    []option.Outbound
 }
 
 // New builds a fresh, unstarted Engine bound to a local proxy port and log path.
@@ -53,6 +55,7 @@ func (e *Engine) Start(n domain.Node, tun bool) error {
 	}
 
 	e.inst, e.tun = inst, tun
+	e.ep, e.obs, _ = Proxy(n, e.settings)
 	return nil
 }
 
@@ -112,18 +115,25 @@ func (e *Engine) Swap(n domain.Node) error {
 	if err != nil {
 		return err
 	}
+	if err := e.apply(ep, obs); err != nil {
+		_ = e.apply(e.ep, e.obs)
+		return err
+	}
+	e.ep, e.obs = ep, obs
+	return nil
+}
 
+func (e *Engine) apply(ep *option.Endpoint, obs []option.Outbound) error {
 	ctx := e.runtimeCtx()
 	router := e.inst.Router()
 	logger := e.inst.LogFactory().NewLogger("outbound/" + Tag)
 
+	_ = e.inst.Endpoint().Remove(Tag)
+	_ = e.inst.Outbound().Remove(Tag)
+	_ = e.inst.Outbound().Remove(Tag + "-stls")
 	if ep != nil {
-		_ = e.inst.Outbound().Remove(Tag)
-		_ = e.inst.Outbound().Remove(Tag + "-stls")
 		return e.inst.Endpoint().Create(ctx, router, logger, ep.Tag, ep.Type, ep.Options)
 	}
-	_ = e.inst.Endpoint().Remove(Tag)
-	_ = e.inst.Outbound().Remove(Tag + "-stls")
 	for _, ob := range obs {
 		if err := e.inst.Outbound().Create(ctx, router, logger, ob.Tag, ob.Type, ob.Options); err != nil {
 			return err

@@ -56,7 +56,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tickCmd()
 
 	case spinner.TickMsg:
-		if len(m.refreshing) == 0 && !m.connecting {
+		if len(m.refreshing) == 0 && !m.connecting && m.live {
 			return m, nil
 		}
 		var cmd tea.Cmd
@@ -85,11 +85,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case pushed:
-		if m.live = msg.live; msg.live {
+		m.live = msg.live
+		if msg.live {
 			m.since = time.Now().Add(-time.Duration(msg.st.Uptime) * time.Second)
 			m.status, m.err = msg.st, ""
+			return m, next(m.statusCh)
 		}
-		return m, next(m.statusCh)
+		return m, tea.Batch(next(m.statusCh), m.spin.Tick)
 	}
 	return m, nil
 }

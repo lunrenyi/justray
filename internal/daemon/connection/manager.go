@@ -53,37 +53,42 @@ func (s *Service) ForgetIfRemoved(subID string, nodes []domain.Node) {
 	}
 }
 
-func (s *Service) start(n domain.Node, sub string) error {
+func (s *Service) start(n domain.Node, sub string) (err error) {
 	s.mu.Lock()
-	tun := s.tun
-	live := s.eng
-	hot := live != nil && !s.blocking && s.tunLive == tun
+	tun, live, up := s.tun, s.eng, s.tunLive
+	hot := live != nil && !s.blocking
 	s.mu.Unlock()
 
 	eng := live
 	if hot {
-		if err := live.Swap(n); err != nil {
-			s.setErr(err)
-			return err
+		err = live.Swap(n)
+		if err == nil && tun != up {
+			reconcile := eng.TunRemove
+			if tun {
+				reconcile = eng.TunAdd
+			}
+			err = reconcile()
 		}
 	} else {
 		s.stop()
 
-		if err := rpc.ClearLog(rpc.EngineLog(s.dir)); err != nil {
+		if err = rpc.ClearLog(rpc.EngineLog(s.dir)); err != nil {
 			s.log.Print(err)
 		}
 
 		eng = s.newEngine(s.current(), rpc.EngineLog(s.dir))
-		if err := eng.Start(n, tun); err != nil {
-			s.setErr(err)
+		if err = eng.Start(n, tun); err != nil {
 			_ = eng.Close()
-			if tun && elevate.Needed(err) {
-				s.persistActive(n.ID)
-				go elevate.Tun(s.log, s.dir)
-				return errors.New(elevateMsg)
-			}
-			return err
 		}
+	}
+	if err != nil {
+		if tun && elevate.Needed(err) {
+			s.persistActive(n.ID)
+			go elevate.Tun(s.log, s.dir)
+			err = errors.New(elevateMsg)
+		}
+		s.setErr(err)
+		return err
 	}
 
 	s.mu.Lock()

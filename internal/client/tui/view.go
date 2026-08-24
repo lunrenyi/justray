@@ -65,7 +65,7 @@ func (m Model) titleLine() string {
 	if m.settings == nil {
 		right = style.Segment(modeProxy, !m.status.Tun) + style.Segment(modeTun, m.status.Tun)
 		if m.connected() {
-			right = style.Dim.Render(fmt.Sprintf(":%d", m.status.Port)) + ": " + right
+			right = style.Dim.Render(fmt.Sprintf(":%d", m.status.Port)) + " " + right
 		}
 	}
 	return m.clip(style.Flush(left, right, m.w))
@@ -145,7 +145,7 @@ func (m Model) footer() string {
 	case m.live:
 		status = style.Dim.Render(icon + " disconnected")
 	default:
-		status = style.Dim.Render(icon + " connecting to the daemon…")
+		status = style.Dim.Render(m.spin.View() + " connecting")
 	}
 	if m.err != "" {
 		status += "   " + style.Err.Render(style.FirstLine(m.err))

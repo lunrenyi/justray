@@ -67,7 +67,7 @@ func New(c *rpc.Client) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(func() tea.Msg { return load(m.client) }, watch(m.client, m.statusCh), next(m.statusCh), tickCmd())
+	return tea.Batch(func() tea.Msg { return load(m.client) }, watch(m.client, m.statusCh), next(m.statusCh), tickCmd(), m.spin.Tick)
 }
 
 func (m Model) data() tree.Data {
