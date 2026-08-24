@@ -11,9 +11,8 @@ import (
 	"github.com/luynrs/justray/internal/shared/rpc"
 )
 
-const elevateMsg = "granting permissions..."
+const elevateMsg = "granting permissions"
 
-// Restore reconnects to whatever node/mode was persisted from the last run.
 func (s *Service) Restore() {
 	s.opMu.Lock()
 	defer s.opMu.Unlock()

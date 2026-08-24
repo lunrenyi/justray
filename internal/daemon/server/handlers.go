@@ -44,6 +44,8 @@ func (s *Server) dispatch(req rpc.Req) (any, error) {
 		return s.subs.Add(a.URL)
 	case "RemoveSub":
 		return nil, s.removeSub(a.ID)
+	case "MoveSub":
+		return nil, s.subs.MoveSub(a.ID, a.Dir)
 	case "RefreshAll":
 		return s.subs.RefreshAll()
 	case "Refresh":

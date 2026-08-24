@@ -16,12 +16,7 @@ import (
 	"github.com/luynrs/justray/internal/shared/domain"
 )
 
-const (
-	probeTimeout = 5 * time.Second
-	probeWorkers = 4
-)
-
-// Probe dials every node through a throwaway engine and reports reachability.
+// Probe dials every node
 func Probe(nodes []domain.Node, s domain.Settings, logPath string) (map[string]engine.Result, error) {
 	inst, err := sbox.New(sbox.Options{Options: *ProbeConfig(nodes, s, logPath), Context: Context(context.Background())})
 	if err != nil {
@@ -34,7 +29,7 @@ func Probe(nodes []domain.Node, s domain.Settings, logPath string) (map[string]e
 	defer func() { _ = inst.Close() }()
 
 	out := map[string]engine.Result{}
-	sem := make(chan struct{}, probeWorkers)
+	sem := make(chan struct{}, 5) // workers
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	for i, n := range nodes {
@@ -60,7 +55,7 @@ func Probe(nodes []domain.Node, s domain.Settings, logPath string) (map[string]e
 
 func delay(dialer N.Dialer, url string) (int, error) {
 	client := &http.Client{
-		Timeout: probeTimeout,
+		Timeout: 5 * time.Second,
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
 				return dialer.DialContext(ctx, N.NetworkTCP, M.ParseSocksaddr(addr))

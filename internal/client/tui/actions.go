@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"slices"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/luynrs/justray/internal/client/tui/tree"
@@ -97,6 +99,30 @@ func (m Model) refreshAll() (tea.Model, tea.Cmd) {
 		m.refreshing[sub.ID] = true
 	}
 	return m, tea.Batch(m.spin.Tick, act(m.client, func() error { _, err := m.client.RefreshAll(); return err }))
+}
+
+func (m Model) moveSub(dir int) (tea.Model, tea.Cmd) {
+	r, ok := m.at()
+	if !ok || r.Kind != tree.Header {
+		return m, nil
+	}
+	id := r.Sub.ID
+	i := slices.IndexFunc(m.subs, func(s rpc.Sub) bool { return s.ID == id })
+	j := i + dir
+	if i < 0 || j < 0 || j >= len(m.subs) {
+		return m, nil
+	}
+	subs := slices.Clone(m.subs)
+	subs[i], subs[j] = subs[j], subs[i]
+	m.subs = subs
+	for idx, row := range m.rows() {
+		if row.Kind == tree.Header && row.Sub.ID == id {
+			m.cursor = idx
+			break
+		}
+	}
+	m.clamp()
+	return m, act(m.client, func() error { return m.client.MoveSub(id, dir) })
 }
 
 func (m Model) setTun(enable bool) (tea.Model, tea.Cmd) {

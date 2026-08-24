@@ -30,17 +30,19 @@ func (e *Editor) Start() tea.Cmd {
 	return tea.Batch(e.input.Focus(), textinput.Blink)
 }
 
-// Key returns done on submit and cancel, url empty on cancel
-func (e *Editor) Key(msg tea.KeyPressMsg) (url string, done bool, cmd tea.Cmd) {
-	switch msg.String() {
-	case "esc":
-		e.active = false
-		e.input.Blur()
-		return "", true, nil
-	case "enter":
-		e.active = false
-		e.input.Blur()
-		return strings.TrimSpace(e.input.Value()), true, nil
+// Update returns done on submit and cancel, url empty on cancel
+func (e *Editor) Update(msg tea.Msg) (url string, done bool, cmd tea.Cmd) {
+	if key, ok := msg.(tea.KeyPressMsg); ok {
+		switch key.String() {
+		case "esc":
+			e.active = false
+			e.input.Blur()
+			return "", true, nil
+		case "enter":
+			e.active = false
+			e.input.Blur()
+			return strings.TrimSpace(e.input.Value()), true, nil
+		}
 	}
 	e.input, cmd = e.input.Update(msg)
 	return "", false, cmd

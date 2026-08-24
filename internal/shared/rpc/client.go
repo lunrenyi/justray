@@ -64,6 +64,10 @@ func (c *Client) RemoveSub(id string) error {
 	_, err := call[any](c, "RemoveSub", Args{ID: id})
 	return err
 }
+func (c *Client) MoveSub(id string, dir int) error {
+	_, err := call[any](c, "MoveSub", Args{ID: id, Dir: dir})
+	return err
+}
 func (c *Client) RefreshAll() ([]Sub, error)        { return call[[]Sub](c, "RefreshAll", Args{}) }
 func (c *Client) Refresh(id string) (Sub, error)    { return call[Sub](c, "Refresh", Args{ID: id}) }
 func (c *Client) Nodes() ([]Node, error)            { return call[[]Node](c, "Nodes", Args{}) }

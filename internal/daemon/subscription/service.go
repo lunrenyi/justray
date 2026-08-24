@@ -84,6 +84,26 @@ func (s *Service) Remove(id string) (store.Subscription, error) {
 	return removed, s.store.Save(kept)
 }
 
+func (s *Service) MoveSub(id string, dir int) error {
+	s.storeMu.Lock()
+	defer s.storeMu.Unlock()
+
+	subs, err := s.store.Subscriptions()
+	if err != nil {
+		return err
+	}
+	i := slices.IndexFunc(subs, func(sub store.Subscription) bool { return sub.ID == id })
+	if i < 0 {
+		return fmt.Errorf("subscription %q not found", id)
+	}
+	j := i + dir
+	if j < 0 || j >= len(subs) {
+		return nil
+	}
+	subs[i], subs[j] = subs[j], subs[i]
+	return s.store.Save(subs)
+}
+
 func check(rawURL string) error {
 	if rawURL == "" {
 		return fmt.Errorf("paste a subscription url or a share link")

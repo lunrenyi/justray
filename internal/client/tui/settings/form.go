@@ -9,8 +9,6 @@ import (
 	"github.com/luynrs/justray/internal/client/tui/style"
 )
 
-const tabBarLine = 0
-
 func (s *Settings) View(width, height int) string {
 	return strings.Join(s.lines(width, height), "\n")
 }

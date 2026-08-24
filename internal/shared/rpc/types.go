@@ -16,6 +16,7 @@ type Args struct {
 	ID       string
 	Sub      string
 	URL      string
+	Dir      int
 	Tun      bool
 	Settings domain.Settings
 }

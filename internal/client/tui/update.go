@@ -37,6 +37,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m.mouse(msg)
 
+	case tea.PasteMsg:
+		if m.editor.Active() {
+			_, _, cmd := m.editor.Update(msg)
+			return m, cmd
+		}
+
 	case settingsLoaded:
 		if msg.err != nil {
 			m.err = msg.err.Error()
@@ -100,7 +106,7 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case m.editor.Active():
-		url, done, cmd := m.editor.Key(msg)
+		url, done, cmd := m.editor.Update(msg)
 		switch {
 		case !done:
 			return m, cmd
@@ -118,6 +124,10 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.move(-1)
 	case "down", "j":
 		m.move(1)
+	case "shift+up":
+		return m.moveSub(-1)
+	case "shift+down":
+		return m.moveSub(1)
 	case "left", "h":
 		return m.collapse()
 	case "right", "l":

@@ -37,8 +37,8 @@ func ParseHY(uri string) (domain.Node, error) {
 			Insecure: insecureFlag(q),
 		},
 		ObfsPassword: obfs,
-		UpMbps:       cmp.Or(atoi(q.Get("upmbps")), 100),   // brutal refuses to run on a zero rate
-		DownMbps:     cmp.Or(atoi(q.Get("downmbps")), 100), // TODO: settings ui
+		UpMbps:       cmp.Or(atoi(q.Get("upmbps")), 100),
+		DownMbps:     cmp.Or(atoi(q.Get("downmbps")), 100),
 	}
 	n.ID = nodeID(n)
 	return n, nil

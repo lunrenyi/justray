@@ -186,6 +186,12 @@ func (s *Settings) Update(msg tea.Msg) (closed bool, cmd tea.Cmd) {
 		return s.key(msg)
 	case tea.MouseMsg:
 		return false, s.mouse(msg)
+	case tea.PasteMsg:
+		if s.editing {
+			var cmd tea.Cmd
+			s.input, cmd = s.input.Update(msg)
+			return false, cmd
+		}
 	}
 	return false, nil
 }
@@ -245,7 +251,7 @@ func (s *Settings) mouse(msg tea.MouseMsg) tea.Cmd {
 		if mouse.Button != tea.MouseLeft {
 			return nil
 		}
-		if y == tabBarLine {
+		if y == 0 {
 			if i, ok := tabAt(mouse.X); ok {
 				s.switchTab(i - s.tab)
 			}
