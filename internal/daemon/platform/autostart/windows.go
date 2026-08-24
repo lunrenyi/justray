@@ -3,24 +3,15 @@
 package autostart
 
 import (
+	"fmt"
 	"os"
-
-	"golang.org/x/sys/windows/registry"
+	"os/exec"
 )
 
-const (
-	runKey = `Software\Microsoft\Windows\CurrentVersion\Run`
-	name   = "justrayd"
-)
+const name = "justrayd"
 
 func Enabled() bool {
-	k, err := registry.OpenKey(registry.CURRENT_USER, runKey, registry.QUERY_VALUE)
-	if err != nil {
-		return false
-	}
-	defer k.Close()
-	_, _, err = k.GetStringValue(name)
-	return err == nil
+	return exec.Command("schtasks", "/Query", "/TN", name).Run() == nil
 }
 
 func Enable() error {
@@ -28,22 +19,14 @@ func Enable() error {
 	if err != nil {
 		return err
 	}
-	k, _, err := registry.CreateKey(registry.CURRENT_USER, runKey, registry.SET_VALUE)
-	if err != nil {
-		return err
+	cmd := exec.Command("schtasks", "/Create", "/F", "/RL", "HIGHEST", "/SC", "ONLOGON", "/TN", name, "/TR", `"`+bin+`"`)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("schtasks create: %v: %s", err, out)
 	}
-	defer k.Close()
-	return k.SetStringValue(name, `"`+bin+`"`)
+	return nil
 }
 
 func Disable() error {
-	k, err := registry.OpenKey(registry.CURRENT_USER, runKey, registry.SET_VALUE)
-	if err != nil {
-		return nil
-	}
-	defer k.Close()
-	if err := k.DeleteValue(name); err != nil && err != registry.ErrNotExist {
-		return err
-	}
+	_ = exec.Command("schtasks", "/Delete", "/F", "/TN", name).Run()
 	return nil
 }
