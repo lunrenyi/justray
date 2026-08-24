@@ -85,6 +85,19 @@ func Bytes(b int64) string {
 
 func Since(t time.Time) string { return span(time.Since(t)) + " ago" }
 
+func Uptime(d time.Duration) string {
+	d = d.Round(time.Second)
+	h, m, s := d/time.Hour, d/time.Minute%60, d/time.Second%60
+
+	switch {
+	case h > 0:
+		return fmt.Sprintf("%dh %dm %ds", h, m, s)
+	case m > 0:
+		return fmt.Sprintf("%dm %ds", m, s)
+	}
+	return fmt.Sprintf("%ds", s)
+}
+
 func Expiry(t time.Time) string {
 	d := time.Until(t)
 	if d < 0 {

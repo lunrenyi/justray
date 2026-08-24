@@ -15,18 +15,18 @@ func (s *Settings) View(width, height int) string {
 
 func (s *Settings) Hints() [][2]string {
 	if s.editing {
-		return [][2]string{{"\U000F0311", "Apply"}, {"esc", "Cancel"}}
+		return [][2]string{{"↵", "Apply"}, {"esc", "Cancel"}}
 	}
 	f, ok := s.at()
 	switch {
 	case ok && len(f.enum) > 0:
-		return [][2]string{{"↑/↓", "Move"}, {"←/→", "Cycle"}, {"\U000F0311", "Choose"}, {"\U000F0312", "Tab"}, {"esc", "Back"}}
+		return [][2]string{{"↑/↓", "Move"}, {"←/→", "Cycle"}, {"↵", "Choose"}, {"⇥", "Tab"}, {"esc", "Back"}}
 	case ok && f.remove != nil:
 		return [][2]string{
-			{"↑/↓", "Move"}, {"\U000F0312", "Tab"}, {"\U000F0311", "Edit"}, {"d", "Remove"}, {"esc", "Back"},
+			{"↑/↓", "Move"}, {"⇥", "Tab"}, {"↵", "Edit"}, {"d", "Remove"}, {"esc", "Back"},
 		}
 	}
-	return [][2]string{{"↑/↓", "Move"}, {"\U000F0312", "Tab"}, {"\U000F0311", "Edit"}, {"esc", "Back"}}
+	return [][2]string{{"↑/↓", "Move"}, {"⇥", "Tab"}, {"↵", "Edit"}, {"esc", "Back"}}
 }
 
 type hit struct {

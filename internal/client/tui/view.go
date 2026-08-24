@@ -57,15 +57,16 @@ func (m Model) content() string {
 
 func (m Model) titleLine() string {
 	left := style.Title.Render("JustRay")
-	right := style.Segment(" Settings ", true)
-	if m.settings == nil {
-		if m.filtering || m.query != "" {
-			left += " " + style.Dim.Render("~ Search:") + " " + m.filter.View()
-		}
-		right = style.Segment(modeProxy, !m.status.Tun) + style.Segment(modeTun, m.status.Tun)
+	if m.settings == nil && (m.filtering || m.query != "") {
+		left += " " + style.Dim.Render("~ Search:") + " " + m.filter.View()
 	}
-	if m.connected() {
-		right = style.Dim.Render(fmt.Sprintf(":%d", m.status.Port)) + "  " + right
+
+	var right string
+	if m.settings == nil {
+		right = style.Segment(modeProxy, !m.status.Tun) + style.Segment(modeTun, m.status.Tun)
+		if m.connected() {
+			right = style.Dim.Render(fmt.Sprintf(":%d", m.status.Port)) + ": " + right
+		}
 	}
 	return m.clip(style.Flush(left, right, m.w))
 }
@@ -106,7 +107,7 @@ func (m Model) keys() [][2]string {
 		return m.editor.Hints()
 	}
 	return [][2]string{
-		{"↑/↓", "Move"}, {"←/→", "Fold"}, {"\U000F0311", "Toggle"}, {"t", "Ping"}, {"r", "Refresh"},
+		{"↑/↓", "Move"}, {"←/→", "Fold"}, {"↵", "Toggle"}, {"t", "Ping"}, {"r", "Refresh"},
 		{"m", "Mode"}, {"/", "Filter"}, {"a", "Add"}, {"d", "Delete"}, {"o", "Settings"}, {"q", "Quit"},
 	}
 }
@@ -138,12 +139,9 @@ func (m Model) footer() string {
 	var status string
 	switch {
 	case m.connected():
-		uptime := time.Duration(time.Since(m.since).Seconds()) * time.Second
-		status = style.Strong.Render(fmt.Sprintf("%s %s · %s", icon, style.Sanitize(m.status.NodeName), uptime))
+		status = style.Strong.Render(fmt.Sprintf("%s %s · %s", icon, style.Sanitize(m.status.NodeName), style.Uptime(time.Since(m.since))))
 	case m.live && m.status.Blocked:
 		status = style.Pending.Render(icon + " blocked · kill switch")
-	case m.live && m.status.LastErr != "":
-		status = style.Dim.Render(icon+" disconnected") + "  " + style.Err.Render("last error: "+style.FirstLine(m.status.LastErr))
 	case m.live:
 		status = style.Dim.Render(icon + " disconnected")
 	default:

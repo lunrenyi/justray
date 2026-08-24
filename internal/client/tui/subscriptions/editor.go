@@ -51,5 +51,5 @@ func (e *Editor) Update(msg tea.Msg) (url string, done bool, cmd tea.Cmd) {
 func (e *Editor) View() string { return e.input.View() }
 
 func (e *Editor) Hints() [][2]string {
-	return [][2]string{{"\U000F0311", "Add"}, {"esc", "Cancel"}}
+	return [][2]string{{"↵", "Add"}, {"esc", "Cancel"}}
 }

@@ -115,9 +115,10 @@ func (m Model) moveSub(dir int) (tea.Model, tea.Cmd) {
 	subs := slices.Clone(m.subs)
 	subs[i], subs[j] = subs[j], subs[i]
 	m.subs = subs
-	for idx, row := range m.rows() {
-		if row.Kind == tree.Header && row.Sub.ID == id {
-			m.cursor = idx
+	rows := m.rows()
+	for i, idx := range tree.Selectable(rows) {
+		if rows[idx].Kind == tree.Header && rows[idx].Sub.ID == id {
+			m.cursor = i
 			break
 		}
 	}
