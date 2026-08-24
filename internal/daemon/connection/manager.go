@@ -17,6 +17,8 @@ const elevateMsg = "granting permissions..."
 func (s *Service) Restore() {
 	s.opMu.Lock()
 	defer s.opMu.Unlock()
+	defer s.broadcast()
+	defer s.arm()
 
 	id, err := s.store.Active()
 	if err != nil || id == "" {
@@ -34,9 +36,7 @@ func (s *Service) Restore() {
 	}
 	if err := s.start(n, sub); err != nil {
 		s.log.Printf("restore: %s: %v", n.Name, err)
-		return
 	}
-	s.broadcast()
 }
 
 // ForgetIfRemoved drops the active node when its subscription is deleted.
@@ -122,6 +122,19 @@ func (s *Service) clear() {
 		s.stop()
 		return
 	}
+	s.raise()
+}
+
+func (s *Service) arm() {
+	s.mu.Lock()
+	idle := s.eng == nil && s.tun && s.settings.KillSwitch == "on"
+	s.mu.Unlock()
+	if idle {
+		s.raise()
+	}
+}
+
+func (s *Service) raise() {
 	if err := s.block(); err != nil {
 		s.log.Printf("kill switch: %v", err)
 		s.stop()

@@ -216,6 +216,9 @@ func resolved(n domain.Node, s domain.Settings) (domain.Node, error) {
 	case n.TLS == nil && tlsOnly(n.Protocol):
 		n.TLS = &domain.TLS{SNI: n.Server}
 	}
+	if n.Transport.Host == "" {
+		n.Transport.Host = n.Server
+	}
 	n.Server = ips[0].Unmap().String()
 	return n, nil
 }

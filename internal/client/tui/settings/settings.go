@@ -376,7 +376,7 @@ func (s *Settings) listRows(l list) []field {
 			if err != nil {
 				return err
 			}
-			(*at)[i] = rule
+			*at = append(append((*at)[:i:i], rule), (*at)[i+1:]...)
 			return nil
 		}
 		out = append(out, field{

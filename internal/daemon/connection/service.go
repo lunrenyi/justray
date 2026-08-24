@@ -132,6 +132,7 @@ func (s *Service) SetSettings(in domain.Settings) (Status, error) {
 	}
 
 	if !live || !engineChanged(old, in) {
+		s.arm()
 		return s.finish(nil)
 	}
 	s.stop()
@@ -220,6 +221,7 @@ func (s *Service) SetTun(enable bool) (Status, error) {
 	}
 	s.mu.Unlock()
 
+	s.arm()
 	return s.finish(err)
 }
 

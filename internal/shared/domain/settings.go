@@ -163,7 +163,7 @@ func isHTTPURL(v string) bool {
 // ParseRule canonicalises a network, domain or program rule
 func ParseRule(raw string) (string, error) {
 	rule := strings.TrimSpace(raw)
-	if p, err := ParsePrefix(rule); err == nil {
+	if p, err := parsePrefix(rule); err == nil {
 		return p.String(), nil
 	}
 	rule, star := strings.CutPrefix(rule, "*.")
@@ -211,8 +211,8 @@ func isPrefix(rule string) bool {
 	return err == nil
 }
 
-// ParsePrefix accepts a CIDR or a bare address
-func ParsePrefix(raw string) (netip.Prefix, error) {
+// parsePrefix accepts a CIDR or a bare address
+func parsePrefix(raw string) (netip.Prefix, error) {
 	raw = strings.TrimSpace(raw)
 	if p, err := netip.ParsePrefix(raw); err == nil {
 		return p.Masked(), nil

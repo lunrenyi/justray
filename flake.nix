@@ -73,7 +73,8 @@
         let pkgs = nixpkgs.legacyPackages.${system};
         in {
           default = pkgs.mkShell {
-            packages = [ pkgs.go pkgs.gopls pkgs.golangci-lint ];
+            packages = [ pkgs.go pkgs.gopls pkgs.golangci-lint pkgs.goreleaser ];
+            GOFLAGS = "-tags=with_quic,with_utls,with_gvisor";
           };
         }
       );

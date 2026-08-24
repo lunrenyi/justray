@@ -1,0 +1,35 @@
+version: 2
+project_name: justray
+
+builds:
+  - id: justray
+    main: ./cmd/justray
+    binary: justray
+    env: [CGO_ENABLED=0]
+    flags: ["-tags=with_quic,with_utls,with_gvisor"]
+    ldflags: ["-s -w"]
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+
+  - id: justrayd
+    main: ./cmd/justrayd
+    binary: justrayd
+    env: [CGO_ENABLED=0]
+    flags: ["-tags=with_quic,with_utls,with_gvisor"]
+    ldflags: ["-s -w"]
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+
+archives:
+  - ids: [justray, justrayd]
+    name_template: "justray_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: checksums.txt
+
+release:
+  draft: true
