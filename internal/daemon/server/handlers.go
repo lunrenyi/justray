@@ -10,14 +10,12 @@ import (
 	"github.com/luynrs/justray/internal/shared/rpc"
 )
 
-const maxRequestSize = 1 << 20
-
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
 	conn.SetReadDeadline(time.Now().Add(rpc.IdleTimeout))
 
 	var req rpc.Req
-	if err := json.NewDecoder(io.LimitReader(conn, maxRequestSize)).Decode(&req); err != nil {
+	if err := json.NewDecoder(io.LimitReader(conn, 1<<20)).Decode(&req); err != nil { // max req size
 		reply(conn, nil, fmt.Errorf("bad request: %w", err))
 		return
 	}

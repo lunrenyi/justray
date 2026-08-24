@@ -34,124 +34,130 @@ var (
 )
 
 type Settings struct {
+	General `yaml:"general,omitempty"`
+	Network `yaml:"network,omitempty"`
+	Routing `yaml:"routing,omitempty"`
+}
+
+type General struct {
+	Autostart    string `yaml:"-"`                       // on/off, kept by the OS
+	RefreshEvery int    `yaml:"refresh_hours,omitempty"` // 0 = never
 	Port         int    `yaml:"port,omitempty"`
 	LogLevel     string `yaml:"log_level,omitempty"`
 	ProbeURL     string `yaml:"probe_url,omitempty"`
-	RefreshEvery int    `yaml:"refresh_hours,omitempty"` // 0 = never
-	KillSwitch   string `yaml:"kill_switch,omitempty"`   // on/off, empty = off
-	Autostart    string `yaml:"-"`                       // on/off, kept by the OS, not this file
-
-	Mode    string   `yaml:"mode,omitempty"` // proxy-all/direct-all, empty = proxy-all
-	Except  []string `yaml:"except,omitempty"`
-	Blocked []string `yaml:"blocked,omitempty"`
-
-	DNS         string `yaml:"dns,omitempty"`
-	DNSHijack   string `yaml:"dns_hijack,omitempty"` // on/off, empty = on
-	IPVersion   string `yaml:"ip_version,omitempty"`
-	BypassLocal string `yaml:"bypass_local,omitempty"` // on/off, empty = on
-	TunMTU      int    `yaml:"tun_mtu,omitempty"`
-	TunStack    string `yaml:"tun_stack,omitempty"`
-	TunStrict   string `yaml:"tun_strict_route,omitempty"` // on/off, empty = off
-	BlockQUIC   string `yaml:"block_quic,omitempty"`       // on/off, empty = off
 }
 
-func (s Settings) IPv4() bool { return s.IPVersion != "ipv6" }
-func (s Settings) IPv6() bool { return s.IPVersion != "ipv4" }
+type Network struct {
+	KillSwitch string `yaml:"kill_switch,omitempty"` // on/off, empty = off
+	DNSHijack  string `yaml:"dns_hijack,omitempty"`  // on/off, empty = on
+	DNS        string `yaml:"dns,omitempty"`
+	IPVersion  string `yaml:"ip_version,omitempty"`
+	TunStack   string `yaml:"stack,omitempty"`
+	TunMTU     int    `yaml:"mtu,omitempty"`
+	TunStrict  string `yaml:"strict_route,omitempty"` // on/off, empty = off
+}
 
-// Equal reports whether two settings are identical
+type Routing struct {
+	Mode        string   `yaml:"mode,omitempty"`         // proxy-all/direct-all, empty = proxy-all
+	BypassLocal string   `yaml:"bypass_local,omitempty"` // on/off, empty = on
+	BlockQUIC   string   `yaml:"block_quic,omitempty"`   // on/off, empty = off
+	Except      []string `yaml:"except,omitempty"`
+	Blocked     []string `yaml:"blocked,omitempty"`
+}
+
+func (s Settings) IPv4() bool            { return s.IPVersion != "ipv6" }
+func (s Settings) IPv6() bool            { return s.IPVersion != "ipv4" }
 func (s Settings) Equal(o Settings) bool { return reflect.DeepEqual(s, o) }
 
 // Normalize fills defaults and validates
 func (s Settings) Normalize() (Settings, error) {
-	if s.Port == 0 {
-		s.Port = DefaultPort
-	}
-	if s.Port < 1 || s.Port > 65535 {
-		return s, fmt.Errorf("port %d is out of range", s.Port)
-	}
-	if s.DNS = strings.TrimSpace(s.DNS); s.DNS == "" {
-		s.DNS = DefaultDNS
-	}
-	if _, err := netip.ParseAddr(s.DNS); err != nil {
-		return s, fmt.Errorf("dns %q is not an ip address", s.DNS)
-	}
-	if s.LogLevel == "" {
-		s.LogLevel = DefaultLogLevel
-	}
-	if !slices.Contains(LogLevels, s.LogLevel) {
-		return s, fmt.Errorf("log level %q is not one of %s", s.LogLevel, strings.Join(LogLevels, ", "))
-	}
-	if s.TunMTU == 0 {
-		s.TunMTU = DefaultTunMTU
-	}
-	if s.TunMTU < 576 || s.TunMTU > 65535 {
-		return s, fmt.Errorf("mtu %d is out of range", s.TunMTU)
-	}
-	if s.TunStack == "" {
-		s.TunStack = DefaultTunStack
-	}
-	if !slices.Contains(TunStacks, s.TunStack) {
-		return s, fmt.Errorf("stack %q is not one of %s", s.TunStack, strings.Join(TunStacks, ", "))
-	}
-
-	if s.ProbeURL = strings.TrimSpace(s.ProbeURL); s.ProbeURL == "" {
-		s.ProbeURL = DefaultProbeURL
-	}
-	if u, err := url.Parse(s.ProbeURL); err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
-		return s, fmt.Errorf("probe url %q is not an http url", s.ProbeURL)
-	}
-	if s.IPVersion == "" {
-		s.IPVersion = "auto"
-	}
-	if !slices.Contains(IPVersions, s.IPVersion) {
-		return s, fmt.Errorf("ip version %q is not one of %s", s.IPVersion, strings.Join(IPVersions, ", "))
-	}
-
-	// a slice, not a map: the first reported error has to be stable
-	for _, t := range []struct {
-		name string
-		v    *string
-		def  string
-	}{
-		{"strict route", &s.TunStrict, "off"},
-		{"dns hijack", &s.DNSHijack, "on"},
-		{"block quic", &s.BlockQUIC, "off"},
-		{"local networks", &s.BypassLocal, "on"},
-		{"autostart", &s.Autostart, "off"},
-		{"kill switch", &s.KillSwitch, "off"},
+	for _, check := range []func() error{
+		num("port", &s.Port, DefaultPort, 1, 65535),
+		num("mtu", &s.TunMTU, DefaultTunMTU, 576, 65535),
+		num("refresh interval", &s.RefreshEvery, 0, 0, 24*30),
+		one("log level", &s.LogLevel, DefaultLogLevel, LogLevels),
+		one("stack", &s.TunStack, DefaultTunStack, TunStacks),
+		one("ip version", &s.IPVersion, "auto", IPVersions),
+		one("mode", &s.Mode, ProxyAll, Modes),
+		one("strict route", &s.TunStrict, "off", Toggle),
+		one("dns hijack", &s.DNSHijack, "on", Toggle),
+		one("block quic", &s.BlockQUIC, "off", Toggle),
+		one("local networks", &s.BypassLocal, "on", Toggle),
+		one("autostart", &s.Autostart, "off", Toggle),
+		one("kill switch", &s.KillSwitch, "off", Toggle),
+		text("dns", &s.DNS, DefaultDNS, "an ip address", isAddr),
+		text("probe url", &s.ProbeURL, DefaultProbeURL, "an http url", isHTTPURL),
+		canon(&s.Except),
+		canon(&s.Blocked),
 	} {
-		if *t.v == "" {
-			*t.v = t.def
-		}
-		if !slices.Contains(Toggle, *t.v) {
-			return s, fmt.Errorf("%s must be on or off", t.name)
+		if err := check(); err != nil {
+			return s, err
 		}
 	}
-	if s.RefreshEvery < 0 || s.RefreshEvery > 24*30 {
-		return s, fmt.Errorf("refresh interval %dh is out of range", s.RefreshEvery)
-	}
+	return s, nil
+}
 
-	if s.Mode == "" {
-		s.Mode = ProxyAll
+func num(name string, v *int, def, lo, hi int) func() error {
+	return func() error {
+		if *v == 0 {
+			*v = def
+		}
+		if *v < lo || *v > hi {
+			return fmt.Errorf("%s %d is out of range", name, *v)
+		}
+		return nil
 	}
-	if !slices.Contains(Modes, s.Mode) {
-		return s, fmt.Errorf("mode %q is not one of %s", s.Mode, strings.Join(Modes, ", "))
-	}
+}
 
-	for _, list := range []*[]string{&s.Except, &s.Blocked} {
+func one(name string, v *string, def string, allowed []string) func() error {
+	return func() error {
+		if *v == "" {
+			*v = def
+		}
+		if !slices.Contains(allowed, *v) {
+			return fmt.Errorf("%s %q is not one of %s", name, *v, strings.Join(allowed, ", "))
+		}
+		return nil
+	}
+}
+
+func text(name string, v *string, def, want string, ok func(string) bool) func() error {
+	return func() error {
+		if *v = strings.TrimSpace(*v); *v == "" {
+			*v = def
+		}
+		if !ok(*v) {
+			return fmt.Errorf("%s %q is not %s", name, *v, want)
+		}
+		return nil
+	}
+}
+
+func canon(list *[]string) func() error {
+	return func() error {
 		out := make([]string, 0, len(*list))
 		for _, raw := range *list {
 			rule, err := ParseRule(raw)
 			if err != nil {
-				return s, err
+				return err
 			}
 			if !slices.Contains(out, rule) {
 				out = append(out, rule)
 			}
 		}
 		*list = out
+		return nil
 	}
-	return s, nil
+}
+
+func isAddr(v string) bool {
+	_, err := netip.ParseAddr(v)
+	return err == nil
+}
+
+func isHTTPURL(v string) bool {
+	u, err := url.Parse(v)
+	return err == nil && u.Host != "" && (u.Scheme == "http" || u.Scheme == "https")
 }
 
 // ParseRule canonicalises a network, domain or program rule
@@ -161,23 +167,29 @@ func ParseRule(raw string) (string, error) {
 		return p.String(), nil
 	}
 	rule, star := strings.CutPrefix(rule, "*.")
+	rule, keyword := strings.CutSuffix(rule, ".*")
 	rule = strings.Trim(rule, ".")
 	if rule == "" || strings.Contains(rule, "://") || strings.ContainsAny(rule, "\t\n\r@?#*") {
 		return "", fmt.Errorf("%q is not a network, a domain or a program", raw)
 	}
-	if star {
-		rule = "*." + rule
+	switch {
+	case keyword:
+		return rule + ".*", nil
+	case star:
+		return "*." + rule, nil
 	}
 	return rule, nil
 }
 
-// SplitRules splits entries into cidrs, domains, names and paths
-func SplitRules(list []string) (cidrs, domains, names, paths []string) {
+// SplitRules splits entries into cidrs, domains, keywords, names and paths
+func SplitRules(list []string) (cidrs, domains, keywords, names, paths []string) {
 	for _, rule := range list {
 		lower := strings.ToLower(rule)
 		switch {
 		case isPrefix(rule):
 			cidrs = append(cidrs, rule)
+		case strings.HasSuffix(lower, ".*"):
+			keywords = append(keywords, strings.TrimSuffix(lower, "*"))
 		case strings.HasPrefix(lower, "*."):
 			domains = append(domains, lower[1:])
 		case strings.ContainsAny(rule, `/\`):
@@ -191,7 +203,7 @@ func SplitRules(list []string) (cidrs, domains, names, paths []string) {
 			domains = append(domains, lower)
 		}
 	}
-	return cidrs, domains, names, paths
+	return cidrs, domains, keywords, names, paths
 }
 
 func isPrefix(rule string) bool {

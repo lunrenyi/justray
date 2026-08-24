@@ -108,14 +108,14 @@ var reject = option.RuleAction{
 }
 
 func match(list []string, action option.RuleAction) []option.Rule {
-	cidrs, domains, names, paths := domain.SplitRules(list)
+	cidrs, domains, keywords, names, paths := domain.SplitRules(list)
 
 	var out []option.Rule
 	for _, m := range []option.RawDefaultRule{
 		{ProcessName: names}, {ProcessPath: paths},
-		{IPCIDR: cidrs}, {DomainSuffix: domains},
+		{IPCIDR: cidrs}, {DomainSuffix: domains}, {DomainKeyword: keywords},
 	} {
-		if len(m.ProcessName)+len(m.ProcessPath)+len(m.IPCIDR)+len(m.DomainSuffix) == 0 {
+		if len(m.ProcessName)+len(m.ProcessPath)+len(m.IPCIDR)+len(m.DomainSuffix)+len(m.DomainKeyword) == 0 {
 			continue
 		}
 		out = append(out, option.Rule{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{

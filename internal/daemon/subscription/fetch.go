@@ -14,8 +14,6 @@ import (
 	"github.com/luynrs/justray/internal/shared/parser"
 )
 
-const maxBody = 10 << 20
-
 func (s *Service) fetch(rawURL string) ([]domain.Node, string, domain.Traffic, error) {
 	var none domain.Traffic
 
@@ -54,7 +52,7 @@ func (s *Service) fetch(rawURL string) ([]domain.Node, string, domain.Traffic, e
 		return nil, "", none, fmt.Errorf("this subscription requires a device id")
 	}
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBody))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
 	if err != nil {
 		return nil, "", none, err
 	}

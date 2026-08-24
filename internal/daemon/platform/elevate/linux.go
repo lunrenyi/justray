@@ -41,8 +41,6 @@ func Tun(logger *log.Logger, dir string) {
 	}
 }
 
-const capNetAdmin = 12
-
 func hasNetAdmin(path string) bool {
 	buf := make([]byte, 32) // fits VFS_CAP_REVISION_3 (24 bytes)
 	n, err := syscall.Getxattr(path, "security.capability", buf)
@@ -52,5 +50,5 @@ func hasNetAdmin(path string) bool {
 	if binary.LittleEndian.Uint32(buf[0:4])&0x1 == 0 {
 		return false
 	}
-	return binary.LittleEndian.Uint32(buf[4:8])&(1<<capNetAdmin) != 0
+	return binary.LittleEndian.Uint32(buf[4:8])&(1<<12) != 0 // CAP_NET_ADMIN
 }

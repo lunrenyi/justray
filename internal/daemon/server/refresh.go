@@ -2,15 +2,13 @@ package server
 
 import "time"
 
-const refreshTick = time.Minute
-
 // AutoRefresh refetches subscriptions whose UpdatedAt aged out
 func (s *Server) AutoRefresh(done <-chan struct{}) {
 	for {
 		select {
 		case <-done:
 			return
-		case <-time.After(refreshTick):
+		case <-time.After(time.Minute):
 		}
 
 		every := time.Duration(s.conn.RefreshEvery()) * time.Hour

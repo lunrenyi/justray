@@ -39,7 +39,7 @@ func (m Model) View() tea.View {
 
 func (m Model) content() string {
 	switch {
-	case m.quitting:
+	case m.quitting, m.w == 0:
 		return ""
 	case m.settings != nil:
 		body := m.titleLine() + "\n\n" + m.settings.View(m.w, max(m.h-topLines-1, 1))
@@ -57,10 +57,13 @@ func (m Model) content() string {
 
 func (m Model) titleLine() string {
 	left := style.Title.Render("JustRay")
-	if m.filtering || m.query != "" {
-		left += " " + style.Dim.Render("~ Search:") + " " + m.filter.View()
+	right := style.Segment(" Settings ", true)
+	if m.settings == nil {
+		if m.filtering || m.query != "" {
+			left += " " + style.Dim.Render("~ Search:") + " " + m.filter.View()
+		}
+		right = style.Segment(modeProxy, !m.status.Tun) + style.Segment(modeTun, m.status.Tun)
 	}
-	right := style.Segment(modeProxy, !m.status.Tun) + style.Segment(modeTun, m.status.Tun)
 	if m.connected() {
 		right = style.Dim.Render(fmt.Sprintf(":%d", m.status.Port)) + "  " + right
 	}
@@ -90,9 +93,6 @@ func (m Model) tree() string {
 		lines = append(lines, m.clip("    "+style.Dim.Render("No subscriptions yet.")))
 	}
 
-	for len(lines) < topLines+h {
-		lines = append(lines, "")
-	}
 	return strings.Join(lines, "\n")
 }
 
@@ -106,7 +106,7 @@ func (m Model) keys() [][2]string {
 		return m.editor.Hints()
 	}
 	return [][2]string{
-		{"↑/↓", "Move"}, {"←/→", "Fold"}, {"↵", "Toggle"}, {"t", "Ping"}, {"r", "Refresh"},
+		{"↑/↓", "Move"}, {"←/→", "Fold"}, {"\U000F0311", "Toggle"}, {"t", "Ping"}, {"r", "Refresh"},
 		{"m", "Mode"}, {"/", "Filter"}, {"a", "Add"}, {"d", "Delete"}, {"o", "Settings"}, {"q", "Quit"},
 	}
 }

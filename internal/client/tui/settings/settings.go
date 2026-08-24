@@ -392,7 +392,7 @@ func (s *Settings) listRows(l list) []field {
 	return append(out, field{
 		name: "+ add domain, network or app",
 		bare: true,
-		hint: "example.com, 10.0.0.0/8, firefox",
+		hint: "example.com, 2ip.*, 10.0.0.0/8, firefox",
 		get:  func(domain.Settings) string { return "" },
 		set: func(v *domain.Settings, in string) error {
 			if in = strings.TrimSpace(in); in == "" {
