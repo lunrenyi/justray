@@ -131,14 +131,14 @@ func spawn(dir string) error {
 	if err != nil {
 		return err
 	}
-	defer devNull.Close()
+	defer func() { _ = devNull.Close() }()
 
 	// a panic writes straight to stderr, past the logger — keep it in the log
 	errLog, err := os.OpenFile(rpc.DaemonLog(dir), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return err
 	}
-	defer errLog.Close()
+	defer func() { _ = errLog.Close() }()
 
 	cmd := exec.Command(bin)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = devNull, devNull, errLog
@@ -146,7 +146,7 @@ func spawn(dir string) error {
 	if err := cmd.Start(); err != nil {
 		return err
 	}
-	go cmd.Wait() // reap the daemon when it exits, or it lingers as a zombie
+	go func() { _ = cmd.Wait() }() // reap the daemon when it exits, or it lingers as a zombie
 	return nil
 }
 

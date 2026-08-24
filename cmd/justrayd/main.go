@@ -33,14 +33,14 @@ func main() {
 	if err != nil {
 		die("open log file:", err)
 	}
-	defer logFile.Close()
+	defer func() { _ = logFile.Close() }()
 	logger := log.NewWithOptions(io.MultiWriter(os.Stderr, logFile), log.Options{
 		ReportTimestamp: true,
 		Prefix:          "justrayd",
 	})
 
 	if err := rpc.ClearLog(rpc.EngineLog(dir)); err != nil {
-		logger.Printf("could not truncate engine log: %v", err)
+		logger.Print(err)
 	}
 
 	socket := rpc.Socket(dir)
@@ -77,7 +77,7 @@ func main() {
 		logger.Printf("shutting down (%v)", err)
 	}
 
-	ln.Close()
+	_ = ln.Close()
 	srv.Shutdown()
 }
 

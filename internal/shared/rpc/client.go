@@ -32,12 +32,12 @@ func call[T any](c *Client, method string, args Args) (T, error) {
 	if err != nil {
 		return out, err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	timeout := IdleTimeout
 	if method == "Probe" {
 		timeout = 5 * time.Minute
 	}
-	conn.SetDeadline(time.Now().Add(timeout))
+	_ = conn.SetDeadline(time.Now().Add(timeout))
 
 	if err := json.NewEncoder(conn).Encode(Req{method, args}); err != nil {
 		return out, fmt.Errorf("%s: %w", method, err)
@@ -91,7 +91,7 @@ func (c *Client) Watch(onUpdate func(Status)) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	if err := json.NewEncoder(conn).Encode(Req{Method: "Watch"}); err != nil {
 		return fmt.Errorf("watch: %w", err)

@@ -37,7 +37,7 @@ func (s *Service) RefreshAll() ([]rpc.Sub, error) {
 		out[i] = info(subs[i])
 		if err != nil {
 			failed = err
-			s.log.Printf("refresh %s: %v", subs[i].Name, err)
+			s.log.Print(err)
 			continue
 		}
 		updated = append(updated, subs[i])

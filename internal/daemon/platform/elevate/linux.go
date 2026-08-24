@@ -20,7 +20,7 @@ func Needed(err error) bool {
 func Tun(logger *log.Logger, dir string) {
 	target, err := cachedCopy(dir)
 	if err != nil {
-		logger.Printf("elevate: %v", err)
+		logger.Print(err)
 		return
 	}
 
@@ -30,14 +30,13 @@ func Tun(logger *log.Logger, dir string) {
 			elevate = "sudo"
 		}
 		if out, err := exec.Command(elevate, "setcap", "cap_net_admin+ep", target).CombinedOutput(); err != nil {
-			logger.Printf("elevate: setcap: %v: %s", err, out)
+			logger.Printf("%v: %s", err, out)
 			return
 		}
 	}
 
-	logger.Print("elevate: got cap_net_admin, restarting")
 	if err := syscall.Exec(target, os.Args, os.Environ()); err != nil {
-		logger.Printf("elevate: re-exec: %v", err)
+		logger.Print(err)
 	}
 }
 

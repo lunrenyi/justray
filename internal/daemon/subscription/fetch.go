@@ -41,7 +41,7 @@ func (s *Service) fetch(rawURL string) ([]domain.Node, string, domain.Traffic, e
 	if err != nil {
 		return nil, "", none, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	switch {
 	case resp.StatusCode != http.StatusOK:

@@ -19,7 +19,7 @@ func Needed(err error) bool {
 func Tun(logger *log.Logger, dir string) {
 	target, err := cachedCopy(dir)
 	if err != nil {
-		logger.Printf("elevate: %v", err)
+		logger.Print(err)
 		return
 	}
 
@@ -28,14 +28,13 @@ func Tun(logger *log.Logger, dir string) {
 		cmd := exec.Command("osascript", "-e", script)
 		cmd.Env = append(os.Environ(), "JUSTRAY_ELEVATE="+target)
 		if out, err := cmd.CombinedOutput(); err != nil {
-			logger.Printf("elevate: osascript: %v: %s", err, out)
+			logger.Printf("%v: %s", err, out)
 			return
 		}
 	}
 
-	logger.Print("elevate: got root, restarting")
 	if err := syscall.Exec(target, os.Args, os.Environ()); err != nil {
-		logger.Printf("elevate: re-exec: %v", err)
+		logger.Print(err)
 	}
 }
 

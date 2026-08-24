@@ -32,17 +32,17 @@ func Listen(socket string) (net.Listener, error) {
 	defer unlock()
 
 	if conn, err := net.DialTimeout("unix", socket, time.Second); err == nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, fmt.Errorf("another justrayd is already listening on %s", socket)
 	}
-	os.Remove(socket)
+	_ = os.Remove(socket)
 
 	ln, err := net.Listen("unix", socket)
 	if err != nil {
 		return nil, err
 	}
 	if err := os.Chmod(socket, 0o600); err != nil {
-		ln.Close()
+		_ = ln.Close()
 		return nil, err
 	}
 	return ln, nil

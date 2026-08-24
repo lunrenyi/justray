@@ -26,7 +26,7 @@ type Service struct {
 func New(st store.Disk, logger *log.Logger) *Service {
 	device, err := deviceHeaders()
 	if err != nil && logger != nil {
-		logger.Printf("device: %v, subscriptions needing a device id won't resolve", err)
+		logger.Print(err)
 	}
 	return &Service{store: st, device: device, log: logger}
 }

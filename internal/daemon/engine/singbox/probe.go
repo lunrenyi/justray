@@ -28,10 +28,10 @@ func Probe(nodes []domain.Node, s domain.Settings, logPath string) (map[string]e
 		return nil, fmt.Errorf("build probe engine: %w", err)
 	}
 	if err := inst.Start(); err != nil {
-		inst.Close()
+		_ = inst.Close()
 		return nil, fmt.Errorf("start probe engine: %w", err)
 	}
-	defer inst.Close()
+	defer func() { _ = inst.Close() }()
 
 	out := map[string]engine.Result{}
 	sem := make(chan struct{}, probeWorkers)
@@ -75,7 +75,7 @@ func delay(dialer N.Dialer, url string) (int, error) {
 	if err != nil {
 		return ms, err
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode >= 400 {
 		return ms, fmt.Errorf("http %d", resp.StatusCode)
 	}

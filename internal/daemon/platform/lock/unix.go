@@ -14,11 +14,11 @@ func File(path string) (unlock func(), err error) {
 		return nil, err
 	}
 	if err := unix.Flock(int(f.Fd()), unix.LOCK_EX); err != nil {
-		f.Close()
+		_ = f.Close()
 		return nil, err
 	}
 	return func() {
-		unix.Flock(int(f.Fd()), unix.LOCK_UN)
-		f.Close()
+		_ = unix.Flock(int(f.Fd()), unix.LOCK_UN)
+		_ = f.Close()
 	}, nil
 }

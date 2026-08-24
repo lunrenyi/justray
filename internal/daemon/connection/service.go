@@ -46,11 +46,11 @@ type Service struct {
 func New(dir string, st store.Disk, newEngine engine.New, probe engine.Probe, logger *log.Logger) *Service {
 	state, err := st.State()
 	if err != nil && logger != nil {
-		logger.Printf("could not read state: %v", err)
+		logger.Print(err)
 	}
 	settings, err := state.Settings.Normalize()
 	if err != nil && logger != nil {
-		logger.Printf("stored settings rejected, falling back to defaults: %v", err)
+		logger.Print(err)
 		settings, _ = domain.Settings{}.Normalize()
 	}
 	return &Service{
@@ -105,7 +105,7 @@ func (s *Service) SetSettings(in domain.Settings) (Status, error) {
 			apply = autostart.Disable
 		}
 		if err := apply(); err != nil {
-			s.log.Printf("autostart: %v", err)
+			s.log.Print(err)
 			return s.Status(), err
 		}
 	}
@@ -186,7 +186,7 @@ func (s *Service) SetTun(enable bool) (Status, error) {
 	s.mu.Lock()
 	s.tun = enable
 	if err := s.store.SetTun(enable); err != nil {
-		s.log.Printf("could not persist tun state: %v", err)
+		s.log.Print(err)
 	}
 	eng, tunLive, blocking := s.eng, s.tunLive, s.blocking
 	s.mu.Unlock()

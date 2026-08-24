@@ -11,8 +11,8 @@ import (
 )
 
 func (s *Server) handle(conn net.Conn) {
-	defer conn.Close()
-	conn.SetReadDeadline(time.Now().Add(rpc.IdleTimeout))
+	defer func() { _ = conn.Close() }()
+	_ = conn.SetReadDeadline(time.Now().Add(rpc.IdleTimeout))
 
 	var req rpc.Req
 	if err := json.NewDecoder(io.LimitReader(conn, 1<<20)).Decode(&req); err != nil { // max req size
@@ -23,9 +23,9 @@ func (s *Server) handle(conn net.Conn) {
 		s.watch(conn)
 		return
 	}
-	conn.SetDeadline(time.Time{})
+	_ = conn.SetDeadline(time.Time{})
 	result, err := s.dispatch(req)
-	conn.SetDeadline(time.Now().Add(rpc.IdleTimeout))
+	_ = conn.SetDeadline(time.Now().Add(rpc.IdleTimeout))
 	reply(conn, result, err)
 }
 
@@ -77,14 +77,14 @@ func (s *Server) removeSub(id string) error {
 }
 
 func (s *Server) watch(conn net.Conn) {
-	conn.SetDeadline(time.Time{}) // stays open
+	_ = conn.SetDeadline(time.Time{}) // stays open
 
 	initial, ch, cancel := s.conn.Watch()
 	defer cancel()
 
 	gone := make(chan struct{})
 	go func() {
-		conn.Read(make([]byte, 1)) // blocks until the client disconnects
+		_, _ = conn.Read(make([]byte, 1)) // blocks until the client disconnects
 		close(gone)
 	}()
 
@@ -114,5 +114,5 @@ func reply(conn net.Conn, result any, err error) {
 	if err != nil {
 		resp.OK, resp.Error = false, err.Error()
 	}
-	json.NewEncoder(conn).Encode(resp)
+	_ = json.NewEncoder(conn).Encode(resp)
 }

@@ -62,7 +62,7 @@ func (e *Engine) Stage() error {
 	inst, err := sbox.New(sbox.Options{Options: *BlockConfig(e.settings, e.logPath), Context: Context(context.Background())})
 	if err != nil {
 		if inst != nil {
-			inst.Close()
+			_ = inst.Close()
 		}
 		return err
 	}
@@ -76,7 +76,7 @@ func (e *Engine) Block() error {
 		return errors.New("kill switch: nothing staged")
 	}
 	if err := rideOutEBusy(inst.Start); err != nil {
-		inst.Close()
+		_ = inst.Close()
 		return err
 	}
 	e.inst, e.tun = inst, true
@@ -100,7 +100,7 @@ func newBox(opts option.Options) (*sbox.Box, error) {
 	}
 	if err != nil {
 		if inst != nil {
-			inst.Close()
+			_ = inst.Close()
 		}
 		return nil, err
 	}
@@ -118,12 +118,12 @@ func (e *Engine) Swap(n domain.Node) error {
 	logger := e.inst.LogFactory().NewLogger("outbound/" + Tag)
 
 	if ep != nil {
-		e.inst.Outbound().Remove(Tag)
-		e.inst.Outbound().Remove(Tag + "-stls")
+		_ = e.inst.Outbound().Remove(Tag)
+		_ = e.inst.Outbound().Remove(Tag + "-stls")
 		return e.inst.Endpoint().Create(ctx, router, logger, ep.Tag, ep.Type, ep.Options)
 	}
-	e.inst.Endpoint().Remove(Tag)
-	e.inst.Outbound().Remove(Tag + "-stls")
+	_ = e.inst.Endpoint().Remove(Tag)
+	_ = e.inst.Outbound().Remove(Tag + "-stls")
 	for _, ob := range obs {
 		if err := e.inst.Outbound().Create(ctx, router, logger, ob.Tag, ob.Type, ob.Options); err != nil {
 			return err
@@ -166,7 +166,7 @@ func (e *Engine) TunRemove() error {
 
 func (e *Engine) dropStaged() {
 	if e.staged != nil {
-		e.staged.Close()
+		_ = e.staged.Close()
 		e.staged = nil
 	}
 }

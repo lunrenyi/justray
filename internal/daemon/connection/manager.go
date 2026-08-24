@@ -26,16 +26,15 @@ func (s *Service) Restore() {
 	}
 	subs, err := s.store.Subscriptions()
 	if err != nil {
-		s.log.Printf("restore: %v", err)
+		s.log.Print(err)
 		return
 	}
 	n, sub, ok := find(subs, id)
 	if !ok {
-		s.log.Printf("restore: node %q is gone", id)
 		return
 	}
 	if err := s.start(n, sub); err != nil {
-		s.log.Printf("restore: %s: %v", n.Name, err)
+		s.log.Print(err)
 	}
 }
 
@@ -43,7 +42,7 @@ func (s *Service) Restore() {
 func (s *Service) ForgetIfRemoved(subID string, nodes []domain.Node) {
 	if active, err := s.store.Active(); err == nil && slices.ContainsFunc(nodes, func(n domain.Node) bool { return n.ID == active }) {
 		if err := s.store.SetActive(""); err != nil {
-			s.log.Printf("could not clear the active node: %v", err)
+			s.log.Print(err)
 		}
 	}
 
@@ -51,7 +50,7 @@ func (s *Service) ForgetIfRemoved(subID string, nodes []domain.Node) {
 	live := s.sub == subID
 	s.mu.Unlock()
 	if live {
-		s.Disconnect()
+		_, _ = s.Disconnect()
 	}
 }
 
@@ -72,13 +71,13 @@ func (s *Service) start(n domain.Node, sub string) error {
 		s.stop()
 
 		if err := rpc.ClearLog(rpc.EngineLog(s.dir)); err != nil {
-			s.log.Printf("could not truncate engine log: %v", err)
+			s.log.Print(err)
 		}
 
 		eng = s.newEngine(s.current(), rpc.EngineLog(s.dir))
 		if err := eng.Start(n, tun); err != nil {
 			s.setErr(err)
-			eng.Close()
+			_ = eng.Close()
 			if tun && elevate.Needed(err) {
 				s.persistActive(n.ID)
 				go elevate.Tun(s.log, s.dir)
@@ -107,7 +106,7 @@ func (s *Service) stop() {
 		return
 	}
 	if err := eng.Close(); err != nil {
-		s.log.Printf("closing the engine: %v", err)
+		s.log.Print(err)
 	}
 }
 
@@ -136,7 +135,7 @@ func (s *Service) arm() {
 
 func (s *Service) raise() {
 	if err := s.block(); err != nil {
-		s.log.Printf("kill switch: %v", err)
+		s.log.Print(err)
 		s.stop()
 		s.setErr(err)
 	}
@@ -144,7 +143,7 @@ func (s *Service) raise() {
 func (s *Service) block() error {
 	eng := s.newEngine(s.current(), rpc.EngineLog(s.dir))
 	if err := eng.Stage(); err != nil {
-		eng.Close()
+		_ = eng.Close()
 		return err
 	}
 
@@ -155,7 +154,7 @@ func (s *Service) block() error {
 
 	if old != nil {
 		if err := old.Close(); err != nil {
-			s.log.Printf("closing the engine: %v", err)
+			s.log.Print(err)
 		}
 	}
 	return eng.Block()
@@ -169,7 +168,7 @@ func (s *Service) setErr(err error) {
 
 func (s *Service) persistActive(id string) {
 	if err := s.store.SetActive(id); err != nil {
-		s.log.Printf("could not persist the active node: %v", err)
+		s.log.Print(err)
 	}
 }
 

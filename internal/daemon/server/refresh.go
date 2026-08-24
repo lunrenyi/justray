@@ -17,7 +17,7 @@ func (s *Server) AutoRefresh(done <-chan struct{}) {
 		}
 		for _, id := range s.stale(every) {
 			if _, err := s.subs.Refresh(id); err != nil {
-				s.log.Printf("auto refresh: %v", err)
+				s.log.Print(err)
 			}
 		}
 	}

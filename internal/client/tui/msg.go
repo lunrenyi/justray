@@ -58,7 +58,7 @@ func watch(c *rpc.Client, ch chan<- pushed) tea.Cmd {
 		go func() {
 			backoff := time.Second
 			for {
-				c.Watch(func(st rpc.Status) {
+				_ = c.Watch(func(st rpc.Status) {
 					ch <- pushed{st: st, live: true}
 					backoff = time.Second
 				})

@@ -24,13 +24,12 @@ func Needed(err error) bool {
 
 func Tun(logger *log.Logger, _ string) {
 	if slices.Contains(os.Args, elevatedArg) {
-		logger.Print("elevate: already relaunched elevated once, not retrying")
 		return
 	}
 
 	self, err := os.Executable()
 	if err != nil {
-		logger.Printf("elevate: %v", err)
+		logger.Print(err)
 		return
 	}
 
@@ -38,10 +37,9 @@ func Tun(logger *log.Logger, _ string) {
 	file, _ := windows.UTF16PtrFromString(self)
 	args, _ := windows.UTF16PtrFromString(elevatedArg)
 	if err := windows.ShellExecute(0, verb, file, args, nil, windows.SW_HIDE); err != nil {
-		logger.Printf("elevate: runas: %v", err)
+		logger.Print(err)
 		return
 	}
 
-	logger.Print("elevate: relaunched elevated, exiting")
 	os.Exit(0)
 }
