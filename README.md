@@ -77,10 +77,12 @@ nix run github:luynrs/justray
 ## Usage
 
 ```sh
-justray              # open the TUI
-justray up [name]    # connect (last-used node if omitted)
-justray down         # disconnect
-justray status       # show connection status
+justray = jray
+
+justray                  # open the TUI
+justray up [name]        # connect (last-used node if omitted)
+justray down             # disconnect
+justray status           # show connection status
 justray sub add <url>    # add a subscription
 justray sub list         # list subscriptions and nodes
 justray sub remove <id>  # remove a subscription

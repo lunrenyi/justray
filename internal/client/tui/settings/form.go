@@ -17,16 +17,23 @@ func (s *Settings) Hints() [][2]string {
 	if s.editing {
 		return [][2]string{{"↵", "Apply"}, {"esc", "Cancel"}}
 	}
+	out := [2]string{"esc", "Back"}
+	switch {
+	case s.err != "":
+		out = [2]string{"esc", "Discard"}
+	case s.dirty():
+		out = [2]string{"esc", "Apply"}
+	}
 	f, ok := s.at()
 	switch {
 	case ok && len(f.enum) > 0:
-		return [][2]string{{"↑/↓", "Move"}, {"←/→", "Cycle"}, {"↵", "Choose"}, {"⇥", "Tab"}, {"esc", "Back"}}
+		return [][2]string{{"↑/↓", "Move"}, {"←/→", "Cycle"}, {"↵", "Choose"}, {"⇥", "Tab"}, out}
 	case ok && f.remove != nil:
 		return [][2]string{
-			{"↑/↓", "Move"}, {"⇥", "Tab"}, {"↵", "Edit"}, {"d", "Remove"}, {"esc", "Back"},
+			{"↑/↓", "Move"}, {"⇥", "Tab"}, {"↵", "Edit"}, {"d", "Remove"}, out,
 		}
 	}
-	return [][2]string{{"↑/↓", "Move"}, {"⇥", "Tab"}, {"↵", "Edit"}, {"esc", "Back"}}
+	return [][2]string{{"↑/↓", "Move"}, {"⇥", "Tab"}, {"↵", "Edit"}, out}
 }
 
 type hit struct {
