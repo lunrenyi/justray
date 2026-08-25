@@ -23,7 +23,7 @@ const cmdGroup = "commands"
 
 var rootCmd = &cobra.Command{
 	Use:  "justray <command>",
-	Long: `A fast, lightweight, and modern VPN client that just works.`,
+	Long: `A fast, lightweight, and modern VPN client which lives in your terminal`,
 
 	SilenceErrors: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {

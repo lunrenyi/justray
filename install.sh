@@ -2,8 +2,8 @@
 # curl -fsSL https://raw.githubusercontent.com/luynrs/justray/main/install.sh | sh
 set -eu
 
-repo="luynrs/justray"
 dir="${JUSTRAY_INSTALL_DIR:-$HOME/.local/bin}"
+base="https://github.com/luynrs/justray/releases/latest/download"
 
 os=$(uname -s)
 case "$os" in
@@ -23,20 +23,20 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
 echo "install.sh: fetching latest release..."
-curl -fsSL "https://github.com/$repo/releases/latest/download/checksums.txt" -o "$tmp/checksums.txt"
+curl -fsSL "$base/checksums.txt" -o "$tmp/checksums.txt"
 
-archive=$(grep -o "justray_[^ ]*_${os}_${arch}\.tar\.gz" "$tmp/checksums.txt" | head -1)
-if [ -z "$archive" ]; then
+line=$(grep -E "justray_.*_${os}_${arch}\.tar\.gz$" "$tmp/checksums.txt" | head -1)
+if [ -z "$line" ]; then
 	echo "install.sh: no release archive for ${os}_${arch}" >&2
 	exit 1
 fi
+archive=${line##* }
 
 echo "install.sh: downloading $archive..."
-curl -fsSL "https://github.com/$repo/releases/latest/download/$archive" -o "$tmp/$archive"
+curl -fsSL "$base/$archive" -o "$tmp/$archive"
 
-checksum=$(grep "$archive\$" "$tmp/checksums.txt" | cut -d' ' -f1)
-got=$(sha256sum "$tmp/$archive" 2>/dev/null | cut -d' ' -f1 || shasum -a 256 "$tmp/$archive" | cut -d' ' -f1)
-if [ "$checksum" != "$got" ]; then
+if ! (cd "$tmp" && printf '%s\n' "$line" | sha256sum -c >/dev/null 2>&1 ||
+	printf '%s\n' "$line" | shasum -a 256 -c >/dev/null 2>&1); then
 	echo "install.sh: checksum mismatch for $archive" >&2
 	exit 1
 fi

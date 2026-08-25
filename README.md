@@ -3,12 +3,12 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/luynrs/justray/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/luynrs/justray?style=for-the-badge&logo=github&logoColor=white&labelColor=1e1e2e&color=cba6f7"></a>
+  <img alt="Platforms" src="https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20windows-cba6f7?style=for-the-badge&logo=linux&logoColor=white&labelColor=1e1e2e">
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-GPL--3.0-cba6f7?style=for-the-badge&logo=gnu&logoColor=white&labelColor=1e1e2e"></a>
-  <img alt="Platforms" src="https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20windows-cba6f7?style=for-the-badge&labelColor=1e1e2e">
-  <img alt="Go" src="https://img.shields.io/badge/go-1.26-cba6f7?style=for-the-badge&logo=go&logoColor=white&labelColor=1e1e2e">
 </p>
 
-<p align="center">A fast, lightweight, and modern VPN subscription client with a terminal UI.</p>
+<p align="center">A fast, lightweight, and modern VPN client which lives in your terminal</p>
 
 ## Features
 

@@ -9,7 +9,7 @@
 #     services.justray.enable = true;    # runs justrayd as a systemd --user service
 #   }
 {
-  description = "A fast, lightweight, and modern VPN client that just works";
+  description = "A fast, lightweight, and modern VPN client which lives in your terminal";
 
   inputs = {
     nixpkgs.url = "git+https://github.com/NixOS/nixpkgs.git?ref=nixos-unstable&shallow=1";
@@ -47,7 +47,7 @@
           '';
 
           meta = with pkgs.lib; {
-            description = "A fast, lightweight, and modern VPN client that just works";
+            description = "A fast, lightweight, and modern VPN client which lives in your terminal";
             homepage = "https://github.com/luynrs/justray";
             license = licenses.gpl3Plus;
             mainProgram = "justray";
