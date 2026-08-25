@@ -46,7 +46,7 @@ func (s *Service) ForgetIfRemoved(subID string, nodes []domain.Node) {
 	}
 
 	s.mu.Lock()
-	live := s.sub == subID
+	live := s.session.sub == subID
 	s.mu.Unlock()
 	if live {
 		_, _ = s.Disconnect()
@@ -55,17 +55,16 @@ func (s *Service) ForgetIfRemoved(subID string, nodes []domain.Node) {
 
 func (s *Service) start(n domain.Node, sub string) (err error) {
 	s.mu.Lock()
-	tun, live, up := s.tun, s.eng, s.tunLive
-	hot := live != nil && !s.blocking
+	tun, cur := s.tun, s.session
 	s.mu.Unlock()
 
-	eng := live
-	if hot {
-		err = live.Swap(n)
-		if err == nil && tun != up {
-			reconcile := eng.TunRemove
+	eng := cur.eng
+	if cur.eng != nil && !cur.blocked {
+		err = cur.eng.Swap(n)
+		if err == nil && tun != cur.tun {
+			reconcile := cur.eng.TunRemove
 			if tun {
-				reconcile = eng.TunAdd
+				reconcile = cur.eng.TunAdd
 			}
 			err = reconcile()
 		}
@@ -92,7 +91,8 @@ func (s *Service) start(n domain.Node, sub string) (err error) {
 	}
 
 	s.mu.Lock()
-	s.eng, s.node, s.sub, s.started, s.lastErr, s.tunLive = eng, n, sub, time.Now(), "", tun
+	s.session = session{eng: eng, node: n, sub: sub, started: time.Now(), tun: tun}
+	s.lastErr = ""
 	s.mu.Unlock()
 
 	s.persistActive(n.ID)
@@ -102,8 +102,8 @@ func (s *Service) start(n domain.Node, sub string) (err error) {
 
 func (s *Service) stop() {
 	s.mu.Lock()
-	eng := s.eng
-	s.eng, s.node, s.sub, s.tunLive, s.blocking = nil, domain.Node{}, "", false, false
+	eng := s.session.eng
+	s.session = session{}
 	s.mu.Unlock()
 
 	if eng == nil {
@@ -130,7 +130,7 @@ func (s *Service) clear() {
 
 func (s *Service) arm() {
 	s.mu.Lock()
-	idle := s.eng == nil && s.tun && s.settings.KillSwitch == "on"
+	idle := s.session.eng == nil && s.tun && s.settings.KillSwitch == "on"
 	s.mu.Unlock()
 	if idle {
 		s.raise()
@@ -152,8 +152,8 @@ func (s *Service) block() error {
 	}
 
 	s.mu.Lock()
-	old := s.eng
-	s.eng, s.node, s.sub, s.tunLive, s.blocking = eng, domain.Node{}, "", true, true
+	old := s.session.eng
+	s.session = session{eng: eng, tun: true, blocked: true}
 	s.mu.Unlock()
 
 	if old != nil {

@@ -29,14 +29,9 @@ type Service struct {
 	opMu sync.Mutex
 
 	mu       sync.Mutex
-	eng      engine.Engine
-	node     domain.Node
-	sub      string
-	started  time.Time
+	session  session
 	lastErr  string
 	tun      bool
-	tunLive  bool
-	blocking bool
 	settings domain.Settings
 	probes   map[string]engine.Result
 
@@ -116,12 +111,10 @@ func (s *Service) SetSettings(in domain.Settings) (Status, error) {
 	s.mu.Lock()
 	old := s.settings
 	s.settings = in
-	blocked := s.blocking
-	n, sub := s.node, s.sub
-	live := s.eng != nil && !blocked
+	cur := s.session
 	s.mu.Unlock()
 
-	if blocked {
+	if cur.blocked {
 		switch {
 		case in.KillSwitch != "on":
 			s.stop()
@@ -131,12 +124,12 @@ func (s *Service) SetSettings(in domain.Settings) (Status, error) {
 		return s.finish(nil)
 	}
 
-	if !live || !engineChanged(old, in) {
+	if cur.eng == nil || !engineChanged(old, in) {
 		s.arm()
 		return s.finish(nil)
 	}
 	s.stop()
-	return s.finish(s.start(n, sub))
+	return s.finish(s.start(cur.node, cur.sub))
 }
 
 func engineChanged(x, y domain.Settings) bool {
@@ -168,7 +161,7 @@ func (s *Service) Disconnect() (Status, error) {
 	defer s.opMu.Unlock()
 
 	s.mu.Lock()
-	name := s.node.Name
+	name := s.session.node.Name
 	s.mu.Unlock()
 
 	s.clear()
@@ -188,11 +181,11 @@ func (s *Service) SetTun(enable bool) (Status, error) {
 	if err := s.store.SetTun(enable); err != nil {
 		s.log.Print(err)
 	}
-	eng, tunLive, blocking := s.eng, s.tunLive, s.blocking
+	cur := s.session
 	s.mu.Unlock()
 
 	// the kill switch is only a TUN; turning TUN off takes it down with it
-	if blocking {
+	if cur.blocked {
 		if !enable {
 			s.stop()
 		}
@@ -200,11 +193,11 @@ func (s *Service) SetTun(enable bool) (Status, error) {
 	}
 
 	var err error
-	if eng != nil && enable != tunLive {
+	if cur.eng != nil && enable != cur.tun {
 		if enable {
-			err = eng.TunAdd()
+			err = cur.eng.TunAdd()
 		} else {
-			err = eng.TunRemove()
+			err = cur.eng.TunRemove()
 		}
 	}
 
@@ -215,7 +208,7 @@ func (s *Service) SetTun(enable bool) (Status, error) {
 
 	s.mu.Lock()
 	if err == nil {
-		s.tunLive = enable
+		s.session.tun = enable
 	} else {
 		s.lastErr = err.Error()
 	}
@@ -244,11 +237,11 @@ func (s *Service) Status() Status {
 }
 
 func (s *Service) status() Status {
-	st := Status{Port: s.settings.Port, Tun: s.tun, LastErr: s.lastErr, Blocked: s.blocking}
-	if s.eng != nil && !s.blocking {
+	st := Status{Port: s.settings.Port, Tun: s.tun, LastErr: s.lastErr, Blocked: s.session.blocked}
+	if s.session.eng != nil && !s.session.blocked {
 		st.Connected = true
-		st.NodeID, st.NodeName = s.node.ID, s.node.Name
-		st.Uptime = int64(time.Since(s.started).Seconds())
+		st.NodeID, st.NodeName = s.session.node.ID, s.session.node.Name
+		st.Uptime = int64(time.Since(s.session.started).Seconds())
 	}
 	return st
 }

@@ -27,10 +27,9 @@ type Engine struct {
 	logPath  string
 
 	inst   *sbox.Box
-	staged *sbox.Box // built but not started kill-switch instance
-	tun    bool      // whether a TUN inbound is up
-	ep     *option.Endpoint
-	obs    []option.Outbound
+	staged *sbox.Box   // built but not started kill-switch instance
+	tun    bool        // whether a TUN inbound is up
+	node   domain.Node // the node the proxy outbound carries
 }
 
 // New builds a fresh, unstarted Engine bound to a local proxy port and log path.
@@ -54,8 +53,7 @@ func (e *Engine) Start(n domain.Node, tun bool) error {
 		return err
 	}
 
-	e.inst, e.tun = inst, tun
-	e.ep, e.obs, _ = Proxy(n, e.settings)
+	e.inst, e.tun, e.node = inst, tun, n
 	return nil
 }
 
@@ -111,19 +109,20 @@ func newBox(opts option.Options) (*sbox.Box, error) {
 }
 
 func (e *Engine) Swap(n domain.Node) error {
+	if err := e.apply(n); err != nil {
+		_ = e.apply(e.node)
+		return err
+	}
+	e.node = n
+	return nil
+}
+
+func (e *Engine) apply(n domain.Node) error {
 	ep, obs, err := Proxy(n, e.settings)
 	if err != nil {
 		return err
 	}
-	if err := e.apply(ep, obs); err != nil {
-		_ = e.apply(e.ep, e.obs)
-		return err
-	}
-	e.ep, e.obs = ep, obs
-	return nil
-}
 
-func (e *Engine) apply(ep *option.Endpoint, obs []option.Outbound) error {
 	ctx := e.runtimeCtx()
 	router := e.inst.Router()
 	logger := e.inst.LogFactory().NewLogger("outbound/" + Tag)

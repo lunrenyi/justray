@@ -44,6 +44,9 @@ func Probe(nodes []domain.Node, s domain.Settings, logPath string) (map[string]e
 			defer func() { <-sem }()
 
 			ms, err := delay(dialer, s.ProbeURL)
+			if err != nil {
+				forget(n.Server, s)
+			}
 			mu.Lock()
 			out[n.ID] = engine.Result{Alive: err == nil, MS: ms}
 			mu.Unlock()

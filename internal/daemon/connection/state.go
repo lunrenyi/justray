@@ -1,5 +1,21 @@
 package connection
 
+import (
+	"time"
+
+	"github.com/luynrs/justray/internal/daemon/engine"
+	"github.com/luynrs/justray/internal/shared/domain"
+)
+
+type session struct {
+	eng     engine.Engine
+	node    domain.Node
+	sub     string
+	started time.Time
+	tun     bool // the tun the engine has
+	blocked bool
+}
+
 // Watch registers a status subscriber
 func (s *Service) Watch() (initial Status, ch <-chan Status, cancel func()) {
 	c := make(chan Status, 1)
