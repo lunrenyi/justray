@@ -1,53 +1,54 @@
 #!/bin/sh
 # curl -fsSL https://raw.githubusercontent.com/luynrs/justray/main/install.sh | sh
+# re-run it to update
+
 set -eu
 
 dir="${JUSTRAY_INSTALL_DIR:-$HOME/.local/bin}"
 base="https://github.com/luynrs/justray/releases/latest/download"
 
-os=$(uname -s)
-case "$os" in
+say() { echo "install.sh: $*"; }
+die() { echo "install.sh: $*" >&2; exit 1; }
+
+case $(uname -s) in
 	Linux) os=linux ;;
 	Darwin) os=darwin ;;
-	*) echo "install.sh: unsupported OS: $os (use install.ps1 on Windows)" >&2; exit 1 ;;
+	*) die "unsupported OS: $(uname -s) (use install.ps1 on Windows)" ;;
 esac
 
-arch=$(uname -m)
-case "$arch" in
-	x86_64|amd64) arch=amd64 ;;
-	arm64|aarch64) arch=arm64 ;;
-	*) echo "install.sh: unsupported arch: $arch" >&2; exit 1 ;;
+case $(uname -m) in
+	x86_64 | amd64) arch=amd64 ;;
+	arm64 | aarch64) arch=arm64 ;;
+	*) die "unsupported arch: $(uname -m)" ;;
 esac
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
-echo "install.sh: fetching latest release..."
-curl -fsSL "$base/checksums.txt" -o "$tmp/checksums.txt"
-
-line=$(grep -E "justray_.*_${os}_${arch}\.tar\.gz$" "$tmp/checksums.txt" | head -1)
-if [ -z "$line" ]; then
-	echo "install.sh: no release archive for ${os}_${arch}" >&2
-	exit 1
-fi
+say "fetching latest release"
+line=$(curl -fsSL "$base/checksums.txt" | grep -E "justray_.*_${os}_${arch}\.tar\.gz$" | head -1)
+[ -n "$line" ] || die "no release archive for ${os}_${arch}"
 archive=${line##* }
 
-echo "install.sh: downloading $archive..."
+say "downloading $archive"
 curl -fsSL "$base/$archive" -o "$tmp/$archive"
 
-if ! (cd "$tmp" && printf '%s\n' "$line" | sha256sum -c >/dev/null 2>&1 ||
-	printf '%s\n' "$line" | shasum -a 256 -c >/dev/null 2>&1); then
-	echo "install.sh: checksum mismatch for $archive" >&2
-	exit 1
-fi
+sum=$(sha256sum "$tmp/$archive" 2>/dev/null || shasum -a 256 "$tmp/$archive")
+case "$sum" in
+	"${line%% *}"*) ;;
+	*) die "checksum mismatch for $archive" ;;
+esac
 
 tar -xzf "$tmp/$archive" -C "$tmp"
 mkdir -p "$dir"
 install -m 755 "$tmp/justray" "$tmp/justrayd" "$dir/"
 ln -sf justray "$dir/jray"
 
-echo "install.sh: installed justray, jray, justrayd to $dir"
+say "installed justray, jray, justrayd to $dir"
 case ":$PATH:" in
 	*":$dir:"*) ;;
-	*) echo "install.sh: $dir is not on your PATH, add it to your shell profile" ;;
+	*) say "$dir is not on your PATH, add it to your shell profile" ;;
 esac
+if pgrep -x justrayd >/dev/null 2>&1; then
+	say "justrayd is still running the old build, restart it: pkill justrayd"
+fi

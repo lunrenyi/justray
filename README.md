@@ -17,6 +17,8 @@
 - Crossplatform, eats only ~50mb of ram in TUN-mode
 
 ## Install
+> [!TIP]
+> You can re-run the script at any time to update client
 
 <details>
 <summary>Windows</summary>
