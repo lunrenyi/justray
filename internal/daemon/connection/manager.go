@@ -11,8 +11,6 @@ import (
 	"github.com/luynrs/justray/internal/shared/rpc"
 )
 
-const elevateMsg = "granting permissions"
-
 func (s *Service) Restore() {
 	s.opMu.Lock()
 	defer s.opMu.Unlock()
@@ -39,8 +37,16 @@ func (s *Service) Restore() {
 
 // ForgetIfRemoved drops the active node when its subscription is deleted.
 func (s *Service) ForgetIfRemoved(subID string, nodes []domain.Node) {
-	if active, err := s.store.Active(); err == nil && slices.ContainsFunc(nodes, func(n domain.Node) bool { return n.ID == active }) {
+	gone := func(id string) bool {
+		return id != "" && slices.ContainsFunc(nodes, func(n domain.Node) bool { return n.ID == id })
+	}
+	if active, err := s.store.Active(); err == nil && gone(active) {
 		if err := s.store.SetActive(""); err != nil {
+			s.log.Print(err)
+		}
+	}
+	if last, err := s.store.Last(); err == nil && gone(last) {
+		if err := s.store.SetLast(""); err != nil {
 			s.log.Print(err)
 		}
 	}
@@ -84,7 +90,7 @@ func (s *Service) start(n domain.Node, sub string) (err error) {
 		if tun && elevate.Needed(err) {
 			s.persistActive(n.ID)
 			go elevate.Tun(s.log, s.dir)
-			err = errors.New(elevateMsg)
+			err = errors.New(rpc.ElevateMsg)
 		}
 		s.setErr(err)
 		return err

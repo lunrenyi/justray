@@ -50,6 +50,12 @@ func TestStore(t *testing.T) {
 		if id, err := d.Active(); err != nil || id != "node1" {
 			t.Fatalf("got %q, %v; want \"node1\", nil", id, err)
 		}
+		if err := d.SetActive(""); err != nil {
+			t.Fatalf("SetActive(\"\"): %v", err)
+		}
+		if id, err := d.Last(); err != nil || id != "node1" {
+			t.Fatalf("disconnect forgot the last node: got %q, %v; want \"node1\", nil", id, err)
+		}
 	})
 
 	t.Run("tun", func(t *testing.T) {

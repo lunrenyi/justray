@@ -1,10 +1,6 @@
 package cli
 
-import (
-	"fmt"
-
-	"github.com/spf13/cobra"
-)
+import "github.com/spf13/cobra"
 
 var downCmd = &cobra.Command{
 	Use:     "down",
@@ -17,13 +13,16 @@ var downCmd = &cobra.Command{
 			return err
 		}
 		if !st.Connected {
-			fmt.Println("Already disconnected")
+			done("Already disconnected")
 			return nil
 		}
-		if _, err := client.Disconnect(); err != nil {
+		stop := spin("Disconnecting")
+		_, err = client.Disconnect()
+		stop()
+		if err != nil {
 			return err
 		}
-		fmt.Println("Disconnected")
+		done("Disconnected")
 		return nil
 	},
 }

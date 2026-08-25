@@ -8,7 +8,7 @@
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-GPL--3.0-cba6f7?style=for-the-badge&logo=gnu&logoColor=white&labelColor=1e1e2e"></a>
 </p>
 
-<p align="center">A fast, lightweight, and modern VPN client which lives in your terminal</p>
+<p align="center">A modern VPN client that lives in your terminal</p>
 
 ## Features
 

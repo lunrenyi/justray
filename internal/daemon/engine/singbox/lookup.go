@@ -94,6 +94,7 @@ func network(s domain.Settings) string {
 }
 
 var dnsStrategy = map[string]option.DomainStrategy{
+	"auto": option.DomainStrategy(C.DomainStrategyPreferIPv4),
 	"ipv4": option.DomainStrategy(C.DomainStrategyIPv4Only),
 	"ipv6": option.DomainStrategy(C.DomainStrategyIPv6Only),
 }

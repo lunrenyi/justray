@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strconv"
 
 	"charm.land/lipgloss/v2"
 	"github.com/spf13/cobra"
@@ -22,11 +23,18 @@ var subAddCmd = &cobra.Command{
 	Short: "Add a subscription",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		stop := spin("Fetching subscription")
 		sub, err := client.AddSub(args[0])
+		stop()
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Added %s (%d nodes)\n", sub.Name, sub.Nodes)
+		done("Added " + style.Sanitize(sub.Name))
+		f := [][2]string{{"ID", sub.ID}, {"Nodes", strconv.Itoa(sub.Nodes)}}
+		if t := traffic(sub); t != "" {
+			f = append(f, [2]string{"Traffic", t})
+		}
+		fields(f...)
 		return nil
 	},
 }
@@ -41,7 +49,15 @@ var subRemoveCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		return client.RemoveSub(sub.ID)
+		name := style.Sanitize(sub.Name)
+		stop := spin("Removing " + name)
+		err = client.RemoveSub(sub.ID)
+		stop()
+		if err != nil {
+			return err
+		}
+		done("Removed " + name)
+		return nil
 	},
 }
 
@@ -53,6 +69,10 @@ var subListCmd = &cobra.Command{
 		subs, err := client.Subs()
 		if err != nil {
 			return err
+		}
+		if len(subs) == 0 {
+			out(style.Dim.Render("No subscriptions yet. Add one: " + cmd.Parent().CommandPath() + " add <url>"))
+			return nil
 		}
 		nodes, err := client.Nodes()
 		if err != nil {
@@ -72,7 +92,7 @@ func resolveSub(key string) (rpc.Sub, error) {
 	if err != nil {
 		return rpc.Sub{}, err
 	}
-	return match(key, subs, func(s rpc.Sub) (string, string) { return s.ID, s.Name })
+	return match(key, "subscription", subs, func(s rpc.Sub) (string, string) { return s.ID, s.Name })
 }
 
 func completeSub(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -86,17 +106,17 @@ func completeSub(cmd *cobra.Command, args []string, toComplete string) ([]string
 func showTree(subs []rpc.Sub, nodes []rpc.Node) {
 	for i, s := range subs {
 		if i > 0 {
-			fmt.Println()
+			out("")
 		}
 		ns := filterBySub(nodes, s.ID)
 
 		if s.Direct && len(ns) == 1 {
-			fmt.Println(nodeLine(ns[0], "", 0, 0))
+			out(nodeLine(ns[0], "", 0, 0))
 			continue
 		}
 
-		fmt.Println(bold(s.Name) + "  " + style.Dim.Render(s.ID))
-		fmt.Println(style.Dim.Render(subMeta(s)))
+		out(bold(s.Name) + "  " + style.Dim.Render(s.ID))
+		out(style.Dim.Render(subMeta(s)))
 
 		nameW, infoW := 0, 0
 		for _, n := range ns {
@@ -108,7 +128,7 @@ func showTree(subs []rpc.Sub, nodes []rpc.Node) {
 			if j == len(ns)-1 {
 				branch = "└─"
 			}
-			fmt.Println(nodeLine(n, branch, nameW, infoW))
+			out(nodeLine(n, branch, nameW, infoW))
 		}
 	}
 }
@@ -129,9 +149,9 @@ func serverProto(n rpc.Node) string {
 
 func subMeta(s rpc.Sub) string {
 	if t := traffic(s); t != "" {
-		return t + " · " + style.Since(s.UpdatedAt)
+		return t + " · updated " + style.Since(s.UpdatedAt)
 	}
-	return style.Since(s.UpdatedAt)
+	return "updated " + style.Since(s.UpdatedAt)
 }
 
 func traffic(s rpc.Sub) string {
@@ -146,11 +166,11 @@ func traffic(s rpc.Sub) string {
 }
 
 func filterBySub(nodes []rpc.Node, sub string) []rpc.Node {
-	var out []rpc.Node
+	var hits []rpc.Node
 	for _, n := range nodes {
 		if n.Sub == sub {
-			out = append(out, n)
+			hits = append(hits, n)
 		}
 	}
-	return out
+	return hits
 }

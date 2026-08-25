@@ -9,7 +9,7 @@
 #     services.justray.enable = true;    # runs justrayd as a systemd --user service
 #   }
 {
-  description = "A fast, lightweight, and modern VPN client which lives in your terminal";
+  description = "A modern VPN client that lives in your terminal";
 
   inputs = {
     nixpkgs.url = "git+https://github.com/NixOS/nixpkgs.git?ref=nixos-unstable&shallow=1";
@@ -20,18 +20,20 @@
       systems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
 
+      version = "0.1.0";
+
       justrayFor = system:
         let pkgs = nixpkgs.legacyPackages.${system};
         in pkgs.buildGoModule {
           pname = "justray";
-          version = "0.1.0";
+          inherit version;
           src = ./.;
 
           vendorHash = "sha256-55Pxp8CNu4toUFuZQN15/a0WwYz0nlRsTG4VqLLE4+I=";
 
           subPackages = [ "cmd/justray" "cmd/justrayd" ];
           tags = [ "with_quic" "with_utls" "with_gvisor" ];
-          ldflags = [ "-s" "-w" ];
+          ldflags = [ "-s" "-w" "-X" "github.com/luynrs/justray/internal/shared/version.Version=${version}" ];
 
           nativeBuildInputs = [ pkgs.installShellFiles ];
 
@@ -47,7 +49,7 @@
           '';
 
           meta = with pkgs.lib; {
-            description = "A fast, lightweight, and modern VPN client which lives in your terminal";
+            description = "A modern VPN client that lives in your terminal";
             homepage = "https://github.com/luynrs/justray";
             license = licenses.gpl3Plus;
             mainProgram = "justray";

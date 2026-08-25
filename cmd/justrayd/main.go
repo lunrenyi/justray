@@ -18,6 +18,7 @@ import (
 	"github.com/luynrs/justray/internal/daemon/store"
 	"github.com/luynrs/justray/internal/daemon/subscription"
 	"github.com/luynrs/justray/internal/shared/rpc"
+	"github.com/luynrs/justray/internal/shared/version"
 )
 
 func main() {
@@ -52,7 +53,7 @@ func main() {
 		}
 		logger.Fatal(err)
 	}
-	logger.Printf("listening on %s", socket)
+	logger.Printf("justrayd %s listening on %s", version.String(), socket)
 
 	st := store.Disk{Dir: dir}
 	conn := connection.New(dir, st, singbox.New, singbox.Probe, logger)

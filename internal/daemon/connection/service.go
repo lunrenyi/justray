@@ -203,7 +203,7 @@ func (s *Service) SetTun(enable bool) (Status, error) {
 
 	if err != nil && enable && elevate.Needed(err) {
 		go elevate.Tun(s.log, s.dir)
-		return s.finish(errors.New(elevateMsg))
+		return s.finish(errors.New(rpc.ElevateMsg))
 	}
 
 	s.mu.Lock()
@@ -225,9 +225,13 @@ func (s *Service) Shutdown() {
 	s.stop()
 }
 
-// ActiveID returns the persisted active node id, or "" if none.
+// ActiveID returns the connected node id, or the last one used, or "" if none.
 func (s *Service) ActiveID() (string, error) {
-	return s.store.Active()
+	id, err := s.store.Active()
+	if id != "" || err != nil {
+		return id, err
+	}
+	return s.store.Last()
 }
 
 func (s *Service) Status() Status {

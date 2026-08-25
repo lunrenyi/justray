@@ -12,6 +12,9 @@ type Req struct {
 	Args   Args
 }
 
+// ElevateMsg: the daemon is re-execing with tun caps, wait it out
+const ElevateMsg = "granting permissions"
+
 type Args struct {
 	ID       string
 	Sub      string

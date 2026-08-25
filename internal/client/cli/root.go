@@ -15,6 +15,7 @@ import (
 	"github.com/luynrs/justray/internal/client/cli/detach"
 	"github.com/luynrs/justray/internal/client/tui"
 	"github.com/luynrs/justray/internal/shared/rpc"
+	"github.com/luynrs/justray/internal/shared/version"
 )
 
 var client *rpc.Client
@@ -22,10 +23,12 @@ var client *rpc.Client
 const cmdGroup = "commands"
 
 var rootCmd = &cobra.Command{
-	Use:  "justray <command>",
-	Long: `A fast, lightweight, and modern VPN client which lives in your terminal`,
+	Use:     "justray <command>",
+	Long:    `A modern VPN client that lives in your terminal`,
+	Version: version.String(),
 
 	SilenceErrors: true,
+	SilenceUsage:  true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		for c := cmd; c != nil; c = c.Parent() {
 			if c.Name() == "completion" || c.Name() == "help" {
@@ -73,6 +76,8 @@ func init() {
 	cobra.AddTemplateFunc("bold", bold)
 	cobra.AddTemplateFunc("cmdLine", cmdLine)
 	rootCmd.SetUsageTemplate(usageTemplate)
+	cobra.AddTemplateFunc("versionBlock", versionBlock)
+	rootCmd.SetVersionTemplate("{{versionBlock}}")
 	rootCmd.AddGroup(&cobra.Group{ID: cmdGroup, Title: "AVAILABLE COMMANDS"})
 	rootCmd.AddCommand(upCmd, downCmd, statusCmd, subCmd)
 }
@@ -81,6 +86,9 @@ func init() {
 func Execute() error {
 	rootCmd.Use = filepath.Base(os.Args[0]) + " <command>"
 
+	rootCmd.SetOut(lipgloss.Writer)
+	rootCmd.InitDefaultVersionFlag()
+	rootCmd.Flags().Lookup("version").Usage = "Show version"
 	rootCmd.InitDefaultCompletionCmd()
 	for _, c := range rootCmd.Commands() {
 		if c.Name() == "completion" {
@@ -116,8 +124,11 @@ func connectDaemon() error {
 	if err := spawn(dir); err != nil {
 		return fmt.Errorf("start daemon: %w", err)
 	}
-	if err := wait(client, 10*time.Second); err != nil {
-		return fmt.Errorf("%w — see %s", err, rpc.DaemonLog(dir))
+	stop := spin("Starting daemon")
+	err = wait(client, 10*time.Second)
+	stop()
+	if err != nil {
+		return fmt.Errorf("daemon did not start, see %s", rpc.DaemonLog(dir))
 	}
 	return nil
 }
@@ -202,15 +213,18 @@ func completionDaemon() bool {
 	return client.Ping() == nil
 }
 
-func match[T any](key string, items []T, idName func(T) (id, name string)) (T, error) {
+func match[T any](key, noun string, items []T, idName func(T) (id, name string)) (T, error) {
 	key = strings.ToLower(key)
 	var hits []T
 	var names []string
 	for _, it := range items {
 		id, name := idName(it)
-		if id == key || strings.HasPrefix(id, key) || strings.Contains(strings.ToLower(name), key) {
+		if id == key {
+			return it, nil // an id is never ambiguous
+		}
+		if strings.HasPrefix(id, key) || strings.Contains(strings.ToLower(name), key) {
 			hits = append(hits, it)
-			names = append(names, name)
+			names = append(names, fmt.Sprintf("%s (%s)", name, id))
 		}
 	}
 	switch len(hits) {
@@ -218,10 +232,10 @@ func match[T any](key string, items []T, idName func(T) (id, name string)) (T, e
 		return hits[0], nil
 	case 0:
 		var zero T
-		return zero, fmt.Errorf("no match for %q", key)
+		return zero, fmt.Errorf("no %s matches %q", noun, key)
 	default:
 		var zero T
-		return zero, fmt.Errorf("%q matches multiple: %s", key, strings.Join(names, ", "))
+		return zero, fmt.Errorf("%q matches %d %ss: %s", key, len(hits), noun, strings.Join(names, ", "))
 	}
 }
 

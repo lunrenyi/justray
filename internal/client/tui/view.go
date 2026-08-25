@@ -10,6 +10,7 @@ import (
 
 	"github.com/luynrs/justray/internal/client/tui/style"
 	"github.com/luynrs/justray/internal/client/tui/tree"
+	"github.com/luynrs/justray/internal/shared/version"
 )
 
 const (
@@ -56,7 +57,7 @@ func (m Model) content() string {
 }
 
 func (m Model) titleLine() string {
-	left := style.Title.Render("JustRay")
+	left := style.Title.Render("JustRay") + " " + style.Dim.Render(version.String())
 	if m.settings == nil && (m.filtering || m.query != "") {
 		left += " " + style.Dim.Render("~ Search:") + " " + m.filter.View()
 	}
@@ -64,9 +65,6 @@ func (m Model) titleLine() string {
 	var right string
 	if m.settings == nil {
 		right = style.Segment(modeProxy, !m.status.Tun) + style.Segment(modeTun, m.status.Tun)
-		if m.connected() {
-			right = style.Dim.Render(fmt.Sprintf(":%d", m.status.Port)) + " " + right
-		}
 	}
 	return m.clip(style.Flush(left, right, m.w))
 }

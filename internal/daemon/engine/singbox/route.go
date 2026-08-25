@@ -14,6 +14,17 @@ var reject = option.RuleAction{
 	RejectOptions: option.RejectActionOptions{Method: C.RuleActionRejectMethodDefault},
 }
 
+// refuseV6 answers before the sniffer waits for bytes that will never come: a
+// proxy without v6 egress swallows the connection, a refusal sends the client
+// back to v4 at once. Anything on the LAN is none of its business.
+var refuseV6 = option.Rule{Type: C.RuleTypeLogical, LogicalOptions: option.LogicalRule{
+	RawLogicalRule: option.RawLogicalRule{Mode: C.LogicalTypeAnd, Rules: []option.Rule{
+		{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{RawDefaultRule: option.RawDefaultRule{IPVersion: 6}}},
+		{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{RawDefaultRule: option.RawDefaultRule{IPIsPrivate: true, Invert: true}}},
+	}},
+	RuleAction: reject,
+}}
+
 func match(list []string, action option.RuleAction) []option.Rule {
 	cidrs, domains, keywords, names, paths := domain.SplitRules(list)
 
@@ -35,17 +46,22 @@ func match(list []string, action option.RuleAction) []option.Rule {
 
 func rules(s domain.Settings, direct []string) []option.Rule {
 	// a TUN connection carries only an address, a mixed-in one only a domain
-	out := []option.Rule{
-		{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{RuleAction: option.RuleAction{Action: C.RuleActionTypeSniff}}},
-		{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{RuleAction: option.RuleAction{Action: C.RuleActionTypeResolve}}},
-	}
-
+	var out []option.Rule
 	if s.DNSHijack == "on" {
 		out = append(out, option.Rule{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
 			RawDefaultRule: option.RawDefaultRule{Port: []uint16{53}},
 			RuleAction:     option.RuleAction{Action: C.RuleActionTypeHijackDNS},
 		}})
 	}
+	if s.IPVersion == "auto" && final(s) == Tag {
+		out = append(out, refuseV6)
+	}
+
+	// a TUN connection carries only an address, a mixed-in one only a domain
+	out = append(out,
+		option.Rule{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{RuleAction: option.RuleAction{Action: C.RuleActionTypeSniff}}},
+		option.Rule{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{RuleAction: option.RuleAction{Action: C.RuleActionTypeResolve}}},
+	)
 	if s.BlockQUIC == "on" {
 		out = append(out, option.Rule{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
 			RawDefaultRule: option.RawDefaultRule{

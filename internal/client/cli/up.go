@@ -1,11 +1,14 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/luynrs/justray/internal/client/tui/style"
 	"github.com/luynrs/justray/internal/shared/rpc"
 )
 
@@ -18,6 +21,9 @@ var upCmd = &cobra.Command{
 	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: completeNode,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if upTunFlag && upProxyFlag {
+			return fmt.Errorf("pick either --tun or --proxy")
+		}
 		mode := tunMode(upTunFlag, upProxyFlag)
 
 		if len(args) > 0 {
@@ -29,11 +35,12 @@ var upCmd = &cobra.Command{
 			return err
 		}
 		if st.Connected {
-			if mode == nil {
-				fmt.Println("Already connected")
-				return nil
+			if mode != nil {
+				return switchMode(st, *mode)
 			}
-			return switchMode(st, *mode)
+			text, _ := state(st)
+			report("Already "+text, st)
+			return nil
 		}
 
 		id, err := client.Active()
@@ -41,7 +48,7 @@ var upCmd = &cobra.Command{
 			return err
 		}
 		if id == "" {
-			return fmt.Errorf("no active node yet; specify one: jray up <id | name>")
+			return fmt.Errorf("no node selected yet; pick one: %s <id | name>", cmd.CommandPath())
 		}
 		return connectNode(id, mode)
 	},
@@ -50,7 +57,6 @@ var upCmd = &cobra.Command{
 func init() {
 	upCmd.Flags().BoolVar(&upTunFlag, "tun", false, "connect in TUN mode")
 	upCmd.Flags().BoolVar(&upProxyFlag, "proxy", false, "connect in proxy mode")
-	upCmd.MarkFlagsMutuallyExclusive("tun", "proxy")
 }
 
 func tunMode(tun, proxy bool) *bool {
@@ -69,38 +75,74 @@ func connectNode(key string, mode *bool) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Connecting to %s...\n", n.Name)
+	spinText := "Connecting to " + style.Sanitize(n.Name)
 	if mode != nil {
-		if _, err := client.SetTun(*mode); err != nil {
+		if _, err := runOp(spinText, func() (rpc.Status, error) { return client.SetTun(*mode) }, mode); err != nil {
 			return err
 		}
 	}
-	st, err := client.Connect(n.ID)
+	st, err := runOp(spinText, func() (rpc.Status, error) {
+		return client.Connect(n.ID)
+	}, mode)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Connected")
-	if st.LastErr != "" {
-		fmt.Println(st.LastErr)
-	}
+	text, _ := state(st)
+	report(upperFirst(text), st)
 	return nil
+}
+
+// runOp waits out the daemon re-execing itself with tun caps
+func runOp(text string, op func() (rpc.Status, error), want *bool) (rpc.Status, error) {
+	stop := spin(text)
+	st, err := op()
+	stop()
+	if err == nil || err.Error() != rpc.ElevateMsg {
+		return st, err
+	}
+	stop = spin("Granting permissions")
+	defer stop()
+	return awaitElevate(client.Status, want, 3*time.Minute)
+}
+
+var elevatePoll = 500 * time.Millisecond
+
+func awaitElevate(status func() (rpc.Status, error), want *bool, timeout time.Duration) (rpc.Status, error) {
+	for deadline := time.Now().Add(timeout); time.Now().Before(deadline); {
+		time.Sleep(elevatePoll)
+		st, err := status()
+		switch {
+		case err != nil: // the daemon is mid exec-restart
+		case st.Connected && (want == nil || st.Tun == *want):
+			return st, nil
+		case st.LastErr != "" && st.LastErr != rpc.ElevateMsg && !st.Connected:
+			return st, errors.New(st.LastErr)
+		}
+	}
+	return rpc.Status{}, errors.New("timed out waiting for permissions")
 }
 
 func switchMode(st rpc.Status, tun bool) error {
 	if st.Tun == tun {
-		fmt.Println("Already connected via " + strings.ToUpper(modeWord(tun)))
+		text, _ := state(st)
+		report("Already "+text, st)
 		return nil
 	}
-	fmt.Printf("Switching %s → %s...\n", modeWord(st.Tun), modeWord(tun))
-	st2, err := client.SetTun(tun)
+	next, err := runOp("Switching to "+strings.ToUpper(modeWord(tun)), func() (rpc.Status, error) {
+		return client.SetTun(tun)
+	}, &tun)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Connected")
-	if st2.LastErr != "" {
-		fmt.Println(st2.LastErr)
-	}
+	text, _ := state(next)
+	report(upperFirst(text), next)
 	return nil
+}
+
+func report(headline string, st rpc.Status) {
+	done(headline)
+	nodeDetails(st)
+	warn(st.LastErr)
 }
 
 func resolveNode(key string) (rpc.Node, error) {
@@ -108,7 +150,7 @@ func resolveNode(key string) (rpc.Node, error) {
 	if err != nil {
 		return rpc.Node{}, err
 	}
-	return match(key, nodes, func(n rpc.Node) (string, string) { return n.ID, n.Name })
+	return match(key, "node", nodes, func(n rpc.Node) (string, string) { return n.ID, n.Name })
 }
 
 func completeNode(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {

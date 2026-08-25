@@ -1,11 +1,6 @@
 package cli
 
-import (
-	"fmt"
-	"strings"
-
-	"github.com/spf13/cobra"
-)
+import "github.com/spf13/cobra"
 
 var statusCmd = &cobra.Command{
 	Use:     "status",
@@ -17,49 +12,24 @@ var statusCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		stateHeadline(st)
+		warn(st.LastErr)
 
 		if st.Connected {
-			fmt.Println("Connected")
-			printFields(
-				field{"Node", st.NodeName},
-				field{"ID", st.NodeID},
-				field{"Mode", strings.ToUpper(modeWord(st.Tun))},
-			)
-			if st.LastErr != "" {
-				fmt.Println(st.LastErr)
-			}
+			nodeDetails(st)
 			return nil
 		}
 
-		fmt.Println("Disconnected")
 		id, err := client.Active()
 		if err != nil || id == "" {
 			return nil
 		}
 		n, err := resolveNode(id)
-		if err != nil {
+		if err != nil || n.ID == "" {
 			return nil
 		}
-		printFields(field{"Last node", n.Name}, field{"ID", n.ID})
+		last := [][2]string{{"Last node", nodeName(n.Name, n.ID)}}
+		fields(append(last, nodeFields(n)...)...)
 		return nil
 	},
-}
-
-type field struct{ label, value string }
-
-func printFields(fields ...field) {
-	w := 0
-	for _, f := range fields {
-		w = max(w, len(f.label))
-	}
-	for _, f := range fields {
-		fmt.Printf("%-*s %s\n", w+1, f.label+":", f.value)
-	}
-}
-
-func modeWord(tun bool) string {
-	if tun {
-		return "tun"
-	}
-	return "proxy"
 }

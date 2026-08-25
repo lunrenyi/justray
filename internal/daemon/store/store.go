@@ -22,6 +22,7 @@ type Subscription struct {
 
 type State struct {
 	Active   string          `yaml:"active"`
+	Last     string          `yaml:"last,omitempty"`
 	Tun      bool            `yaml:"tun,omitempty"`
 	Settings domain.Settings `yaml:"settings,omitempty"`
 }
@@ -67,8 +68,23 @@ func (d Disk) Active() (string, error) {
 	return s.Active, err
 }
 
+// SetActive persists the node to restore on start; connecting also records it as Last
 func (d Disk) SetActive(id string) error {
-	return d.update(func(s *State) { s.Active = id })
+	return d.update(func(s *State) {
+		s.Active = id
+		if id != "" {
+			s.Last = id
+		}
+	})
+}
+
+func (d Disk) Last() (string, error) {
+	s, err := d.State()
+	return s.Last, err
+}
+
+func (d Disk) SetLast(id string) error {
+	return d.update(func(s *State) { s.Last = id })
 }
 
 func (d Disk) SetTun(on bool) error {
