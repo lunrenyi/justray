@@ -3,12 +3,11 @@ package subscription
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"slices"
 	"sync"
-
-	"github.com/charmbracelet/log"
 
 	"github.com/luynrs/justray/internal/daemon/store"
 	"github.com/luynrs/justray/internal/shared/parser"

@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/luynrs/justray/internal/client/tui/style"
+	"github.com/luynrs/justray/internal/client/tui/tree"
 	"github.com/luynrs/justray/internal/shared/rpc"
 )
 
@@ -108,7 +109,7 @@ func showTree(subs []rpc.Sub, nodes []rpc.Node) {
 		if i > 0 {
 			out("")
 		}
-		ns := filterBySub(nodes, s.ID)
+		ns := tree.Data{Nodes: nodes}.SubNodes(s.ID)
 
 		if s.Direct && len(ns) == 1 {
 			out(nodeLine(ns[0], "", 0, 0))
@@ -163,14 +164,4 @@ func traffic(s rpc.Sub) string {
 		return style.Bytes(used) + " used"
 	}
 	return ""
-}
-
-func filterBySub(nodes []rpc.Node, sub string) []rpc.Node {
-	var hits []rpc.Node
-	for _, n := range nodes {
-		if n.Sub == sub {
-			hits = append(hits, n)
-		}
-	}
-	return hits
 }

@@ -4,20 +4,14 @@ package protocols
 
 import (
 	"cmp"
-	"fmt"
-	"net/url"
 
 	"github.com/luynrs/justray/internal/shared/domain"
 )
 
 func ParseHY(uri string) (domain.Node, error) {
-	u, err := url.Parse(uri)
+	u, host, port, err := parseURL("hysteria", uri)
 	if err != nil {
-		return domain.Node{}, fmt.Errorf("hysteria: %w", err)
-	}
-	host, port, err := hostPort(u.Host)
-	if err != nil {
-		return domain.Node{}, fmt.Errorf("hysteria: %w", err)
+		return domain.Node{}, err
 	}
 
 	q := u.Query()
@@ -40,6 +34,5 @@ func ParseHY(uri string) (domain.Node, error) {
 		UpMbps:       cmp.Or(atoi(q.Get("upmbps")), 100),
 		DownMbps:     cmp.Or(atoi(q.Get("downmbps")), 100),
 	}
-	n.ID = nodeID(n)
 	return n, nil
 }

@@ -64,7 +64,6 @@ func ParseSS(uri string) (domain.Node, error) {
 		Port:     port,
 		Auth:     domain.Auth{Method: method, Password: password},
 	}
-	n.ID = nodeID(n)
 	return n, nil
 }
 

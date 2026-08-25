@@ -2,8 +2,8 @@ package server
 
 import "time"
 
-// AutoRefresh refetches subscriptions whose UpdatedAt aged out
 func (s *Server) AutoRefresh(done <-chan struct{}) {
+	tried := map[string]time.Time{}
 	for {
 		select {
 		case <-done:
@@ -16,6 +16,10 @@ func (s *Server) AutoRefresh(done <-chan struct{}) {
 			continue
 		}
 		for _, id := range s.stale(every) {
+			if time.Since(tried[id]) < 15*time.Minute {
+				continue
+			}
+			tried[id] = time.Now()
 			if _, err := s.subs.Refresh(id); err != nil {
 				s.log.Print(err)
 			}

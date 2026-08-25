@@ -77,6 +77,5 @@ func ParseVMess(uri string) (domain.Node, error) {
 			Fingerprint: vm.FP,
 		}
 	}
-	n.ID = nodeID(n)
 	return n, nil
 }

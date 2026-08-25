@@ -29,7 +29,7 @@
           inherit version;
           src = ./.;
 
-          vendorHash = "sha256-55Pxp8CNu4toUFuZQN15/a0WwYz0nlRsTG4VqLLE4+I=";
+          vendorHash = "sha256-2b7BJ9r5iTu4wuoEzJkdmbmLvNVdgdkBcI+PvqAxpvQ=";
 
           subPackages = [ "cmd/justray" "cmd/justrayd" ];
           tags = [ "with_quic" "with_utls" "with_gvisor" ];

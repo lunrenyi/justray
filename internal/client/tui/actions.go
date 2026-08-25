@@ -39,16 +39,20 @@ func (m Model) collapse() (tea.Model, tea.Cmd) {
 	}
 	m.collapsed[r.SubID()] = true
 	if r.Kind == tree.Node {
-		rows := m.rows()
-		for i, idx := range tree.Selectable(rows) {
-			if rows[idx].Kind == tree.Header && rows[idx].Sub.ID == r.SubID() {
-				m.cursor = i
-				break
-			}
-		}
+		m.toHeader(r.SubID())
 	}
 	m.clamp()
 	return m, nil
+}
+
+func (m *Model) toHeader(id string) {
+	rows := m.rows()
+	for i, idx := range tree.Selectable(rows) {
+		if rows[idx].Kind == tree.Header && rows[idx].Sub.ID == id {
+			m.cursor = i
+			return
+		}
+	}
 }
 
 func (m Model) expand() (tea.Model, tea.Cmd) {
@@ -115,13 +119,7 @@ func (m Model) moveSub(dir int) (tea.Model, tea.Cmd) {
 	subs := slices.Clone(m.subs)
 	subs[i], subs[j] = subs[j], subs[i]
 	m.subs = subs
-	rows := m.rows()
-	for i, idx := range tree.Selectable(rows) {
-		if rows[idx].Kind == tree.Header && rows[idx].Sub.ID == id {
-			m.cursor = i
-			break
-		}
-	}
+	m.toHeader(id)
 	m.clamp()
 	return m, act(m.client, func() error { return m.client.MoveSub(id, dir) })
 }

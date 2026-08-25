@@ -439,11 +439,11 @@ func (s *Settings) move(delta int) {
 	if step == 0 {
 		step = 1
 	}
-	for rows[i].header {
+	for n := 0; n < len(rows) && rows[i].header; n++ {
 		next := i + step
 		if next < 0 || next >= len(rows) {
 			step = -step
-			next = i + step
+			next = min(max(i+step, 0), len(rows)-1)
 		}
 		i = next
 	}

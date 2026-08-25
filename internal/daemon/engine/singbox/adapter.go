@@ -110,7 +110,9 @@ func newBox(opts option.Options) (*sbox.Box, error) {
 
 func (e *Engine) Swap(n domain.Node) error {
 	if err := e.apply(n); err != nil {
-		_ = e.apply(e.node)
+		if rbErr := e.apply(e.node); rbErr != nil {
+			e.inst.LogFactory().NewLogger("outbound/" + Tag).Error("swap rollback failed, instance left without a proxy outbound: ", rbErr)
+		}
 		return err
 	}
 	e.node = n

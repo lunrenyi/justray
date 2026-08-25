@@ -42,7 +42,12 @@ func ParseURI(uri string) (domain.Node, error) {
 	if parse == nil {
 		return domain.Node{}, fmt.Errorf("unknown scheme in %.80q", uri)
 	}
-	return parse(strings.TrimSpace(uri))
+	n, err := parse(strings.TrimSpace(uri))
+	if err != nil {
+		return domain.Node{}, err
+	}
+	n.ID = protocols.NodeID(n)
+	return n, nil
 }
 
 // clash yaml (b64)

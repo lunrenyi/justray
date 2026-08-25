@@ -4,20 +4,14 @@ package protocols
 
 import (
 	"cmp"
-	"fmt"
-	"net/url"
 
 	"github.com/luynrs/justray/internal/shared/domain"
 )
 
 func ParseSOCKS(uri string) (domain.Node, error) {
-	u, err := url.Parse(uri)
+	u, host, port, err := parseURL("socks", uri)
 	if err != nil {
-		return domain.Node{}, fmt.Errorf("socks: %w", err)
-	}
-	host, port, err := hostPort(u.Host)
-	if err != nil {
-		return domain.Node{}, fmt.Errorf("socks: %w", err)
+		return domain.Node{}, err
 	}
 
 	var user, password string
@@ -36,6 +30,5 @@ func ParseSOCKS(uri string) (domain.Node, error) {
 		Port:     port,
 		Auth:     domain.Auth{Username: user, Password: password},
 	}
-	n.ID = nodeID(n)
 	return n, nil
 }

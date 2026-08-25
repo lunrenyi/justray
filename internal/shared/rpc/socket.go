@@ -26,4 +26,9 @@ func Socket(dir string) string    { return filepath.Join(dir, "ipc", "justrayd.s
 func DaemonLog(dir string) string { return filepath.Join(dir, "logs", "daemon.log") }
 func EngineLog(dir string) string { return filepath.Join(dir, "logs", "engine.log") }
 
-func ClearLog(path string) error { return os.Truncate(path, 0) }
+func ClearLog(path string) error {
+	if err := os.Truncate(path, 0); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}

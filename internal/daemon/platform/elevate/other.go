@@ -2,7 +2,7 @@
 
 package elevate
 
-import "github.com/charmbracelet/log"
+import "log"
 
 func Needed(error) bool { return false }
 

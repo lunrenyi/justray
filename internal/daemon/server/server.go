@@ -3,11 +3,10 @@ package server
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"time"
-
-	"github.com/charmbracelet/log"
 
 	"github.com/luynrs/justray/internal/daemon/connection"
 	"github.com/luynrs/justray/internal/daemon/platform/lock"

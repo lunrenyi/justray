@@ -45,7 +45,6 @@ func match(list []string, action option.RuleAction) []option.Rule {
 }
 
 func rules(s domain.Settings, direct []string) []option.Rule {
-	// a TUN connection carries only an address, a mixed-in one only a domain
 	var out []option.Rule
 	if s.DNSHijack == "on" {
 		out = append(out, option.Rule{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{

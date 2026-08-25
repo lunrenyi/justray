@@ -5,7 +5,6 @@ package protocols
 import (
 	"cmp"
 	"fmt"
-	"net/url"
 	"strings"
 
 	"github.com/luynrs/justray/internal/shared/domain"
@@ -13,16 +12,12 @@ import (
 
 // vless://uuid@host:port?...#remark
 func ParseVLess(uri string) (domain.Node, error) {
-	u, err := url.Parse(uri)
+	u, host, port, err := parseURL("vless", uri)
 	if err != nil {
-		return domain.Node{}, fmt.Errorf("vless: %w", err)
+		return domain.Node{}, err
 	}
 	if u.User == nil || u.User.Username() == "" {
 		return domain.Node{}, fmt.Errorf("vless: missing uuid")
-	}
-	host, port, err := hostPort(u.Host)
-	if err != nil {
-		return domain.Node{}, fmt.Errorf("vless: %w", err)
 	}
 
 	q := u.Query()
@@ -41,13 +36,7 @@ func ParseVLess(uri string) (domain.Node, error) {
 		n.Reality = &domain.Reality{PublicKey: q.Get("pbk"), ShortID: q.Get("sid")}
 		fallthrough
 	case "tls", "xtls":
-		n.TLS = &domain.TLS{
-			SNI:         cmp.Or(q.Get("sni"), host),
-			ALPN:        splitComma(q.Get("alpn")),
-			Fingerprint: q.Get("fp"),
-			Insecure:    insecureFlag(q),
-		}
+		n.TLS = tlsFrom(q, host)
 	}
-	n.ID = nodeID(n)
 	return n, nil
 }

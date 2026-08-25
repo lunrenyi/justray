@@ -5,12 +5,11 @@ package main
 import (
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
-
-	"github.com/charmbracelet/log"
 
 	"github.com/luynrs/justray/internal/daemon/connection"
 	"github.com/luynrs/justray/internal/daemon/engine/singbox"
@@ -30,15 +29,17 @@ func main() {
 		die("create config dir:", err)
 	}
 
-	logFile, err := os.OpenFile(rpc.DaemonLog(dir), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	logFile, err := os.OpenFile(rpc.DaemonLog(dir), os.O_CREATE|os.O_WRONLY|os.O_TRUNC|os.O_APPEND, 0o600)
 	if err != nil {
 		die("open log file:", err)
 	}
 	defer func() { _ = logFile.Close() }()
-	logger := log.NewWithOptions(io.MultiWriter(os.Stderr, logFile), log.Options{
-		ReportTimestamp: true,
-		Prefix:          "justrayd",
-	})
+
+	var out io.Writer = logFile
+	if !sameFile(os.Stderr, logFile) {
+		out = io.MultiWriter(os.Stderr, logFile)
+	}
+	logger := log.New(out, "justrayd: ", log.LstdFlags)
 
 	if err := rpc.ClearLog(rpc.EngineLog(dir)); err != nil {
 		logger.Print(err)
@@ -80,6 +81,15 @@ func main() {
 
 	_ = ln.Close()
 	srv.Shutdown()
+}
+
+func sameFile(a, b *os.File) bool {
+	ai, err := a.Stat()
+	if err != nil {
+		return false
+	}
+	bi, err := b.Stat()
+	return err == nil && os.SameFile(ai, bi)
 }
 
 func die(v ...any) {

@@ -5,15 +5,14 @@ package protocols
 import (
 	"cmp"
 	"fmt"
-	"net/url"
 
 	"github.com/luynrs/justray/internal/shared/domain"
 )
 
 func ParseHY2(uri string) (domain.Node, error) {
-	u, err := url.Parse(uri)
+	u, host, port, err := parseURL("hysteria2", uri)
 	if err != nil {
-		return domain.Node{}, fmt.Errorf("hysteria2: %w", err)
+		return domain.Node{}, err
 	}
 	auth := ""
 	if u.User != nil {
@@ -24,10 +23,6 @@ func ParseHY2(uri string) (domain.Node, error) {
 	}
 	if auth == "" {
 		return domain.Node{}, fmt.Errorf("hysteria2: missing auth")
-	}
-	host, port, err := hostPort(u.Host)
-	if err != nil {
-		return domain.Node{}, fmt.Errorf("hysteria2: %w", err)
 	}
 
 	q := u.Query()
@@ -44,6 +39,5 @@ func ParseHY2(uri string) (domain.Node, error) {
 		Obfs:         q.Get("obfs"),
 		ObfsPassword: q.Get("obfs-password"),
 	}
-	n.ID = nodeID(n)
 	return n, nil
 }

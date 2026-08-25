@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/charmbracelet/log"
+	"log"
 	"golang.org/x/sys/windows"
 )
 

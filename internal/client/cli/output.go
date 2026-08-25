@@ -34,21 +34,25 @@ func fieldLines(pairs ...[2]string) string {
 	return strings.Join(lines, "\n")
 }
 
-func state(st rpc.Status) (string, lipgloss.Style) {
+func state(st rpc.Status) string {
 	switch {
 	case st.Connected:
-		return "connected via " + strings.ToUpper(modeWord(st.Tun)), style.Alive
+		return "connected via " + strings.ToUpper(modeWord(st.Tun))
 	case st.Blocked:
-		return "blocked (kill switch)", style.Pending
+		return "blocked (kill switch)"
 	}
-	return "disconnected", style.Dim
+	return "disconnected"
 }
 
 func stateHeadline(st rpc.Status) {
-	text, color := state(st)
+	text := state(st)
 	if st.Connected {
 		done(upperFirst(text))
 		return
+	}
+	color := style.Dim
+	if st.Blocked {
+		color = style.Pending
 	}
 	out(color.Render("·") + " " + upperFirst(text))
 }

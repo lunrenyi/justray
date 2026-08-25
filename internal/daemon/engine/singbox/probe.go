@@ -35,6 +35,9 @@ func Probe(nodes []domain.Node, s domain.Settings, logPath string) (map[string]e
 	for i, n := range nodes {
 		dialer, ok := inst.Outbound().Outbound(ProbeTag(i))
 		if !ok {
+			mu.Lock()
+			out[n.ID] = engine.Result{}
+			mu.Unlock()
 			continue
 		}
 		wg.Add(1)

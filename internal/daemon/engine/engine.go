@@ -25,3 +25,7 @@ type Result struct {
 	Alive bool
 	MS    int
 }
+
+type New func(s domain.Settings, logPath string) Engine
+
+type Probe func(nodes []domain.Node, s domain.Settings, logPath string) (map[string]Result, error)

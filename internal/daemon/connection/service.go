@@ -4,10 +4,9 @@ package connection
 import (
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"time"
-
-	"github.com/charmbracelet/log"
 
 	"github.com/luynrs/justray/internal/daemon/engine"
 	"github.com/luynrs/justray/internal/daemon/platform/autostart"
@@ -40,11 +39,11 @@ type Service struct {
 
 func New(dir string, st store.Disk, newEngine engine.New, probe engine.Probe, logger *log.Logger) *Service {
 	state, err := st.State()
-	if err != nil && logger != nil {
+	if err != nil {
 		logger.Print(err)
 	}
 	settings, err := state.Settings.Normalize()
-	if err != nil && logger != nil {
+	if err != nil {
 		logger.Print(err)
 		settings, _ = domain.Settings{}.Normalize()
 	}

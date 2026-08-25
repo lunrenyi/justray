@@ -38,8 +38,7 @@ var upCmd = &cobra.Command{
 			if mode != nil {
 				return switchMode(st, *mode)
 			}
-			text, _ := state(st)
-			report("Already "+text, st)
+			report("Already "+state(st), st)
 			return nil
 		}
 
@@ -87,7 +86,7 @@ func connectNode(key string, mode *bool) error {
 	if err != nil {
 		return err
 	}
-	text, _ := state(st)
+	text := state(st)
 	report(upperFirst(text), st)
 	return nil
 }
@@ -124,8 +123,7 @@ func awaitElevate(status func() (rpc.Status, error), want *bool, timeout time.Du
 
 func switchMode(st rpc.Status, tun bool) error {
 	if st.Tun == tun {
-		text, _ := state(st)
-		report("Already "+text, st)
+		report("Already "+state(st), st)
 		return nil
 	}
 	next, err := runOp("Switching to "+strings.ToUpper(modeWord(tun)), func() (rpc.Status, error) {
@@ -134,7 +132,7 @@ func switchMode(st rpc.Status, tun bool) error {
 	if err != nil {
 		return err
 	}
-	text, _ := state(next)
+	text := state(next)
 	report(upperFirst(text), next)
 	return nil
 }

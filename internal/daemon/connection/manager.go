@@ -37,6 +37,9 @@ func (s *Service) Restore() {
 
 // ForgetIfRemoved drops the active node when its subscription is deleted.
 func (s *Service) ForgetIfRemoved(subID string, nodes []domain.Node) {
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
+
 	gone := func(id string) bool {
 		return id != "" && slices.ContainsFunc(nodes, func(n domain.Node) bool { return n.ID == id })
 	}
@@ -53,10 +56,17 @@ func (s *Service) ForgetIfRemoved(subID string, nodes []domain.Node) {
 
 	s.mu.Lock()
 	live := s.session.sub == subID
+	name := s.session.node.Name
 	s.mu.Unlock()
-	if live {
-		_, _ = s.Disconnect()
+	if !live {
+		return
 	}
+
+	s.clear()
+	if name != "" {
+		s.log.Printf("disconnected from %s", name)
+	}
+	s.broadcast()
 }
 
 func (s *Service) start(n domain.Node, sub string) (err error) {

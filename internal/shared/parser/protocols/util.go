@@ -29,7 +29,7 @@ func id(raw string) string {
 	return hex.EncodeToString(sum[:])[:8]
 }
 
-func nodeID(n domain.Node) string {
+func NodeID(n domain.Node) string {
 	wg := ""
 	if n.WireGuard != nil {
 		wg = n.WireGuard.PrivateKey + n.WireGuard.PeerPublicKey
@@ -49,6 +49,18 @@ func nodeID(n domain.Node) string {
 		tls, reality, wg,
 	}, "|")
 	return id(key)
+}
+
+func parseURL(proto, uri string) (*url.URL, string, int, error) {
+	u, err := url.Parse(uri)
+	if err != nil {
+		return nil, "", 0, fmt.Errorf("%s: %w", proto, err)
+	}
+	host, port, err := hostPort(u.Host)
+	if err != nil {
+		return nil, "", 0, fmt.Errorf("%s: %w", proto, err)
+	}
+	return u, host, port, nil
 }
 
 func hostPort(hp string) (string, int, error) {
@@ -101,6 +113,16 @@ func truthy(s string) bool {
 
 func insecureFlag(q url.Values) bool {
 	return truthy(q.Get("allowInsecure")) || truthy(q.Get("insecure")) || truthy(q.Get("allow_insecure"))
+}
+
+// TLS block shared by vless/trojan/anytls links
+func tlsFrom(q url.Values, host string) *domain.TLS {
+	return &domain.TLS{
+		SNI:         cmp.Or(q.Get("sni"), q.Get("peer"), host),
+		ALPN:        splitComma(q.Get("alpn")),
+		Fingerprint: q.Get("fp"),
+		Insecure:    insecureFlag(q),
+	}
 }
 
 func checkPlugin(name string) error {

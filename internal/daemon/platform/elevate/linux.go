@@ -4,12 +4,11 @@ package elevate
 
 import (
 	"encoding/binary"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
 	"syscall"
-
-	"github.com/charmbracelet/log"
 )
 
 func Needed(err error) bool {
