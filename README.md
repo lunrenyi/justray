@@ -10,11 +10,16 @@
 
 <p align="center">A modern VPN client that lives in your terminal</p>
 
+<p align="center">
+    <img src=".github/assets/cli.gif" width="100%" alt="justray showcase">
+</p>
+
 ## Features
 
-- VMess, VLess, Trojan, Shadowsocks, Hysteria, Hysteria2, TUIC, AnyTLS, SOCKS5, WireGuard
-- Subscriptions from raw links or Clash/Mihomo YAML, auto-refreshing
-- Crossplatform, eats only ~50mb of ram in TUN-mode
+- **Modern protocols:** VMess, VLESS, Trojan, Shadowsocks, Hysteria1/2, TUIC, AnyTLS, SOCKS5 and more
+- **Flexible:** subscriptions from raw links or Clash/Mihomo YAML, auto-refreshing and a wide list of settings
+- **Lightweight:** up to ~50 MB of RAM on unix-based systems, ~100 MB on Windows
+- **Crossplatform:** runs in every terminal on macOS, Linux and Windows (PowerShell and WSL)
 
 ## Install
 > [!TIP]
