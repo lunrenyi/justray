@@ -64,6 +64,7 @@ Use "{{.CommandPath}} <command> --help" for more information about a command.{{e
 func init() {
 	cobra.EnableCommandSorting = false
 	cobra.AddTemplateFunc("bold", style.Name.Render)
+	cobra.AddTemplateFunc("cmdLine", cmdLine)
 	cobra.AddTemplateFunc("versionBlock", versionBlock)
 	rootCmd.SetUsageTemplate(usageTemplate)
 	rootCmd.SetVersionTemplate("{{versionBlock}}")
