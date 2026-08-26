@@ -1,7 +1,6 @@
 package connection
 
 import (
-	"errors"
 	"slices"
 	"time"
 
@@ -100,7 +99,7 @@ func (s *Service) start(n domain.Node, sub string) (err error) {
 		if tun && elevate.Needed(err) {
 			s.persistActive(n.ID)
 			go elevate.Tun(s.log, s.dir)
-			err = errors.New(rpc.ElevateMsg)
+			err = rpc.ErrElevate
 		}
 		s.setErr(err)
 		return err

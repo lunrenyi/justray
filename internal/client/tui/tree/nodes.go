@@ -20,13 +20,13 @@ func (d Data) Render(r Row, selected bool, width int) string {
 	case Meta:
 		return style.Flush("    "+subscriptions.Usage(r.Sub), subscriptions.Meta(r.Sub, d.Refreshing[r.Sub.ID], d.Spinner), width)
 	case Header:
-		return caret + subscriptions.Header(r.Sub, d.Collapsed[r.Sub.ID], selected)
+		return caret + subscriptions.Header(r.Sub, d.Collapsed[r.Sub.ID], selected, d.Emoji)
 	}
 	return caret + style.Flush(d.node(r.Node, selected), info(r.Node), width-2)
 }
 
 func (d Data) node(n rpc.Node, selected bool) string {
-	name := style.Sanitize(n.Name)
+	name := style.Sanitize(n.Name, d.Emoji)
 	if selected {
 		name = style.Accent.Render(name)
 	}

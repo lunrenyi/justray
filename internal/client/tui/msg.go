@@ -82,13 +82,14 @@ func tickCmd() tea.Cmd {
 }
 
 type settingsLoaded struct {
-	s   domain.Settings
-	err error
+	s    domain.Settings
+	err  error
+	open bool
 }
 
-func settingsCmd(c *rpc.Client) tea.Cmd {
+func settingsCmd(c *rpc.Client, open bool) tea.Cmd {
 	return func() tea.Msg {
 		s, err := c.Settings()
-		return settingsLoaded{s: s, err: err}
+		return settingsLoaded{s: s, err: err, open: open}
 	}
 }

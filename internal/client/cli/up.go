@@ -15,42 +15,42 @@ import (
 var upTunFlag, upProxyFlag bool
 
 var upCmd = &cobra.Command{
-	Use:               "up [id | name]",
-	Short:             "Connect",
-	GroupID:           cmdGroup,
-	Args:              cobra.MaximumNArgs(1),
-	ValidArgsFunction: completeNode,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if upTunFlag && upProxyFlag {
-			return fmt.Errorf("pick either --tun or --proxy")
-		}
-		mode := tunMode(upTunFlag, upProxyFlag)
+	Use:     "up [id | name]",
+	Short:   "Connect",
+	GroupID: cmdGroup,
+	Args:    cobra.MaximumNArgs(1),
+}
 
-		if len(args) > 0 {
-			return connectNode(args[0], mode)
-		}
+func (a *app) up(cmd *cobra.Command, args []string) error {
+	if upTunFlag && upProxyFlag {
+		return fmt.Errorf("pick either --tun or --proxy")
+	}
+	mode := tunMode(upTunFlag, upProxyFlag)
 
-		st, err := client.Status()
-		if err != nil {
-			return err
-		}
-		if st.Connected {
-			if mode != nil {
-				return switchMode(st, *mode)
-			}
-			report("Already "+state(st), st)
-			return nil
-		}
+	if len(args) > 0 {
+		return a.connectNode(args[0], mode)
+	}
 
-		id, err := client.Active()
-		if err != nil {
-			return err
+	st, err := a.client.Status()
+	if err != nil {
+		return err
+	}
+	if st.Connected {
+		if mode != nil {
+			return a.switchMode(st, *mode)
 		}
-		if id == "" {
-			return fmt.Errorf("no node selected yet; pick one: %s <id | name>", cmd.CommandPath())
-		}
-		return connectNode(id, mode)
-	},
+		a.report("Already "+state(st), st)
+		return nil
+	}
+
+	id, err := a.client.Active()
+	if err != nil {
+		return err
+	}
+	if id == "" {
+		return fmt.Errorf("no node selected yet; pick one: %s <id | name>", cmd.CommandPath())
+	}
+	return a.connectNode(id, mode)
 }
 
 func init() {
@@ -69,39 +69,38 @@ func tunMode(tun, proxy bool) *bool {
 	return nil
 }
 
-func connectNode(key string, mode *bool) error {
-	n, err := resolveNode(key)
+func (a *app) connectNode(key string, mode *bool) error {
+	n, err := a.resolveNode(key)
 	if err != nil {
 		return err
 	}
-	spinText := "Connecting to " + style.Sanitize(n.Name)
+	spinText := "Connecting to " + style.Sanitize(n.Name, a.emoji)
 	if mode != nil {
-		if _, err := runOp(spinText, func() (rpc.Status, error) { return client.SetTun(*mode) }, mode); err != nil {
+		if _, err := a.runOp(spinText, func() (rpc.Status, error) { return a.client.SetTun(*mode) }, mode); err != nil {
 			return err
 		}
 	}
-	st, err := runOp(spinText, func() (rpc.Status, error) {
-		return client.Connect(n.ID)
+	st, err := a.runOp(spinText, func() (rpc.Status, error) {
+		return a.client.Connect(n.ID)
 	}, mode)
 	if err != nil {
 		return err
 	}
-	text := state(st)
-	report(upperFirst(text), st)
+	a.report(upperFirst(state(st)), st)
 	return nil
 }
 
 // runOp waits out the daemon re-execing itself with tun caps
-func runOp(text string, op func() (rpc.Status, error), want *bool) (rpc.Status, error) {
+func (a *app) runOp(text string, op func() (rpc.Status, error), want *bool) (rpc.Status, error) {
 	stop := spin(text)
 	st, err := op()
 	stop()
-	if err == nil || err.Error() != rpc.ElevateMsg {
+	if err == nil || err.Error() != rpc.ErrElevate.Error() {
 		return st, err
 	}
 	stop = spin("Granting permissions")
 	defer stop()
-	return awaitElevate(client.Status, want, 3*time.Minute)
+	return awaitElevate(a.client.Status, want, 3*time.Minute)
 }
 
 var elevatePoll = 500 * time.Millisecond
@@ -114,47 +113,50 @@ func awaitElevate(status func() (rpc.Status, error), want *bool, timeout time.Du
 		case err != nil: // the daemon is mid exec-restart
 		case st.Connected && (want == nil || st.Tun == *want):
 			return st, nil
-		case st.LastErr != "" && st.LastErr != rpc.ElevateMsg && !st.Connected:
+		case st.LastErr != "" && st.LastErr != rpc.ErrElevate.Error():
 			return st, errors.New(st.LastErr)
 		}
 	}
 	return rpc.Status{}, errors.New("timed out waiting for permissions")
 }
 
-func switchMode(st rpc.Status, tun bool) error {
+func (a *app) switchMode(st rpc.Status, tun bool) error {
 	if st.Tun == tun {
-		report("Already "+state(st), st)
+		a.report("Already "+state(st), st)
 		return nil
 	}
-	next, err := runOp("Switching to "+strings.ToUpper(modeWord(tun)), func() (rpc.Status, error) {
-		return client.SetTun(tun)
+	next, err := a.runOp("Switching to "+strings.ToUpper(modeWord(tun)), func() (rpc.Status, error) {
+		return a.client.SetTun(tun)
 	}, &tun)
 	if err != nil {
 		return err
 	}
-	text := state(next)
-	report(upperFirst(text), next)
+	a.report(upperFirst(state(next)), next)
 	return nil
 }
 
-func report(headline string, st rpc.Status) {
+func (a *app) report(headline string, st rpc.Status) {
 	done(headline)
-	nodeDetails(st)
+	a.nodeDetails(st)
 	warn(st.LastErr)
 }
 
-func resolveNode(key string) (rpc.Node, error) {
-	nodes, err := client.Nodes()
+func (a *app) resolveNode(key string) (rpc.Node, error) {
+	nodes, err := a.client.Nodes()
 	if err != nil {
 		return rpc.Node{}, err
 	}
 	return match(key, "node", nodes, func(n rpc.Node) (string, string) { return n.ID, n.Name })
 }
 
-func completeNode(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	if len(args) > 0 || !completionDaemon() {
+func (a *app) completeNode(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	if len(args) > 0 {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-	nodes, err := client.Nodes()
+	c := a.daemon()
+	if c == nil || c.Ping() != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	nodes, err := c.Nodes()
 	return completeNames(nodes, err, func(n rpc.Node) string { return n.Name })
 }

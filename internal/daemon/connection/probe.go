@@ -60,8 +60,20 @@ func (s *Service) Probe(sub, id string) ([]rpc.Node, error) {
 		return nil, err
 	}
 
+	live := map[string]bool{}
+	for _, x := range subs {
+		for _, n := range x.Nodes {
+			live[n.ID] = true
+		}
+	}
+
 	s.mu.Lock()
 	maps.Copy(s.probes, results)
+	for id := range s.probes {
+		if !live[id] {
+			delete(s.probes, id)
+		}
+	}
 	s.mu.Unlock()
 	return s.Nodes()
 }

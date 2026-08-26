@@ -4,16 +4,16 @@ package elevate
 
 import (
 	"encoding/binary"
+	"errors"
 	"log"
 	"os"
 	"os/exec"
-	"strings"
 	"syscall"
 )
 
 func Needed(err error) bool {
 	self, _ := os.Executable()
-	return err != nil && strings.Contains(err.Error(), "operation not permitted") && !hasNetAdmin(self)
+	return err != nil && errors.Is(err, os.ErrPermission) && !hasNetAdmin(self)
 }
 
 func Tun(logger *log.Logger, dir string) {

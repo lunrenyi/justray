@@ -78,17 +78,28 @@ nix run github:luynrs/justray
 
 ## Usage
 
-```sh
-justray = jray
+If `justray` is installed via a script or package manager, the `jray` alias is available.
 
-justray                  # open the TUI
-justray up [name]        # connect (last-used node if omitted)
-justray down             # disconnect
-justray status           # show connection status
-justray sub add <url>    # add a subscription
-justray sub list         # list subscriptions and nodes
-justray sub remove <id>  # remove a subscription
-```
+`jray`: open the TUI
+
+#### Connection
+
+- `jray up <node> [--tun | --proxy]`: start the daemon
+- `jray down`: disconnect and shut down
+- `jray status`: show connection status
+
+#### Subscriptions
+
+`jray subscription` or `jray sub`
+
+- `add`: add a subscription or raw protocol link
+- `remove`: remove a subscription or node by ID
+- `list`: list subscriptions and nodes
+
+#### Options
+
+- `-h`, `--help`: show help
+- `-v`, `--version`: show the current version
 
 ## License
 

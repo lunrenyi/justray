@@ -11,11 +11,11 @@ import (
 func versionBlock() string {
 	var pairs [][2]string
 	if v := singboxVersion(); v != "" {
-		pairs = append(pairs, [2]string{"Engine", "sing-box " + v})
+		pairs = append(pairs, [2]string{"sing-box", v})
 	}
 	pairs = append(pairs, [2]string{"Platform", runtime.GOOS + "/" + runtime.GOARCH})
 
-	head := style.Title.Render("JustRay") + " " + style.Dim.Render(version.String())
+	head := style.Dim.Render("·") + " JustRay " + style.Dim.Render(version.String())
 	return head + "\n" + fieldLines(pairs...) + "\n"
 }
 

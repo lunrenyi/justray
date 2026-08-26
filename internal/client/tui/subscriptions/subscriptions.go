@@ -9,12 +9,12 @@ import (
 	"github.com/luynrs/justray/internal/shared/rpc"
 )
 
-func Header(s rpc.Sub, collapsed, selected bool) string {
-	arrow := "▾"
+func Header(s rpc.Sub, collapsed, selected, emoji bool) string {
+	arrow := "▼"
 	if collapsed {
-		arrow = "▸"
+		arrow = "▶"
 	}
-	clean := style.Sanitize(s.Name)
+	clean := style.Sanitize(s.Name, emoji)
 	name := style.Name.Render(clean)
 	if selected {
 		name = style.Strong.Render(clean)

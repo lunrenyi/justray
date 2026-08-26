@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/luynrs/justray/internal/client/tui/style"
+	"github.com/luynrs/justray/internal/client/tui/subscriptions"
 	"github.com/luynrs/justray/internal/client/tui/tree"
 	"github.com/luynrs/justray/internal/shared/rpc"
 )
@@ -23,123 +24,127 @@ var subAddCmd = &cobra.Command{
 	Use:   "add <url>",
 	Short: "Add a subscription",
 	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		stop := spin("Fetching subscription")
-		sub, err := client.AddSub(args[0])
-		stop()
-		if err != nil {
-			return err
-		}
-		done("Added " + style.Sanitize(sub.Name))
-		f := [][2]string{{"ID", sub.ID}, {"Nodes", strconv.Itoa(sub.Nodes)}}
-		if t := traffic(sub); t != "" {
-			f = append(f, [2]string{"Traffic", t})
-		}
-		fields(f...)
-		return nil
-	},
+}
+
+func (a *app) subAdd(cmd *cobra.Command, args []string) error {
+	stop := spin("Fetching subscription")
+	sub, err := a.client.AddSub(args[0])
+	stop()
+	if err != nil {
+		return err
+	}
+	done("Added " + style.Sanitize(sub.Name, a.emoji))
+	f := [][2]string{{"ID", sub.ID}, {"Nodes", strconv.Itoa(sub.Nodes)}}
+	if t := subscriptions.Usage(sub); t != "" {
+		f = append(f, [2]string{"Traffic", t})
+	}
+	fields(f...)
+	return nil
 }
 
 var subRemoveCmd = &cobra.Command{
-	Use:               "remove <id | name>",
-	Short:             "Remove a subscription",
-	Args:              cobra.ExactArgs(1),
-	ValidArgsFunction: completeSub,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		sub, err := resolveSub(args[0])
-		if err != nil {
-			return err
-		}
-		name := style.Sanitize(sub.Name)
-		stop := spin("Removing " + name)
-		err = client.RemoveSub(sub.ID)
-		stop()
-		if err != nil {
-			return err
-		}
-		done("Removed " + name)
-		return nil
-	},
+	Use:   "remove <id | name>",
+	Short: "Remove a subscription",
+	Args:  cobra.ExactArgs(1),
+}
+
+func (a *app) subRemove(cmd *cobra.Command, args []string) error {
+	sub, err := a.resolveSub(args[0])
+	if err != nil {
+		return err
+	}
+	name := style.Sanitize(sub.Name, a.emoji)
+	stop := spin("Removing " + name)
+	err = a.client.RemoveSub(sub.ID)
+	stop()
+	if err != nil {
+		return err
+	}
+	done("Removed " + name)
+	return nil
 }
 
 var subListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List subscriptions and their nodes",
 	Args:  cobra.NoArgs,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		subs, err := client.Subs()
-		if err != nil {
-			return err
-		}
-		if len(subs) == 0 {
-			out(style.Dim.Render("No subscriptions yet. Add one: " + cmd.Parent().CommandPath() + " add <url>"))
-			return nil
-		}
-		nodes, err := client.Nodes()
-		if err != nil {
-			return err
-		}
-		showTree(subs, nodes)
+}
+
+func (a *app) subList(cmd *cobra.Command, args []string) error {
+	subs, err := a.client.Subs()
+	if err != nil {
+		return err
+	}
+	if len(subs) == 0 {
+		out(style.Dim.Render("No subscriptions yet. Add one: " + cmd.Parent().CommandPath() + " add <url>"))
 		return nil
-	},
+	}
+	nodes, err := a.client.Nodes()
+	if err != nil {
+		return err
+	}
+	a.showTree(subs, nodes)
+	return nil
 }
 
 func init() {
 	subCmd.AddCommand(subAddCmd, subRemoveCmd, subListCmd)
 }
 
-func resolveSub(key string) (rpc.Sub, error) {
-	subs, err := client.Subs()
+func (a *app) resolveSub(key string) (rpc.Sub, error) {
+	subs, err := a.client.Subs()
 	if err != nil {
 		return rpc.Sub{}, err
 	}
 	return match(key, "subscription", subs, func(s rpc.Sub) (string, string) { return s.ID, s.Name })
 }
 
-func completeSub(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	if len(args) > 0 || !completionDaemon() {
+func (a *app) completeSub(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	if len(args) > 0 {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-	subs, err := client.Subs()
+	c := a.daemon()
+	if c == nil || c.Ping() != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	subs, err := c.Subs()
 	return completeNames(subs, err, func(s rpc.Sub) string { return s.Name })
 }
 
-func showTree(subs []rpc.Sub, nodes []rpc.Node) {
-	for i, s := range subs {
+func (a *app) showTree(subs []rpc.Sub, nodes []rpc.Node) {
+	groups := (tree.Data{Subs: subs, Nodes: nodes}).Groups()
+	for i, g := range groups {
 		if i > 0 {
 			out("")
 		}
-		ns := tree.Data{Nodes: nodes}.SubNodes(s.ID)
-
-		if s.Direct && len(ns) == 1 {
-			out(nodeLine(ns[0], "", 0, 0))
-			continue
+		if g.Sub.ID == tree.Default {
+			out(style.Name.Render(g.Sub.Name))
+		} else {
+			out(style.Name.Render(g.Sub.Name) + "  " + style.Dim.Render(g.Sub.ID))
+			out(style.Dim.Render(subMeta(g.Sub)))
 		}
-
-		out(bold(s.Name) + "  " + style.Dim.Render(s.ID))
-		out(style.Dim.Render(subMeta(s)))
 
 		nameW, infoW := 0, 0
-		for _, n := range ns {
-			nameW = max(nameW, lipgloss.Width(n.Name))
+		for _, n := range g.Nodes {
+			nameW = max(nameW, lipgloss.Width(a.nodeName(n.Name, "")))
 			infoW = max(infoW, lipgloss.Width(serverProto(n)))
 		}
-		for j, n := range ns {
+		for j, n := range g.Nodes {
 			branch := "├─"
-			if j == len(ns)-1 {
+			if j == len(g.Nodes)-1 {
 				branch = "└─"
 			}
-			out(nodeLine(n, branch, nameW, infoW))
+			out(a.nodeLine(n, branch, nameW, infoW))
 		}
 	}
 }
 
-func nodeLine(n rpc.Node, branch string, nameW, infoW int) string {
-	name := style.Pad(n.Name, nameW)
+func (a *app) nodeLine(n rpc.Node, branch string, nameW, infoW int) string {
+	name := style.Pad(a.nodeName(n.Name, ""), nameW)
 	info := style.Dim.Render(style.Pad(serverProto(n), infoW))
 	id := style.Dim.Render(n.ID)
 	if branch == "" {
-		return fmt.Sprintf("%s  %s  %s", n.Name, info, id)
+		return fmt.Sprintf("%s  %s  %s", a.nodeName(n.Name, ""), info, id)
 	}
 	return fmt.Sprintf("%s %s  %s  %s", style.Dim.Render(branch), name, info, id)
 }
@@ -149,19 +154,9 @@ func serverProto(n rpc.Node) string {
 }
 
 func subMeta(s rpc.Sub) string {
-	if t := traffic(s); t != "" {
-		return t + " · updated " + style.Since(s.UpdatedAt)
+	meta := subscriptions.Usage(s)
+	if meta != "" {
+		meta += style.Dim.Render(" · ")
 	}
-	return "updated " + style.Since(s.UpdatedAt)
-}
-
-func traffic(s rpc.Sub) string {
-	used := s.Traffic.UploadBytes + s.Traffic.DownloadBytes
-	switch {
-	case s.Traffic.TotalBytes > 0:
-		return fmt.Sprintf("%s / %s", style.Bytes(used), style.Bytes(s.Traffic.TotalBytes))
-	case used > 0:
-		return style.Bytes(used) + " used"
-	}
-	return ""
+	return meta + "updated " + style.Since(s.UpdatedAt)
 }

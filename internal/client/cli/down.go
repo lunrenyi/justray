@@ -7,22 +7,24 @@ var downCmd = &cobra.Command{
 	Short:   "Disconnect",
 	GroupID: cmdGroup,
 	Args:    cobra.NoArgs,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		st, err := client.Status()
-		if err != nil {
-			return err
-		}
-		if !st.Connected {
-			done("Already disconnected")
-			return nil
-		}
-		stop := spin("Disconnecting")
-		_, err = client.Disconnect()
-		stop()
-		if err != nil {
-			return err
-		}
-		done("Disconnected")
+}
+
+func (a *app) down(cmd *cobra.Command, args []string) error {
+	st, err := a.client.Status()
+	if err != nil {
+		return err
+	}
+	if !st.Connected {
+		done("Already disconnected")
 		return nil
-	},
+	}
+	stop := spin("Disconnecting")
+	next, err := a.client.Disconnect()
+	stop()
+	if err != nil {
+		return err
+	}
+	done("Disconnected")
+	warn(next.LastErr)
+	return nil
 }

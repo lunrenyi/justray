@@ -60,14 +60,28 @@ func FirstLine(s string) string {
 	return line
 }
 
-// Sanitize drops control characters from node names
-func Sanitize(s string) string {
-	return strings.Map(func(r rune) rune {
+func Sanitize(s string, emoji bool) string {
+	return strings.TrimSpace(strings.Map(func(r rune) rune {
 		if r < 0x20 || r == 0x7f {
 			return -1
 		}
+		if !emoji {
+			switch {
+			case r >= 0x1f000 && r <= 0x1ffff,
+				r >= 0x2600 && r <= 0x27bf,
+				r >= 0x2b00 && r <= 0x2bff,
+				r >= 0x2190 && r <= 0x21ff,
+				r >= 0x2300 && r <= 0x23ff,
+				r >= 0x25a0 && r <= 0x25ff,
+				r == 0x203c, r == 0x2049, r == 0x2122, r == 0x2139,
+				r == 0x24c2, r == 0x2934, r == 0x2935,
+				r == 0x3030, r == 0x303d, r == 0x3297, r == 0x3299,
+				r == 0xfe0f, r == 0x200d, r == 0x20e3:
+				return -1
+			}
+		}
 		return r
-	}, s)
+	}, s))
 }
 
 func Bytes(b int64) string {

@@ -24,7 +24,7 @@ func TestAwaitElevate(t *testing.T) {
 
 	t.Run("waits out the restart", func(t *testing.T) {
 		status := replies(
-			rpc.Status{LastErr: rpc.ElevateMsg},     // old daemon, still on its way out
+			rpc.Status{LastErr: rpc.ErrElevate.Error()}, // old daemon, still on its way out
 			rpc.Status{Connected: true, Tun: false}, // back up, tun not on yet
 			rpc.Status{Connected: true, Tun: true},  // restored
 		)

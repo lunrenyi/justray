@@ -2,7 +2,6 @@
 package connection
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -202,7 +201,7 @@ func (s *Service) SetTun(enable bool) (Status, error) {
 
 	if err != nil && enable && elevate.Needed(err) {
 		go elevate.Tun(s.log, s.dir)
-		return s.finish(errors.New(rpc.ElevateMsg))
+		return s.finish(rpc.ErrElevate)
 	}
 
 	s.mu.Lock()

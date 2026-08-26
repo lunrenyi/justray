@@ -45,6 +45,7 @@ type General struct {
 	Port         int    `yaml:"port,omitempty"`
 	LogLevel     string `yaml:"log_level,omitempty"`
 	ProbeURL     string `yaml:"probe_url,omitempty"`
+	Emoji        string `yaml:"emoji,omitempty"`
 }
 
 type Network struct {
@@ -84,6 +85,7 @@ func (s Settings) Normalize() (Settings, error) {
 		one("block quic", &s.BlockQUIC, "off", Toggle),
 		one("local networks", &s.BypassLocal, "on", Toggle),
 		one("autostart", &s.Autostart, "off", Toggle),
+		one("emoji", &s.Emoji, "off", Toggle),
 		one("kill switch", &s.KillSwitch, "off", Toggle),
 		text("dns", &s.DNS, DefaultDNS, "an ip address", isAddr),
 		text("probe url", &s.ProbeURL, DefaultProbeURL, "an http url", isHTTPURL),

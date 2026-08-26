@@ -48,8 +48,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = msg.err.Error()
 			return m, nil
 		}
-		s, _ := msg.s.Normalize()
-		m.settings = settings.New(s, topLines)
+		s, err := msg.s.Normalize()
+		if err != nil {
+			m.err = err.Error()
+			return m, nil
+		}
+		m.emoji = s.Emoji == "on"
+		if msg.open {
+			m.settings = settings.New(s, topLines)
+		}
 		return m, nil
 
 	case tick:
@@ -149,7 +156,7 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "a":
 		return m, m.editor.Start()
 	case "o":
-		return m, settingsCmd(m.client)
+		return m, settingsCmd(m.client, true)
 	case "/":
 		return m, m.startFiltering()
 	case "d":

@@ -40,18 +40,43 @@ type Data struct {
 	Query      string
 	Status     rpc.Status
 	Live       bool
+	Emoji      bool
 	Spinner    string
 }
 
 func (d Data) connected() bool { return d.Live && d.Status.Connected }
 
+const Default = "default"
+
+type Group struct {
+	Sub   rpc.Sub
+	Nodes []rpc.Node
+}
+
+func (d Data) Groups() []Group {
+	out := make([]Group, 0, len(d.Subs))
+	var loose []rpc.Node
+	for _, sub := range d.Subs {
+		nodes := d.SubNodes(sub.ID)
+		if sub.Direct {
+			loose = append(loose, nodes...)
+			continue
+		}
+		out = append(out, Group{Sub: sub, Nodes: nodes})
+	}
+	if len(loose) > 0 {
+		out = append(out, Group{Sub: rpc.Sub{Name: "Default", ID: Default}, Nodes: loose})
+	}
+	return out
+}
+
 func (d Data) Rows() []Row {
 	q := strings.ToLower(strings.TrimSpace(d.Query))
 
 	var rows []Row
-	for _, sub := range d.Subs {
-		nodes := d.SubNodes(sub.ID)
-		if q != "" && !strings.Contains(strings.ToLower(sub.Name), q) {
+	for _, g := range d.Groups() {
+		nodes := g.Nodes
+		if q != "" && !strings.Contains(strings.ToLower(g.Sub.Name), q) {
 			nodes = matching(nodes, q)
 			if len(nodes) == 0 {
 				continue
@@ -61,14 +86,12 @@ func (d Data) Rows() []Row {
 			rows = append(rows, Row{Kind: Gap})
 		}
 
-		if sub.Direct && len(nodes) == 1 {
-			rows = append(rows, Row{Kind: Node, Node: nodes[0]})
-			continue
+		rows = append(rows, Row{Kind: Header, Sub: g.Sub})
+		if g.Sub.ID != Default {
+			rows = append(rows, Row{Kind: Meta, Sub: g.Sub})
 		}
-
-		rows = append(rows, Row{Kind: Header, Sub: sub}, Row{Kind: Meta, Sub: sub})
 		for _, n := range nodes {
-			if q != "" || !d.Collapsed[sub.ID] || (d.connected() && d.Status.NodeID == n.ID) {
+			if q != "" || !d.Collapsed[g.Sub.ID] || (d.connected() && d.Status.NodeID == n.ID) {
 				rows = append(rows, Row{Kind: Node, Node: n})
 			}
 		}

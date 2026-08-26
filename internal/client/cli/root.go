@@ -14,11 +14,16 @@ import (
 
 	"github.com/luynrs/justray/internal/client/cli/detach"
 	"github.com/luynrs/justray/internal/client/tui"
+	"github.com/luynrs/justray/internal/client/tui/style"
 	"github.com/luynrs/justray/internal/shared/rpc"
 	"github.com/luynrs/justray/internal/shared/version"
 )
 
-var client *rpc.Client
+// per-run CLI state
+type app struct {
+	client *rpc.Client
+	emoji  bool
+}
 
 const cmdGroup = "commands"
 
@@ -29,22 +34,7 @@ var rootCmd = &cobra.Command{
 
 	SilenceErrors: true,
 	SilenceUsage:  true,
-	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		for c := cmd; c != nil; c = c.Parent() {
-			if c.Name() == "completion" || c.Name() == "help" {
-				return nil
-			}
-		}
-		return connectDaemon()
-	},
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return tui.Run(client)
-	},
 }
-
-var boldStyle = lipgloss.NewStyle().Bold(true)
-
-func bold(s string) string { return boldStyle.Render(s) }
 
 func cmdLine(c *cobra.Command) string {
 	return fmt.Sprintf("%-*s", c.NamePadding()+1, c.Name()+":")
@@ -73,10 +63,9 @@ Use "{{.CommandPath}} <command> --help" for more information about a command.{{e
 
 func init() {
 	cobra.EnableCommandSorting = false
-	cobra.AddTemplateFunc("bold", bold)
-	cobra.AddTemplateFunc("cmdLine", cmdLine)
-	rootCmd.SetUsageTemplate(usageTemplate)
+	cobra.AddTemplateFunc("bold", style.Name.Render)
 	cobra.AddTemplateFunc("versionBlock", versionBlock)
+	rootCmd.SetUsageTemplate(usageTemplate)
 	rootCmd.SetVersionTemplate("{{versionBlock}}")
 	rootCmd.AddGroup(&cobra.Group{ID: cmdGroup, Title: "AVAILABLE COMMANDS"})
 	rootCmd.AddCommand(upCmd, downCmd, statusCmd, subCmd)
@@ -84,7 +73,28 @@ func init() {
 
 // Execute runs the justray CLI. The caller (cmd/justray) handles the error.
 func Execute() error {
+	a := &app{}
+
 	rootCmd.Use = filepath.Base(os.Args[0]) + " <command>"
+	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		for c := cmd; c != nil; c = c.Parent() {
+			if c.Name() == "completion" || c.Name() == "help" {
+				return nil
+			}
+		}
+		return a.connectDaemon()
+	}
+	rootCmd.RunE = func(cmd *cobra.Command, args []string) error {
+		return tui.Run(a.client)
+	}
+	upCmd.RunE = a.up
+	downCmd.RunE = a.down
+	statusCmd.RunE = a.status
+	subAddCmd.RunE = a.subAdd
+	subRemoveCmd.RunE = a.subRemove
+	subListCmd.RunE = a.subList
+	upCmd.ValidArgsFunction = a.completeNode
+	subRemoveCmd.ValidArgsFunction = a.completeSub
 
 	rootCmd.SetOut(lipgloss.Writer)
 	rootCmd.InitDefaultVersionFlag()
@@ -108,7 +118,7 @@ func setHelpText(c *cobra.Command) {
 	}
 }
 
-func connectDaemon() error {
+func (a *app) connectDaemon() error {
 	dir, err := rpc.Dir()
 	if err != nil {
 		return fmt.Errorf("resolve config dir: %w", err)
@@ -117,18 +127,20 @@ func connectDaemon() error {
 		return fmt.Errorf("create config dir: %w", err)
 	}
 
-	client = rpc.NewClient(rpc.Socket(dir))
-	if client.Ping() == nil {
-		return nil
+	a.client = rpc.NewClient(rpc.Socket(dir))
+	if a.client.Ping() != nil {
+		if err := spawn(dir); err != nil {
+			return fmt.Errorf("start daemon: %w", err)
+		}
+		stop := spin("Starting daemon")
+		err = wait(a.client, 10*time.Second)
+		stop()
+		if err != nil {
+			return fmt.Errorf("daemon did not start, see %s", rpc.DaemonLog(dir))
+		}
 	}
-	if err := spawn(dir); err != nil {
-		return fmt.Errorf("start daemon: %w", err)
-	}
-	stop := spin("Starting daemon")
-	err = wait(client, 10*time.Second)
-	stop()
-	if err != nil {
-		return fmt.Errorf("daemon did not start, see %s", rpc.DaemonLog(dir))
+	if s, err := a.client.Settings(); err == nil {
+		a.emoji = s.Emoji == "on"
 	}
 	return nil
 }
@@ -201,16 +213,14 @@ func wait(c *rpc.Client, timeout time.Duration) error {
 	return fmt.Errorf("daemon did not come up within %s", timeout)
 }
 
-func completionDaemon() bool {
-	if client != nil {
-		return true
+// daemon dials silently, for completions — no spawn, no error reporting
+func (a *app) daemon() *rpc.Client {
+	if a.client == nil {
+		if d, err := rpc.Dir(); err == nil {
+			a.client = rpc.NewClient(rpc.Socket(d))
+		}
 	}
-	d, err := rpc.Dir()
-	if err != nil {
-		return false
-	}
-	client = rpc.NewClient(rpc.Socket(d))
-	return client.Ping() == nil
+	return a.client
 }
 
 func match[T any](key, noun string, items []T, idName func(T) (id, name string)) (T, error) {

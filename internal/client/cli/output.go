@@ -57,8 +57,8 @@ func stateHeadline(st rpc.Status) {
 	out(color.Render("·") + " " + upperFirst(text))
 }
 
-func statusFields(st rpc.Status, n rpc.Node) [][2]string {
-	f := [][2]string{{"Node", nodeName(st.NodeName, st.NodeID)}}
+func (a *app) statusFields(st rpc.Status, n rpc.Node) [][2]string {
+	f := [][2]string{{"Node", a.nodeName(st.NodeName, st.NodeID)}}
 	f = append(f, nodeFields(n)...)
 	if st.Uptime > 0 {
 		f = append(f, [2]string{"Uptime", style.Uptime(time.Duration(st.Uptime) * time.Second)})
@@ -66,9 +66,9 @@ func statusFields(st rpc.Status, n rpc.Node) [][2]string {
 	return f
 }
 
-func nodeDetails(st rpc.Status) {
-	n, _ := resolveNode(st.NodeID)
-	fields(statusFields(st, n)...)
+func (a *app) nodeDetails(st rpc.Status) {
+	n, _ := a.resolveNode(st.NodeID)
+	fields(a.statusFields(st, n)...)
 }
 
 func nodeFields(n rpc.Node) [][2]string {
@@ -81,11 +81,11 @@ func nodeFields(n rpc.Node) [][2]string {
 	}
 }
 
-func nodeName(name, id string) string {
+func (a *app) nodeName(name, id string) string {
 	if id == "" {
-		return style.Sanitize(name)
+		return style.Sanitize(name, a.emoji)
 	}
-	return style.Sanitize(name) + " " + style.Dim.Render("("+id+")")
+	return style.Sanitize(name, a.emoji) + " " + style.Dim.Render("("+id+")")
 }
 
 func modeWord(tun bool) string {

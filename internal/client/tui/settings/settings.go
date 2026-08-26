@@ -64,6 +64,12 @@ var tabs = []tab{
 			set:  setInt(func(s *domain.Settings) *int { return &s.Port }),
 		},
 		{
+			name: "Unicode emoji",
+			enum: domain.Toggle,
+			get:  func(s domain.Settings) string { return s.Emoji },
+			set:  func(s *domain.Settings, in string) error { s.Emoji = in; return nil },
+		},
+		{
 			name: "Logging",
 			enum: domain.LogLevels,
 			get:  func(s domain.Settings) string { return s.LogLevel },
@@ -83,7 +89,7 @@ var tabs = []tab{
 			set:  func(s *domain.Settings, in string) error { s.KillSwitch = in; return nil },
 		},
 		{
-			name: "DNS",
+			name: "DNS hijack",
 			enum: domain.Toggle,
 			get:  func(s domain.Settings) string { return s.DNSHijack },
 			set:  func(s *domain.Settings, in string) error { s.DNSHijack = in; return nil },
