@@ -76,7 +76,7 @@ func nodeFields(n rpc.Node) [][2]string {
 		return nil
 	}
 	return [][2]string{
-		{"Server", fmt.Sprintf("%s:%d", n.Server, n.Port)},
+		{"Server", fmt.Sprintf("%s:%d", style.Sanitize(n.Server, true), n.Port)},
 		{"Protocol", n.Protocol},
 	}
 }
@@ -104,14 +104,13 @@ func upperFirst(s string) string {
 	return string(r)
 }
 
-// Fail prints what the CLI died on
 func Fail(err error) {
-	_, _ = lipgloss.Fprintln(os.Stderr, style.Err.Bold(true).Render("✗"), upperFirst(err.Error()))
+	_, _ = lipgloss.Fprintln(os.Stderr, style.Err.Bold(true).Render("✗"), upperFirst(style.Sanitize(err.Error(), true)))
 }
 
 func warn(msg string) {
 	if msg != "" {
-		out("  " + style.Err.Render(style.FirstLine(msg)))
+		out("  " + style.Err.Render(style.Sanitize(style.FirstLine(msg), true)))
 	}
 }
 

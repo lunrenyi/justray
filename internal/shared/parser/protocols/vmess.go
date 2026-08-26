@@ -45,7 +45,7 @@ func ParseVMess(uri string) (domain.Node, error) {
 	if err := json.Unmarshal(data, &vm); err != nil {
 		return domain.Node{}, fmt.Errorf("vmess: json: %w", err)
 	}
-	if vm.Add == "" || vm.Port == 0 || vm.ID == "" {
+	if vm.Add == "" || !domain.ValidPort(int(vm.Port)) || vm.ID == "" {
 		return domain.Node{}, fmt.Errorf("vmess: missing add/port/id")
 	}
 

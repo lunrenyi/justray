@@ -16,7 +16,6 @@ import (
 	"github.com/luynrs/justray/internal/shared/domain"
 )
 
-// Probe dials every node
 func Probe(nodes []domain.Node, s domain.Settings, logPath string) (map[string]engine.Result, error) {
 	inst, err := sbox.New(sbox.Options{Options: *ProbeConfig(nodes, s, logPath), Context: Context(context.Background())})
 	if err != nil {

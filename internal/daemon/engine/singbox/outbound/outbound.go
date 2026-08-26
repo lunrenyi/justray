@@ -12,6 +12,9 @@ import (
 )
 
 func New(n domain.Node, tag string) (*option.Endpoint, []option.Outbound, error) {
+	if !domain.ValidPort(n.Port) {
+		return nil, nil, fmt.Errorf("%s: port %d out of range", n.Protocol, n.Port)
+	}
 	if n.Protocol == domain.WG {
 		ep, err := wireguard(n, tag)
 		return ep, nil, err

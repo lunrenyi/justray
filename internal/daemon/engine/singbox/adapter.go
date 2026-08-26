@@ -21,18 +21,16 @@ import (
 	"github.com/luynrs/justray/internal/shared/domain"
 )
 
-// Engine wraps one running sing-box instance
 type Engine struct {
 	settings domain.Settings
 	logPath  string
 
 	inst   *sbox.Box
-	staged *sbox.Box   // built but not started kill-switch instance
-	tun    bool        // whether a TUN inbound is up
-	node   domain.Node // the node the proxy outbound carries
+	staged *sbox.Box
+	tun    bool
+	node   domain.Node
 }
 
-// New builds a fresh, unstarted Engine bound to a local proxy port and log path.
 func New(s domain.Settings, logPath string) engine.Engine {
 	return &Engine{settings: s, logPath: logPath}
 }
@@ -59,7 +57,6 @@ func (e *Engine) Start(n domain.Node, tun bool) error {
 
 func (e *Engine) Stage() error {
 	e.dropStaged()
-	// sbox.New alone does not start the instance, newBox does
 	inst, err := sbox.New(sbox.Options{Options: *BlockConfig(e.settings, e.logPath), Context: Context(context.Background())})
 	if err != nil {
 		if inst != nil {
@@ -111,7 +108,7 @@ func newBox(opts option.Options) (*sbox.Box, error) {
 func (e *Engine) Swap(n domain.Node) error {
 	if err := e.apply(n); err != nil {
 		if rbErr := e.apply(e.node); rbErr != nil {
-			e.inst.LogFactory().NewLogger("outbound/" + Tag).Error("swap rollback failed, instance left without a proxy outbound: ", rbErr)
+			e.inst.LogFactory().NewLogger("outbound/"+Tag).Error("swap rollback failed, instance left without a proxy outbound: ", rbErr)
 		}
 		return err
 	}
@@ -161,18 +158,20 @@ func (e *Engine) TunAdd() error {
 }
 
 func (e *Engine) TunRemove() error {
-	iface := domain.TunInterface
 	err := e.inst.Inbound().Remove("tun-in")
-	if waitGone(iface) {
-		e.tun = false
+	if err != nil {
 		return err
 	}
-	link.Delete(iface)
-	if !waitGone(iface) {
-		return fmt.Errorf("%s still up after removing tun-in", iface)
+	if waitGone(domain.TunInterface) {
+		e.tun = false
+		return nil
+	}
+	link.Delete(domain.TunInterface)
+	if !waitGone(domain.TunInterface) {
+		return fmt.Errorf("%s still up after removing tun-in", domain.TunInterface)
 	}
 	e.tun = false
-	return err
+	return nil
 }
 
 func (e *Engine) dropStaged() {
@@ -189,7 +188,12 @@ func (e *Engine) Close() error {
 	}
 	err := e.inst.Close()
 	if e.tun {
-		waitGone(domain.TunInterface)
+		if !waitGone(domain.TunInterface) {
+			return errors.Join(err, fmt.Errorf("%s still up after closing engine", domain.TunInterface))
+		}
+	}
+	if err != nil {
+		return err
 	}
 	e.inst, e.tun = nil, false
 	return err

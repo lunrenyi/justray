@@ -18,7 +18,7 @@ func (d Data) Render(r Row, selected bool, width int) string {
 	case Gap:
 		return ""
 	case Meta:
-		return style.Flush("    "+subscriptions.Usage(r.Sub), subscriptions.Meta(r.Sub, d.Refreshing[r.Sub.ID], d.Spinner), width)
+		return style.Flush("    "+style.Dim.Render(subscriptions.Usage(r.Sub)), subscriptions.Meta(r.Sub, d.Refreshing[r.Sub.ID], d.Spinner), width)
 	case Header:
 		return caret + subscriptions.Header(r.Sub, d.Collapsed[r.Sub.ID], selected, d.Emoji)
 	}
@@ -38,7 +38,7 @@ func (d Data) node(n rpc.Node, selected bool) string {
 }
 
 func info(n rpc.Node) string {
-	return style.Dim.Render(fmt.Sprintf("%s:%d · %s", n.Server, n.Port, n.Protocol))
+	return style.Dim.Render(fmt.Sprintf("%s:%d · %s", style.Sanitize(n.Server, true), n.Port, n.Protocol))
 }
 
 func latency(n rpc.Node) string {

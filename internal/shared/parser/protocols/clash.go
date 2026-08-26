@@ -92,7 +92,7 @@ func ParseClash(raw []byte) ([]domain.Node, error) {
 }
 
 func clashNode(p clashProxy) (domain.Node, error) {
-	if p.Server == "" || p.Port == 0 {
+	if p.Server == "" || !domain.ValidPort(p.Port) {
 		return domain.Node{}, fmt.Errorf("clash: missing server/port")
 	}
 	n := domain.Node{

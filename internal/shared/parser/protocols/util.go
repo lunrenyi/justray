@@ -42,13 +42,12 @@ func NodeID(n domain.Node) string {
 	if n.Reality != nil {
 		reality = n.Reality.PublicKey + n.Reality.ShortID
 	}
-	key := strings.Join([]string{
+	return id(strings.Join([]string{
 		string(n.Protocol), n.Server, strconv.Itoa(n.Port),
 		n.Auth.UUID, n.Auth.Password, n.Auth.Username,
 		n.Transport.Network, n.Transport.Path, n.Transport.Host, n.Transport.ServiceName,
 		tls, reality, wg,
-	}, "|")
-	return id(key)
+	}, "|"))
 }
 
 func parseURL(proto, uri string) (*url.URL, string, int, error) {
@@ -72,7 +71,7 @@ func hostPort(hp string) (string, int, error) {
 	if err != nil {
 		return "", 0, fmt.Errorf("bad port %q", p)
 	}
-	if port < 1 || port > 65535 {
+	if !domain.ValidPort(port) {
 		return "", 0, fmt.Errorf("port %d out of range", port)
 	}
 	return host, port, nil

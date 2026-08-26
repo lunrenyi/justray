@@ -2,7 +2,6 @@ package components
 
 import "github.com/luynrs/justray/internal/client/tui/style"
 
-// Confirm is a yes/no prompt
 type Confirm struct {
 	question string
 	subject  string
@@ -24,5 +23,5 @@ func (c *Confirm) View() string {
 	if !c.Active() {
 		return ""
 	}
-	return style.Err.Render(c.question)
+	return style.Err.Render(style.Sanitize(c.question, true))
 }

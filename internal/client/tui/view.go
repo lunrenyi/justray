@@ -146,7 +146,7 @@ func (m Model) footer() string {
 		status = style.Dim.Render(m.spin.View() + " connecting")
 	}
 	if m.err != "" {
-		status += "   " + style.Err.Render(style.FirstLine(m.err))
+		status += "   " + style.Err.Render(style.Sanitize(style.FirstLine(m.err), true))
 	}
 
 	hints := m.hints(m.w)

@@ -46,14 +46,14 @@ func Usage(s rpc.Sub) string {
 	switch {
 	case t.TotalBytes > 0:
 		parts = append(parts, fmt.Sprintf("%s %s %s",
-			style.Dim.Render(style.Bytes(used)),
+			style.Bytes(used),
 			style.Bar(float64(used)/float64(t.TotalBytes)),
-			style.Dim.Render(style.Bytes(t.TotalBytes))))
+			style.Bytes(t.TotalBytes)))
 	case used > 0:
-		parts = append(parts, style.Dim.Render(style.Bytes(used)+" used"))
+		parts = append(parts, style.Bytes(used)+" used")
 	}
 	if !t.ExpiresAt.IsZero() {
-		parts = append(parts, style.Dim.Render(style.Expiry(t.ExpiresAt)))
+		parts = append(parts, style.Expiry(t.ExpiresAt))
 	}
-	return strings.Join(parts, style.Dim.Render(" · "))
+	return strings.Join(parts, " · ")
 }

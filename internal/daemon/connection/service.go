@@ -46,6 +46,7 @@ func New(dir string, st store.Disk, newEngine engine.New, probe engine.Probe, lo
 		logger.Print(err)
 		settings, _ = domain.Settings{}.Normalize()
 	}
+	settings.Autostart = toggle(autostart.Enabled())
 	return &Service{
 		store:     st,
 		newEngine: newEngine,
@@ -59,12 +60,7 @@ func New(dir string, st store.Disk, newEngine engine.New, probe engine.Probe, lo
 	}
 }
 
-// Settings is for the client: it reads the autostart the OS actually has.
-func (s *Service) Settings() domain.Settings {
-	out := s.current()
-	out.Autostart = toggle(autostart.Enabled())
-	return out
-}
+func (s *Service) Settings() domain.Settings { return s.current() }
 
 func (s *Service) current() domain.Settings {
 	s.mu.Lock()
@@ -91,8 +87,8 @@ func (s *Service) SetSettings(in domain.Settings) (Status, error) {
 		return s.Status(), err
 	}
 
-	// the OS comes first: if it refuses, nothing is persisted anywhere
-	if in.Autostart != toggle(autostart.Enabled()) {
+	old := s.current()
+	if in.Autostart != old.Autostart {
 		apply := autostart.Enable
 		if in.Autostart == "off" {
 			apply = autostart.Disable
@@ -107,7 +103,6 @@ func (s *Service) SetSettings(in domain.Settings) (Status, error) {
 	}
 
 	s.mu.Lock()
-	old := s.settings
 	s.settings = in
 	cur := s.session
 	s.mu.Unlock()

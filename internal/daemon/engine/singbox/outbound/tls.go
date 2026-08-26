@@ -8,7 +8,6 @@ import (
 	"github.com/luynrs/justray/internal/shared/domain"
 )
 
-// nil when plain tcp with no TLS/reality is enough
 func tlsOptions(n domain.Node) *option.OutboundTLSOptions {
 	switch {
 	case n.Reality != nil:
@@ -46,7 +45,6 @@ func tlsOptions(n domain.Node) *option.OutboundTLSOptions {
 	return nil
 }
 
-// nil when the default (raw tcp) is enough
 func transport(n domain.Node) *option.V2RayTransportOptions {
 	switch n.Transport.Network {
 	case "ws":

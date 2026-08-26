@@ -25,7 +25,7 @@ var refuseV6 = option.Rule{Type: C.RuleTypeLogical, LogicalOptions: option.Logic
 	RuleAction: reject,
 }}
 
-func match(list []string, action option.RuleAction) []option.Rule {
+func match(list []string, action option.RuleAction, inbound []string) []option.Rule {
 	cidrs, domains, keywords, names, paths := domain.SplitRules(list)
 
 	var out []option.Rule
@@ -33,6 +33,7 @@ func match(list []string, action option.RuleAction) []option.Rule {
 		{ProcessName: names}, {ProcessPath: paths},
 		{IPCIDR: cidrs}, {DomainSuffix: domains}, {DomainKeyword: keywords},
 	} {
+		m.Inbound = inbound
 		if len(m.ProcessName)+len(m.ProcessPath)+len(m.IPCIDR)+len(m.DomainSuffix)+len(m.DomainKeyword) == 0 {
 			continue
 		}
@@ -78,7 +79,7 @@ func rules(s domain.Settings, direct []string) []option.Rule {
 		toExcept = toProxy
 	}
 
-	out = append(out, match(s.Blocked, reject)...)
+	out = append(out, match(s.Blocked, reject, nil)...)
 
 	if s.BypassLocal == "on" {
 		out = append(out, option.Rule{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
@@ -90,7 +91,7 @@ func rules(s domain.Settings, direct []string) []option.Rule {
 		RawDefaultRule: option.RawDefaultRule{IPCIDR: direct},
 		RuleAction:     toDirect,
 	}})
-	return append(out, match(s.Except, toExcept)...)
+	return append(out, match(s.Except, toExcept, []string{"tun-in"})...)
 }
 
 func TunInbound(s domain.Settings, resolverIPs []netip.Prefix) option.Inbound {
@@ -116,7 +117,6 @@ func TunInbound(s domain.Settings, resolverIPs []netip.Prefix) option.Inbound {
 	return option.Inbound{Type: C.TypeTun, Tag: "tun-in", Options: tunOpts}
 }
 
-// final is the outbound nothing claimed
 func final(s domain.Settings) string {
 	if s.Mode == domain.DirectAll {
 		return "direct"

@@ -2,6 +2,7 @@ package settings
 
 import (
 	"cmp"
+	"fmt"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -101,7 +102,10 @@ func (s *Settings) tabBar(width int) string {
 	for i, t := range tabs {
 		b.WriteString(style.Segment(" "+t.name+" ", i == s.tab))
 	}
-	return style.Clip(b.String(), width)
+	if lipgloss.Width(b.String()) <= width {
+		return b.String()
+	}
+	return style.Segment(" "+tabs[s.tab].name+" ", true) + style.Dim.Render(fmt.Sprintf(" %d/%d", s.tab+1, len(tabs)))
 }
 
 func tabAt(x int) (int, bool) {

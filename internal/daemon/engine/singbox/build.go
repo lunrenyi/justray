@@ -74,7 +74,6 @@ func Proxy(n domain.Node, s domain.Settings) (*option.Endpoint, []option.Outboun
 	return outbound.New(n, Tag)
 }
 
-// BlockConfig is a tun that rejects everything
 func BlockConfig(s domain.Settings, logPath string) *option.Options {
 	return &option.Options{
 		Log:      &option.LogOptions{Level: s.LogLevel, Output: logPath},

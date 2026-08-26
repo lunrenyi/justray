@@ -118,10 +118,10 @@ func (a *app) showTree(subs []rpc.Sub, nodes []rpc.Node) {
 			out("")
 		}
 		if g.Sub.ID == tree.Default {
-			out(style.Name.Render(g.Sub.Name))
+			out(style.Name.Render(style.Sanitize(g.Sub.Name, a.emoji)))
 		} else {
-			out(style.Name.Render(g.Sub.Name) + "  " + style.Dim.Render(g.Sub.ID))
-			out(style.Dim.Render(subMeta(g.Sub)))
+			out(style.Name.Render(style.Sanitize(g.Sub.Name, a.emoji)) + "  " + style.Dim.Render(g.Sub.ID))
+			out(subMeta(g.Sub))
 		}
 
 		nameW, infoW := 0, 0
@@ -150,7 +150,7 @@ func (a *app) nodeLine(n rpc.Node, branch string, nameW, infoW int) string {
 }
 
 func serverProto(n rpc.Node) string {
-	return fmt.Sprintf("%s:%d · %s", n.Server, n.Port, n.Protocol)
+	return fmt.Sprintf("%s:%d · %s", style.Sanitize(n.Server, true), n.Port, n.Protocol)
 }
 
 func subMeta(s rpc.Sub) string {
@@ -158,5 +158,5 @@ func subMeta(s rpc.Sub) string {
 	if meta != "" {
 		meta += style.Dim.Render(" · ")
 	}
-	return meta + "updated " + style.Since(s.UpdatedAt)
+	return meta + style.Dim.Render("updated "+style.Since(s.UpdatedAt))
 }

@@ -37,6 +37,8 @@ type Node struct {
 	WireGuard      *WireGuard
 }
 
+func ValidPort(port int) bool { return port >= 1 && port <= 65535 }
+
 type Auth struct {
 	UUID     string // vmess, vless, tuic
 	Password string // trojan, ss, hysteria, anytls, tuic

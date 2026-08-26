@@ -235,7 +235,7 @@ func match[T any](key, noun string, items []T, idName func(T) (id, name string))
 		}
 		if strings.HasPrefix(id, key) || strings.Contains(strings.ToLower(name), key) {
 			hits = append(hits, it)
-			names = append(names, fmt.Sprintf("%s (%s)", name, id))
+			names = append(names, fmt.Sprintf("%s (%s)", style.Sanitize(name, true), id))
 		}
 	}
 	switch len(hits) {
