@@ -85,6 +85,18 @@ If `justray` is installed via a script or packet manager the `jray` alias is ava
 - `remove`: remove a subscription or node by ID
 - `list`: list subscriptions and nodes
 
+### Keybinds
+
+| Key | Action | Key | Action |
+| --- | --- | --- | --- |
+| `↑/↓`, `k/j` | Move | `shift+↑/↓` | Reorder subscription |
+| `←/→`, `h/l` | Fold or cycle | `enter` | Connect, edit or choose |
+| `t` / `T` | Ping / Ping all | `r` / `R` | Refresh / Refresh all |
+| `m` | Toggle PROXY / TUN | `/` | Filter |
+| `a` | Add subscription | `d` | Delete subscription / rule |
+| `o` | Open settings | `esc` | Back, cancel or clear |
+| `tab` | Switch tab | `q` / `ctrl+c` | Quit |
+
 #### Options
 
 - `-h`, `--help`: show help
