@@ -13,12 +13,14 @@ var parsers = map[string]func(string) (domain.Node, error){
 	"vmess":     protocols.ParseVMess,
 	"vless":     protocols.ParseVLess,
 	"trojan":    protocols.ParseTrojan,
-	"ss":        protocols.ParseSS,
-	"hysteria":  protocols.ParseHY,
-	"hysteria2": protocols.ParseHY2,
+	"ss":        protocols.ParseShadowsocks,
+	"hysteria":  protocols.ParseHysteria,
+	"hysteria2": protocols.ParseHysteria2,
 	"tuic":      protocols.ParseTUIC,
 	"anytls":    protocols.ParseAnyTLS,
 	"socks5":    protocols.ParseSOCKS,
+	"wireguard": protocols.ParseWireGuard,
+	"shadowtls": protocols.ParseShadowTLS,
 }
 
 func parserFor(uri string) func(string) (domain.Node, error) {
@@ -31,6 +33,10 @@ func parserFor(uri string) func(string) (domain.Node, error) {
 		scheme = "hysteria2"
 	case "socks":
 		scheme = "socks5"
+	case "wg":
+		scheme = "wireguard"
+	case "shadow-tls":
+		scheme = "shadowtls"
 	}
 	return parsers[scheme]
 }

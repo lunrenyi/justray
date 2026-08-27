@@ -19,6 +19,12 @@ func New(n domain.Node, tag string) (*option.Endpoint, []option.Outbound, error)
 		ep, err := wireguard(n, tag)
 		return ep, nil, err
 	}
+	if n.Protocol == domain.Shadow {
+		if n.ShadowTLS == nil {
+			return nil, nil, fmt.Errorf("shadowtls: missing settings")
+		}
+		return nil, []option.Outbound{shadowTLS(n, tag)}, nil
+	}
 
 	out, err := proxy(n, tag)
 	if err != nil {
@@ -144,12 +150,16 @@ func proxy(n domain.Node, tag string) (*option.Outbound, error) {
 }
 
 func shadowTLS(n domain.Node, tag string) option.Outbound {
+	tls := tlsOptions(n)
+	if tls == nil {
+		tls = &option.OutboundTLSOptions{Enabled: true, ServerName: n.ShadowTLS.SNI}
+	}
 	return option.Outbound{Type: C.TypeShadowTLS, Tag: tag, Options: &option.ShadowTLSOutboundOptions{
 		ServerOptions: server(n),
 		Version:       n.ShadowTLS.Version,
 		Password:      n.ShadowTLS.Password,
 		OutboundTLSOptionsContainer: option.OutboundTLSOptionsContainer{
-			TLS: &option.OutboundTLSOptions{Enabled: true, ServerName: n.ShadowTLS.SNI},
+			TLS: tls,
 		},
 	}}
 }

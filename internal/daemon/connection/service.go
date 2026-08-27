@@ -134,6 +134,7 @@ func engineChanged(x, y domain.Settings) bool {
 	x.RefreshEvery, y.RefreshEvery = 0, 0
 	x.KillSwitch, y.KillSwitch = "", ""
 	x.Autostart, y.Autostart = "", ""
+	x.Emoji, y.Emoji = "", ""
 	return !x.Equal(y)
 }
 

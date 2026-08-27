@@ -12,7 +12,7 @@ import (
 )
 
 // SIP002 ss://base64(method:password)@host:port#remark, or the legacy form
-func ParseSS(uri string) (domain.Node, error) {
+func ParseShadowsocks(uri string) (domain.Node, error) {
 	rest := strings.TrimPrefix(uri, "ss://")
 
 	rest, remark, _ := strings.Cut(rest, "#")
@@ -20,9 +20,11 @@ func ParseSS(uri string) (domain.Node, error) {
 		remark = unescaped
 	}
 	rest, query, hasQuery := strings.Cut(rest, "?")
+	var plugin string
 	if hasQuery {
 		qv, _ := url.ParseQuery(query)
-		if err := checkPlugin(qv.Get("plugin")); err != nil {
+		plugin = qv.Get("plugin")
+		if err := checkPlugin(plugin); err != nil {
 			return domain.Node{}, fmt.Errorf("ss: %w", err)
 		}
 	}
@@ -63,6 +65,13 @@ func ParseSS(uri string) (domain.Node, error) {
 		Server:   host,
 		Port:     port,
 		Auth:     domain.Auth{Method: method, Password: password},
+	}
+	if plugin != "" {
+		stls, err := parseShadowTLSPlugin(plugin, host)
+		if err != nil {
+			return domain.Node{}, fmt.Errorf("ss: %w", err)
+		}
+		n.ShadowTLS = stls
 	}
 	return n, nil
 }

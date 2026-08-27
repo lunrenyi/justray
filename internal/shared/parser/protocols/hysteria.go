@@ -8,7 +8,7 @@ import (
 	"github.com/luynrs/justray/internal/shared/domain"
 )
 
-func ParseHY(uri string) (domain.Node, error) {
+func ParseHysteria(uri string) (domain.Node, error) {
 	u, host, port, err := parseURL("hysteria", uri)
 	if err != nil {
 		return domain.Node{}, err

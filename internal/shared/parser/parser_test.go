@@ -39,6 +39,10 @@ func TestParseURI(t *testing.T) {
 		"anytls":      {"anytls://secret@example.com:443#node", domain.AnyTLS, "example.com", 443},
 		"socks5":      {"socks5://user:pass@example.com:1080#node", domain.SOCKS, "example.com", 1080},
 		"socks alias": {"socks://user:pass@example.com:1080#node", domain.SOCKS, "example.com", 1080},
+		"wireguard":   {"wireguard://priv%2Fkey@example.com:51820?publickey=pub%2Bkey&address=10.0.0.2%2F32#node", domain.WG, "example.com", 51820},
+		"wg alias":    {"wg://priv@example.com:51820?publickey=pub&address=10.0.0.2%2F32#node", domain.WG, "example.com", 51820},
+		"shadowtls":   {"shadowtls://:secret@example.com:443?version=3&sni=cloud.example#node", domain.Shadow, "example.com", 443},
+		"stls alias":  {"shadow-tls://secret@example.com:443#node", domain.Shadow, "example.com", 443},
 		"vmess":       {vmessURI(t), domain.VMess, "example.com", 443},
 	}
 	for name, c := range cases {
@@ -56,7 +60,21 @@ func TestParseURI(t *testing.T) {
 			if n.ID == "" {
 				t.Fatal("empty node ID")
 			}
+			if c.protocol == domain.WG && (n.WireGuard == nil || len(n.WireGuard.Address) == 0) {
+				t.Fatal("missing WireGuard settings")
+			}
 		})
+	}
+}
+
+func TestParseShadowsocksShadowTLS(t *testing.T) {
+	uri := "ss://YWVzLTI1Ni1nY206cGFzcw==@example.com:8388?plugin=shadow-tls%3Bhost%3Dcloud.example%3Bpassword%3Dsecret%3Bversion%3D2#node"
+	n, err := ParseURI(uri)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n.ShadowTLS == nil || n.ShadowTLS.Version != 2 || n.ShadowTLS.SNI != "cloud.example" {
+		t.Fatalf("got %#v, want ShadowTLS v2", n.ShadowTLS)
 	}
 }
 

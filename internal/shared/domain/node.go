@@ -14,6 +14,7 @@ const (
 	SOCKS  Proto = "socks"
 	HTTP   Proto = "http"
 	WG     Proto = "wireguard"
+	Shadow Proto = "shadowtls"
 )
 
 type Node struct {

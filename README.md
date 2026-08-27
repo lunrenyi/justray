@@ -11,7 +11,7 @@
 <p align="center">A modern VPN client that lives in your terminal</p>
 
 <p align="center">
-    <img src=".github/assets/cli.gif" width="100%" alt="justray showcase">
+    <img src=".github/assets/tui.gif" width="100%" alt="justray TUI showcase">
 </p>
 
 ### Features
@@ -62,6 +62,10 @@ nix run github:luynrs/justray
 ```
 
 ### Usage
+
+<p align="center">
+    <img src=".github/assets/cli.gif" width="100%" alt="justray CLI usage">
+</p>
 
 If `justray` is installed via a script or packet manager the `jray` alias is available. But! Winget provides `justray` and `justrayd`.
 

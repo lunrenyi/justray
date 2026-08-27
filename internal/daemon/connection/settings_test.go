@@ -40,6 +40,7 @@ func TestEngineChanged(t *testing.T) {
 		"refresh":     func(s *domain.Settings) { s.RefreshEvery = 6 },
 		"kill switch": func(s *domain.Settings) { s.KillSwitch = "on" },
 		"autostart":   func(s *domain.Settings) { s.Autostart = "on" },
+		"emoji":       func(s *domain.Settings) { s.Emoji = "on" },
 	}
 	for name, edit := range live {
 		next := base

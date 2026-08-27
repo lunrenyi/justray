@@ -272,6 +272,7 @@ func (m Model) closeSettings() (Model, tea.Cmd) {
 	case !changed:
 		return m, nil
 	}
+	m.emoji = next.Emoji == "on"
 	m.connecting = true
 	return m, tea.Batch(m.spin.Tick, connectCmd(func() error { _, err := m.client.SetSettings(next); return err }))
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"syscall"
 	"time"
 
@@ -194,8 +195,14 @@ func (e *Engine) Close() error {
 	err := e.inst.Close()
 	if e.tun {
 		if !waitGone(domain.TunInterface) {
-			return errors.Join(stagedErr, err, fmt.Errorf("%s still up after closing engine", domain.TunInterface))
+			link.Delete(domain.TunInterface)
+			if !waitGone(domain.TunInterface) {
+				return errors.Join(stagedErr, err, fmt.Errorf("%s still up after closing engine", domain.TunInterface))
+			}
 		}
+	}
+	if errors.Is(err, os.ErrClosed) {
+		err = nil
 	}
 	if err != nil {
 		return errors.Join(stagedErr, err)

@@ -42,11 +42,15 @@ func NodeID(n domain.Node) string {
 	if n.Reality != nil {
 		reality = n.Reality.PublicKey + n.Reality.ShortID
 	}
+	shadowTLS := ""
+	if n.ShadowTLS != nil {
+		shadowTLS = fmt.Sprintf("%d:%s:%s", n.ShadowTLS.Version, n.ShadowTLS.Password, n.ShadowTLS.SNI)
+	}
 	return id(strings.Join([]string{
 		string(n.Protocol), n.Server, strconv.Itoa(n.Port),
 		n.Auth.UUID, n.Auth.Password, n.Auth.Username,
 		n.Transport.Network, n.Transport.Path, n.Transport.Host, n.Transport.ServiceName,
-		tls, reality, wg,
+		tls, reality, wg, shadowTLS,
 	}, "|"))
 }
 
