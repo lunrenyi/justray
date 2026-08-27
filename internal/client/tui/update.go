@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strings"
 	"time"
 
 	"charm.land/bubbles/v2/spinner"
@@ -15,7 +16,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.w, m.h = msg.Width, msg.Height
-		m.editor.SetWidth(msg.Width)
+		m.editor.SetWidth(max(msg.Width-12, 10))
 		m.clamp()
 
 	case tea.KeyPressMsg:
@@ -38,8 +39,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.mouse(msg)
 
 	case tea.PasteMsg:
-		if m.editor.Active() {
-			_, _, cmd := m.editor.Update(msg)
+		if m.editing {
+			var cmd tea.Cmd
+			m.editor, cmd = m.editor.Update(msg)
 			return m, cmd
 		}
 
@@ -107,22 +109,33 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k := msg.String()
 
 	switch {
-	case m.confirm.Active():
-		id, yes := m.confirm.Answer(k)
+	case m.confirmID != "":
+		id := m.confirmID
+		m.confirmQ, m.confirmID = "", ""
+		yes := k == "y"
 		if yes {
 			return m, act(m.client, func() error { return m.client.RemoveSub(id) })
 		}
 		return m, nil
 
-	case m.editor.Active():
-		url, done, cmd := m.editor.Update(msg)
-		switch {
-		case !done:
-			return m, cmd
-		case url == "":
+	case m.editing:
+		switch k {
+		case "esc":
+			m.editing = false
+			m.editor.Blur()
 			return m, nil
+		case "enter":
+			m.editing = false
+			m.editor.Blur()
+			url := strings.TrimSpace(m.editor.Value())
+			if url == "" {
+				return m, nil
+			}
+			return m, act(m.client, func() error { _, err := m.client.AddSub(url); return err })
 		}
-		return m, act(m.client, func() error { _, err := m.client.AddSub(url); return err })
+		var cmd tea.Cmd
+		m.editor, cmd = m.editor.Update(msg)
+		return m, cmd
 
 	case m.filtering:
 		return m.filterKey(msg)
@@ -154,7 +167,9 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "m":
 		return m.setTun(!m.status.Tun)
 	case "a":
-		return m, m.editor.Start()
+		m.editing = true
+		m.editor.SetValue("")
+		return m, tea.Batch(m.editor.Focus(), textinput.Blink)
 	case "o":
 		return m, settingsCmd(m.client, true)
 	case "/":
@@ -162,7 +177,7 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "d":
 		if r, ok := m.at(); ok {
 			name := tree.Data{Subs: m.subs}.SubName(r.SubID())
-			m.confirm.Ask("delete "+name+"?", r.SubID())
+			m.confirmQ, m.confirmID = "delete "+name+"?", r.SubID()
 		}
 	case "q":
 		return m.quit()
@@ -203,7 +218,7 @@ func (m *Model) startFiltering() tea.Cmd {
 }
 
 func (m Model) mouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	if m.editor.Active() || m.confirm.Active() {
+	if m.editing || m.confirmID != "" {
 		return m, nil
 	}
 	mouse := msg.Mouse()

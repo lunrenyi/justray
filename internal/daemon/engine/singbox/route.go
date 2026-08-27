@@ -14,9 +14,6 @@ var reject = option.RuleAction{
 	RejectOptions: option.RejectActionOptions{Method: C.RuleActionRejectMethodDefault},
 }
 
-// refuseV6 answers before the sniffer waits for bytes that will never come: a
-// proxy without v6 egress swallows the connection, a refusal sends the client
-// back to v4 at once. Anything on the LAN is none of its business.
 var refuseV6 = option.Rule{Type: C.RuleTypeLogical, LogicalOptions: option.LogicalRule{
 	RawLogicalRule: option.RawLogicalRule{Mode: C.LogicalTypeAnd, Rules: []option.Rule{
 		{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{RawDefaultRule: option.RawDefaultRule{IPVersion: 6}}},

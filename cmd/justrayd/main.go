@@ -60,7 +60,7 @@ func main() {
 	conn := connection.New(dir, st, singbox.New, singbox.Probe, logger)
 	subs := subscription.New(st, logger)
 	srv := server.New(logger, conn, subs)
-	srv.Restore()
+	conn.Restore()
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
@@ -80,7 +80,7 @@ func main() {
 	}
 
 	_ = ln.Close()
-	srv.Shutdown()
+	conn.Shutdown()
 }
 
 func sameFile(a, b *os.File) bool {

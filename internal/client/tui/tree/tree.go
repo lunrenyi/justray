@@ -1,4 +1,3 @@
-// Package tree lays out subscription and node rows
 package tree
 
 import (

@@ -1,4 +1,3 @@
-// Package subscriptions renders subscription blocks and the add prompt
 package subscriptions
 
 import (
@@ -51,6 +50,8 @@ func Usage(s rpc.Sub) string {
 			style.Bytes(t.TotalBytes)))
 	case used > 0:
 		parts = append(parts, style.Bytes(used)+" used")
+	default:
+		parts = append(parts, "No data")
 	}
 	if !t.ExpiresAt.IsZero() {
 		parts = append(parts, style.Expiry(t.ExpiresAt))

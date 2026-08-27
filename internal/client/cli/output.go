@@ -39,7 +39,7 @@ func state(st rpc.Status) string {
 	case st.Connected:
 		return "connected via " + strings.ToUpper(modeWord(st.Tun))
 	case st.Blocked:
-		return "blocked (kill switch)"
+		return "blocked (killswitch)"
 	}
 	return "disconnected"
 }

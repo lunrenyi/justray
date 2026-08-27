@@ -2,6 +2,7 @@ package style
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -116,6 +117,9 @@ func Expiry(t time.Time) string {
 	d := time.Until(t)
 	if d < 0 {
 		return "expired " + Since(t)
+	}
+	if d > math.MaxInt64/2 {
+		return t.Format("2006-01-02")
 	}
 	return span(d) + " left"
 }

@@ -1,4 +1,3 @@
-// Package style holds the colours and line helpers
 package style
 
 import (

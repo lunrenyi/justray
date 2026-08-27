@@ -50,7 +50,7 @@ func (m Model) content() string {
 	}
 
 	body := m.tree()
-	if m.editor.Active() {
+	if m.editing {
 		body = m.titleLine() + "\n\n" + m.editor.View()
 	}
 	return style.Fit(body, m.h-footerLines) + "\n" + m.footer()
@@ -99,10 +99,10 @@ func (m Model) keys() [][2]string {
 	switch {
 	case m.settings != nil:
 		return m.settings.Hints()
-	case m.confirm.Active():
+	case m.confirmID != "":
 		return [][2]string{{"y", "Delete"}, {"any", "Cancel"}}
-	case m.editor.Active():
-		return m.editor.Hints()
+	case m.editing:
+		return [][2]string{{"↵", "Add"}, {"esc", "Cancel"}}
 	}
 	return [][2]string{
 		{"↑/↓", "Move"}, {"←/→", "Fold"}, {"↵", "Toggle"}, {"t", "Ping"}, {"r", "Refresh"},
@@ -139,7 +139,7 @@ func (m Model) footer() string {
 	case m.connected():
 		status = style.Strong.Render(fmt.Sprintf("%s %s · %s", icon, style.Sanitize(m.status.NodeName, m.emoji), style.Uptime(time.Since(m.since))))
 	case m.live && m.status.Blocked:
-		status = style.Pending.Render(icon + " blocked · kill switch")
+		status = style.Pending.Render(icon + " kill switch")
 	case m.live:
 		status = style.Dim.Render(icon + " disconnected")
 	default:
@@ -150,7 +150,8 @@ func (m Model) footer() string {
 	}
 
 	hints := m.hints(m.w)
-	if q := m.confirm.View(); q != "" {
+	if m.confirmID != "" {
+		q := style.Err.Render(style.Sanitize(m.confirmQ, true))
 		hints = q + "  " + m.hints(max(m.w-lipgloss.Width(q)-2, 0))
 	}
 

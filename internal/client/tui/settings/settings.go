@@ -10,7 +10,6 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/luynrs/justray/internal/client/tui/components"
 	"github.com/luynrs/justray/internal/shared/domain"
 )
 
@@ -175,7 +174,9 @@ type Settings struct {
 }
 
 func New(s domain.Settings, top int) *Settings {
-	return &Settings{top: top, cur: s, orig: s, input: components.Input("", "", 64)}
+	input := textinput.New()
+	input.CharLimit = 64
+	return &Settings{top: top, cur: s, orig: s, input: input}
 }
 
 func (s *Settings) Result() (domain.Settings, bool, error) {

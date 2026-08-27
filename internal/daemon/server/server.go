@@ -61,6 +61,3 @@ func (s *Server) Serve(ln net.Listener) error {
 		go s.handle(conn)
 	}
 }
-
-func (s *Server) Restore()  { s.conn.Restore() }
-func (s *Server) Shutdown() { s.conn.Shutdown() }

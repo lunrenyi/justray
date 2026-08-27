@@ -10,9 +10,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/luynrs/justray/internal/client/tui/components"
 	"github.com/luynrs/justray/internal/client/tui/settings"
-	"github.com/luynrs/justray/internal/client/tui/subscriptions"
 	"github.com/luynrs/justray/internal/client/tui/tree"
 	"github.com/luynrs/justray/internal/shared/rpc"
 )
@@ -36,8 +34,10 @@ type Model struct {
 	scroll     int
 	wheel      time.Time
 
-	editor    *subscriptions.Editor
-	confirm   components.Confirm
+	editor    textinput.Model
+	editing   bool
+	confirmQ  string
+	confirmID string
 	settings  *settings.Settings
 	filtering bool
 	filter    textinput.Model
@@ -57,12 +57,18 @@ type Model struct {
 }
 
 func New(c *rpc.Client) Model {
+	editor := textinput.New()
+	editor.Prompt = "Add:  "
+	editor.Placeholder = "subscription URL, or a vless://, vmess://, trojan://, ss://, etc. link"
+	editor.CharLimit = 2048
+	filter := textinput.New()
+	filter.Placeholder, filter.CharLimit = "type to filter...", 128
 	return Model{
 		client:    c,
 		collapsed: map[string]bool{},
 		spin:      spinner.New(spinner.WithSpinner(spinner.MiniDot)),
-		editor:    subscriptions.NewEditor(),
-		filter:    components.Input("", "type to filter...", 128),
+		editor:    editor,
+		filter:    filter,
 		statusCh:  make(chan pushed),
 	}
 }

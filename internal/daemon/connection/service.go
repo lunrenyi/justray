@@ -1,4 +1,3 @@
-// Package connection owns the active session and drives an engine.Engine
 package connection
 
 import (

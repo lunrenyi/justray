@@ -15,6 +15,7 @@ import (
 
 	"github.com/luynrs/justray/internal/daemon/platform/console"
 	"github.com/luynrs/justray/internal/daemon/platform/device"
+	"github.com/luynrs/justray/internal/shared/version"
 )
 
 // Device info; X-Hwid is required, the rest cosmetic
@@ -25,7 +26,7 @@ func deviceHeaders() (http.Header, error) {
 			h.Set(key, val)
 		}
 	}
-	set("User-Agent", "justray")
+	set("User-Agent", "justray/"+version.String())
 
 	switch runtime.GOOS {
 	case "linux":

@@ -10,33 +10,27 @@ import (
 )
 
 var parsers = map[string]func(string) (domain.Node, error){
-	"vmess":     protocols.ParseVMess,
-	"vless":     protocols.ParseVLess,
-	"trojan":    protocols.ParseTrojan,
-	"ss":        protocols.ParseShadowsocks,
-	"hysteria":  protocols.ParseHysteria,
-	"hysteria2": protocols.ParseHysteria2,
-	"tuic":      protocols.ParseTUIC,
-	"anytls":    protocols.ParseAnyTLS,
-	"socks5":    protocols.ParseSOCKS,
-	"wireguard": protocols.ParseWireGuard,
-	"shadowtls": protocols.ParseShadowTLS,
+	"vmess":      protocols.ParseVMess,
+	"vless":      protocols.ParseVLess,
+	"trojan":     protocols.ParseTrojan,
+	"ss":         protocols.ParseShadowsocks,
+	"hysteria":   protocols.ParseHysteria,
+	"hysteria2":  protocols.ParseHysteria2,
+	"hy2":        protocols.ParseHysteria2,
+	"tuic":       protocols.ParseTUIC,
+	"anytls":     protocols.ParseAnyTLS,
+	"socks5":     protocols.ParseSOCKS,
+	"socks":      protocols.ParseSOCKS,
+	"wireguard":  protocols.ParseWireGuard,
+	"wg":         protocols.ParseWireGuard,
+	"shadowtls":  protocols.ParseShadowTLS,
+	"shadow-tls": protocols.ParseShadowTLS,
 }
 
 func parserFor(uri string) func(string) (domain.Node, error) {
 	scheme, _, ok := strings.Cut(strings.TrimSpace(uri), "://")
 	if !ok {
 		return nil
-	}
-	switch scheme {
-	case "hy2":
-		scheme = "hysteria2"
-	case "socks":
-		scheme = "socks5"
-	case "wg":
-		scheme = "wireguard"
-	case "shadow-tls":
-		scheme = "shadowtls"
 	}
 	return parsers[scheme]
 }
