@@ -16,7 +16,7 @@ builds:
     binary: justrayd
     env: [CGO_ENABLED=0]
     flags: ["-tags=with_quic,with_utls,with_gvisor,with_grpc"]
-    ldflags: ["-s -w -X github.com/luynrs/justray/internal/shared/version.Version={{.Version}}"]
+    ldflags: ['-s -w {{ if eq .Os "windows" }}-H windowsgui {{ end }}-X github.com/luynrs/justray/internal/shared/version.Version={{.Version}}']
     goos: [linux, darwin, windows]
     goarch: [amd64, arm64]
 
@@ -31,5 +31,63 @@ archives:
 checksum:
   name_template: checksums.txt
 
+brews:
+  - name: justray
+    repository:
+      owner: luynrs
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TOKEN }}"
+    homepage: https://github.com/luynrs/justray
+    description: A modern VPN client that lives in your terminal
+    license: GPL-3.0-only
+    skip_upload: "{{ .IsSnapshot }}"
+    install: |
+      bin.install "justray"
+      bin.install "justrayd"
+      bin.install_symlink "justray" => "jray"
+    test: |
+      system "#{bin}/justray", "--version"
+
+winget:
+  - name: justray
+    publisher: luynrs
+    package_identifier: luynrs.justray
+    package_name: JustRay
+    short_description: A modern VPN client that lives in your terminal
+    description: A terminal VPN client with support for subscriptions and multiple protocols.
+    homepage: https://github.com/luynrs/justray
+    publisher_url: https://github.com/luynrs
+    publisher_support_url: https://github.com/luynrs/justray/issues
+    license: GPL-3.0-only
+    license_url: https://www.gnu.org/licenses/gpl-3.0.html
+    tags: [cli, vpn, terminal]
+    path: manifests/l/luynrs/justray/{{ .Version }}
+    skip_upload: "{{ .IsSnapshot }}"
+    repository:
+      owner: luynrs
+      name: winget-pkgs
+      token: "{{ .Env.WINGET_TOKEN }}"
+      branch: justray-{{ .Version }}
+
+aurs:
+  - name: justray-bin
+    homepage: https://github.com/luynrs/justray
+    description: A modern VPN client that lives in your terminal
+    license: GPL-3.0-only
+    private_key: "{{ .Env.AUR_KEY_PATH }}"
+    git_url: ssh://aur@aur.archlinux.org/justray-bin.git
+    url_template: https://github.com/luynrs/justray/releases/download/{{ .Tag }}/{{ .ArtifactName }}
+    skip_upload: "{{ .IsSnapshot }}"
+    provides: [justray]
+    conflicts: [justray]
+    package: |-
+      install -Dm755 "./justray" "${pkgdir}/usr/bin/justray"
+      install -Dm755 "./justrayd" "${pkgdir}/usr/bin/justrayd"
+      ln -s justray "${pkgdir}/usr/bin/jray"
+
 release:
+  name_template: "{{ .Version }}"
   draft: false
+  mode: replace
+  replace_existing_artifacts: true

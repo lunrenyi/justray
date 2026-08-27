@@ -3,7 +3,6 @@ name: Release
 on:
   push:
     tags: ["v*"]
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -18,8 +17,17 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      - name: Prepare AUR key
+        env:
+          AUR_KEY: ${{ secrets.AUR_KEY }}
+        run: |
+          printf '%s\n' "$AUR_KEY" > "$RUNNER_TEMP/aur_key"
+          chmod 600 "$RUNNER_TEMP/aur_key"
       - uses: goreleaser/goreleaser-action@v7
         with:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TOKEN: ${{ secrets.HOMEBREW_TOKEN }}
+          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+          AUR_KEY_PATH: ${{ runner.temp }}/aur_key

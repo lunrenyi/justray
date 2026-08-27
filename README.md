@@ -5,7 +5,6 @@
 <p align="center">
   <a href="https://github.com/luynrs/justray/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/luynrs/justray?style=for-the-badge&logo=github&logoColor=white&labelColor=1e1e2e&color=cba6f7"></a>
   <img alt="Platforms" src="https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20windows-cba6f7?style=for-the-badge&logo=linux&logoColor=white&labelColor=1e1e2e">
-  <a href="https://github.com/luynrs/justray/releases/latest"><img alt="Stable" src="https://img.shields.io/badge/status-stable-cba6f7?style=for-the-badge&labelColor=1e1e2e"></a>
   <a href="https://github.com/luynrs/justray/releases"><img alt="Version" src="https://img.shields.io/github/v/release/luynrs/justray?style=for-the-badge&labelColor=1e1e2e&color=cba6f7"></a>
 </p>
 
@@ -15,78 +14,58 @@
     <img src=".github/assets/cli.gif" width="100%" alt="justray showcase">
 </p>
 
-## Features
+### Features
 
 - **Modern protocols:** VMess, VLESS, Trojan, Shadowsocks, Hysteria1/2, TUIC, AnyTLS, SOCKS5 and more
 - **Flexible:** subscriptions from raw links or Clash/Mihomo YAML, auto-refreshing and a wide list of settings
 - **Lightweight:** up to ~50 MB of RAM on unix-based systems, ~100 MB on Windows
 - **Crossplatform:** runs in every terminal on macOS, Linux and Windows (PowerShell and WSL)
 
-## Install
-> [!TIP]
-> You can re-run the script at any time to update client
+### Installation
 
-<details>
-<summary>Windows</summary>
+Using package manager:
 
-```powershell
-irm https://raw.githubusercontent.com/luynrs/justray/main/install.ps1 | iex
+```bash
+# macOS or Linux
+brew install luynrs/tap/justray
+
+# Windows
+winget install luynrs.justray
+
+# Arch Linux (btw)
+yay -S justray-bin
+
 ```
 
-</details>
+Or via script:
 
-<details>
-<summary>Linux</summary>
+```bash
+# Windows:
+irm https://raw.githubusercontent.com/luynrs/justray/main/install.ps1 | iex
 
-Script:
-
-```sh
+# macOS or Linux:
 curl -fsSL https://raw.githubusercontent.com/luynrs/justray/main/install.sh | sh
 ```
 
-Nix / NixOS:
+Nix flake:
 
 ```sh
 nix run github:luynrs/justray
 ```
 
 ```nix
-# flake.nix
-{ inputs.justray.url = "github:luynrs/justray"; }
-```
-
-```nix
-# home-manager: justrayd as a systemd --user service
+# Home Manager: justrayd as a systemd --user service
 {
   imports = [ justray.homeManagerModules.default ];
   services.justray.enable = true;
 }
 ```
 
-</details>
+### Usage
 
-<details>
-<summary>macOS</summary>
+If `justray` is installed via a script or packet manager the `jray` alias is available. But! Winget provides `justray` and `justrayd`.
 
-Script:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/luynrs/justray/main/install.sh | sh
-```
-
-Nix:
-
-```sh
-nix run github:luynrs/justray
-```
-
-</details>
-
-## Usage
-
-If `justray` is installed via a script or package manager, the `jray` alias is available.
-
-`jray`: open the TUI
+- `jray`: open the TUI
 
 #### Connection
 
@@ -107,6 +86,6 @@ If `justray` is installed via a script or package manager, the `jray` alias is a
 - `-h`, `--help`: show help
 - `-v`, `--version`: show the current version
 
-## License
+### License
 
 [GPL-3.0](LICENSE)

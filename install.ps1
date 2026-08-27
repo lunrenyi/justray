@@ -23,16 +23,18 @@ try {
 	if ((Get-FileHash $zip -Algorithm SHA256).Hash -ne $hash) { throw "checksum mismatch for $archive" }
 
 	Expand-Archive $zip -DestinationPath "$tmp\out" -Force
-	Copy-Item "$tmp\out\justray.exe" "$tmp\out\jray.exe"
 
 	New-Item -ItemType Directory -Force -Path $dir | Out-Null
 	Get-ChildItem $dir -Filter *.old | Remove-Item -Force -ErrorAction SilentlyContinue
-	foreach ($exe in "justray.exe", "justrayd.exe", "jray.exe") {
+	$oldAlias = Join-Path $dir "jray.exe"
+	if (Test-Path $oldAlias) { Move-Item $oldAlias "$oldAlias.old" -Force }
+	foreach ($exe in "justray.exe", "justrayd.exe") {
 		$dst = Join-Path $dir $exe
 		# a running exe cannot be written over, only renamed away
 		if (Test-Path $dst) { Move-Item $dst "$dst.old" -Force }
 		Move-Item "$tmp\out\$exe" $dst -Force
 	}
+	New-Item -ItemType HardLink -Path $oldAlias -Target (Join-Path $dir "justray.exe") | Out-Null
 
 	Write-Host "install.ps1: installed justray, jray, justrayd to $dir"
 	$userPath = [Environment]::GetEnvironmentVariable("Path", "User")

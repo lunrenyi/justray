@@ -3,6 +3,6 @@ package version
 
 import "strings"
 
-var Version = "1.0.0"
+var Version = "1.0.1"
 
 func String() string { return "v" + strings.TrimPrefix(Version, "v") }
