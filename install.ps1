@@ -1,50 +1,110 @@
-# irm https://raw.githubusercontent.com/luynrs/justray/main/install.ps1 | iex
-# re-run it to update
+#Requires -Version 5.1
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-$dir = if ($env:JUSTRAY_INSTALL_DIR) { $env:JUSTRAY_INSTALL_DIR } else { "$env:LOCALAPPDATA\justray" }
-$base = "https://github.com/luynrs/justray/releases/latest/download"
-$arch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "arm64" } else { "amd64" }
+$repo = "https://github.com/luynrs/justray"
+$version = if ($env:JUSTRAY_VERSION) { $env:JUSTRAY_VERSION } else { "latest" }
+$dir = if ($env:JUSTRAY_INSTALL_DIR) {
+	$env:JUSTRAY_INSTALL_DIR
+} else {
+	Join-Path $env:LOCALAPPDATA "justray"
+}
 
-$tmp = New-Item -ItemType Directory -Path (Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid()))
+$nativeArch = if ($env:PROCESSOR_ARCHITEW6432) {
+	$env:PROCESSOR_ARCHITEW6432
+} else {
+	$env:PROCESSOR_ARCHITECTURE
+}
+
+$arch = switch ($nativeArch) {
+	"AMD64" { "amd64" }
+	"ARM64" { "arm64" }
+	default { throw "justray: unsupported arch: $nativeArch" }
+}
+
+$base = if ($version -eq "latest") {
+	"$repo/releases/latest/download"
+} else {
+	"$repo/releases/download/$version"
+}
+
+if ($PSVersionTable.PSVersion.Major -lt 6) {
+	[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+}
+
+$tmp = Join-Path ([IO.Path]::GetTempPath()) ("justray-" + [guid]::NewGuid())
+$restartDaemon = $false
+
+New-Item -ItemType Directory -Path $tmp | Out-Null
+
 try {
-	Write-Host "install.ps1: fetching latest release"
+	Write-Host "justray: fetching release"
+
 	$checksums = Join-Path $tmp "checksums.txt"
 	Invoke-WebRequest "$base/checksums.txt" -OutFile $checksums -UseBasicParsing
-	$line = Get-Content $checksums | Where-Object { $_ -match "justray_.*_windows_$arch\.zip$" } | Select-Object -First 1
-	if (-not $line) { throw "no release archive for windows_$arch" }
-	$hash, $archive = $line.Trim() -split '\s+'
 
-	Write-Host "install.ps1: downloading $archive"
+	$lines = @(
+		Get-Content $checksums |
+			Where-Object {
+				$_ -match "^[0-9A-Fa-f]{64}\s+\*?justray_.*_windows_$arch\.zip$"
+			}
+	)
+
+	if ($lines.Count -ne 1) {
+		throw "justray: expected exactly one release for windows_$arch"
+	}
+
+	$hash, $archive = $lines[0].Trim() -split '\s+', 2
+	$archive = $archive.TrimStart("*")
+
+	Write-Host "justray: downloading $archive"
+
 	$zip = Join-Path $tmp $archive
 	Invoke-WebRequest "$base/$archive" -OutFile $zip -UseBasicParsing
-	if ((Get-FileHash $zip -Algorithm SHA256).Hash -ne $hash) { throw "checksum mismatch for $archive" }
 
-	Expand-Archive $zip -DestinationPath "$tmp\out" -Force
+	if ((Get-FileHash $zip -Algorithm SHA256).Hash -ne $hash) {
+		throw "justray: checksum mismatch"
+	}
+
+	$out = Join-Path $tmp "out"
+	Expand-Archive $zip -DestinationPath $out -Force
+
+	foreach ($exe in "justray.exe", "justrayd.exe") {
+		if (-not (Test-Path (Join-Path $out $exe) -PathType Leaf)) {
+			throw "justray: archive is missing $exe"
+		}
+	}
 
 	New-Item -ItemType Directory -Force -Path $dir | Out-Null
-	Get-ChildItem $dir -Filter *.old | Remove-Item -Force -ErrorAction SilentlyContinue
-	$oldAlias = Join-Path $dir "jray.exe"
-	if (Test-Path $oldAlias) { Move-Item $oldAlias "$oldAlias.old" -Force }
-	foreach ($exe in "justray.exe", "justrayd.exe") {
-		$dst = Join-Path $dir $exe
-		# a running exe cannot be written over, only renamed away
-		if (Test-Path $dst) { Move-Item $dst "$dst.old" -Force }
-		Move-Item "$tmp\out\$exe" $dst -Force
-	}
-	New-Item -ItemType HardLink -Path $oldAlias -Target (Join-Path $dir "justray.exe") | Out-Null
 
-	Write-Host "install.ps1: installed justray, jray, justrayd to $dir"
-	$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-	if (($userPath -split ';') -notcontains $dir) {
-		[Environment]::SetEnvironmentVariable("Path", "$userPath;$dir".Trim(';'), "User")
-		Write-Host "install.ps1: added $dir to your PATH, restart your terminal"
-	}
 	if (Get-Process justrayd -ErrorAction SilentlyContinue) {
-		Write-Host "install.ps1: justrayd is still running the old build, restart it: Stop-Process -Name justrayd"
+		$restartDaemon = $true
+		Stop-Process -Name justrayd -Force
+		Start-Sleep -Milliseconds 300
 	}
-} finally {
-	Remove-Item -Recurse -Force $tmp
+
+	Copy-Item "$out\justrayd.exe" "$dir\justrayd.exe" -Force
+	Copy-Item "$out\justray.exe" "$dir\justray.exe" -Force
+	Copy-Item "$out\justray.exe" "$dir\jray.exe" -Force
+
+	$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+
+	if (($userPath -split ";") -notcontains $dir) {
+		$userPath = "$($userPath.TrimEnd(";"));$dir".TrimStart(";")
+		[Environment]::SetEnvironmentVariable("Path", $userPath, "User")
+	}
+
+	if (($env:Path -split ";") -notcontains $dir) {
+		$env:Path = "$($env:Path.TrimEnd(";"));$dir"
+	}
+
+	Write-Host "justray: installed justray, jray, justrayd to $dir"
+}
+finally {
+	Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
+
+	if ($restartDaemon -and (Test-Path "$dir\justrayd.exe")) {
+		Start-Process "$dir\justrayd.exe" -WindowStyle Hidden
+	}
 }
