@@ -33,7 +33,7 @@ func (a *app) subAdd(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	done("Added " + style.Sanitize(sub.Name, a.emoji))
+	done("Added " + a.clean(sub.Name))
 	f := [][2]string{{"ID", sub.ID}, {"Nodes", strconv.Itoa(sub.Nodes)}}
 	if t := subscriptions.Usage(sub); t != "" {
 		f = append(f, [2]string{"Traffic", t})
@@ -53,7 +53,7 @@ func (a *app) subRemove(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	name := style.Sanitize(sub.Name, a.emoji)
+	name := a.clean(sub.Name)
 	stop := spin("Removing " + name)
 	err = a.client.RemoveSub(sub.ID)
 	stop()
@@ -118,16 +118,16 @@ func (a *app) showTree(subs []rpc.Sub, nodes []rpc.Node) {
 			out("")
 		}
 		if g.Sub.ID == tree.Default {
-			out(style.Name.Render(style.Sanitize(g.Sub.Name, a.emoji)))
+			out(style.Name.Render(a.clean(g.Sub.Name)))
 		} else {
-			out(style.Name.Render(style.Sanitize(g.Sub.Name, a.emoji)) + "  " + style.Dim.Render(g.Sub.ID))
+			out(style.Name.Render(a.clean(g.Sub.Name)) + "  " + style.Dim.Render(g.Sub.ID))
 			out(subMeta(g.Sub))
 		}
 
 		nameW, infoW := 0, 0
 		for _, n := range g.Nodes {
 			nameW = max(nameW, lipgloss.Width(a.nodeName(n.Name, "")))
-			infoW = max(infoW, lipgloss.Width(serverProto(n)))
+			infoW = max(infoW, lipgloss.Width(a.serverProto(n)))
 		}
 		for j, n := range g.Nodes {
 			branch := "├─"
@@ -141,7 +141,7 @@ func (a *app) showTree(subs []rpc.Sub, nodes []rpc.Node) {
 
 func (a *app) nodeLine(n rpc.Node, branch string, nameW, infoW int) string {
 	name := style.Pad(a.nodeName(n.Name, ""), nameW)
-	info := style.Dim.Render(style.Pad(serverProto(n), infoW))
+	info := style.Dim.Render(style.Pad(a.serverProto(n), infoW))
 	id := style.Dim.Render(n.ID)
 	if branch == "" {
 		return fmt.Sprintf("%s  %s  %s", a.nodeName(n.Name, ""), info, id)
@@ -149,8 +149,8 @@ func (a *app) nodeLine(n rpc.Node, branch string, nameW, infoW int) string {
 	return fmt.Sprintf("%s %s  %s  %s", style.Dim.Render(branch), name, info, id)
 }
 
-func serverProto(n rpc.Node) string {
-	return fmt.Sprintf("%s:%d · %s", style.Sanitize(n.Server, true), n.Port, n.Protocol)
+func (a *app) serverProto(n rpc.Node) string {
+	return fmt.Sprintf("%s:%d · %s", a.clean(n.Server), n.Port, n.Protocol)
 }
 
 func subMeta(s rpc.Sub) string {

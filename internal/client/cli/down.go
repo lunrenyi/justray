@@ -25,6 +25,6 @@ func (a *app) down(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	done("Disconnected")
-	warn(next.LastErr)
+	a.warn(next.LastErr)
 	return nil
 }

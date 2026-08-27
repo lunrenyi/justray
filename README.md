@@ -5,7 +5,8 @@
 <p align="center">
   <a href="https://github.com/luynrs/justray/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/luynrs/justray?style=for-the-badge&logo=github&logoColor=white&labelColor=1e1e2e&color=cba6f7"></a>
   <img alt="Platforms" src="https://img.shields.io/badge/platform-linux%20%7C%20macos%20%7C%20windows-cba6f7?style=for-the-badge&logo=linux&logoColor=white&labelColor=1e1e2e">
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-GPL--3.0-cba6f7?style=for-the-badge&logo=gnu&logoColor=white&labelColor=1e1e2e"></a>
+  <a href="https://github.com/luynrs/justray/releases/latest"><img alt="Stable" src="https://img.shields.io/badge/status-stable-cba6f7?style=for-the-badge&labelColor=1e1e2e"></a>
+  <a href="https://github.com/luynrs/justray/releases"><img alt="Version" src="https://img.shields.io/github/v/release/luynrs/justray?style=for-the-badge&labelColor=1e1e2e&color=cba6f7"></a>
 </p>
 
 <p align="center">A modern VPN client that lives in your terminal</p>

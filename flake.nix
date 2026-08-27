@@ -32,7 +32,7 @@
           vendorHash = "sha256-2b7BJ9r5iTu4wuoEzJkdmbmLvNVdgdkBcI+PvqAxpvQ=";
 
           subPackages = [ "cmd/justray" "cmd/justrayd" ];
-          tags = [ "with_quic" "with_utls" "with_gvisor" ];
+          tags = [ "with_quic" "with_utls" "with_gvisor" "with_grpc" ];
           ldflags = [ "-s" "-w" "-X" "github.com/luynrs/justray/internal/shared/version.Version=${version}" ];
 
           nativeBuildInputs = [ pkgs.installShellFiles ];
@@ -76,7 +76,7 @@
         in {
           default = pkgs.mkShell {
             packages = [ pkgs.go pkgs.gopls pkgs.golangci-lint pkgs.goreleaser ];
-            GOFLAGS = "-tags=with_quic,with_utls,with_gvisor";
+            GOFLAGS = "-tags=with_quic,with_utls,with_gvisor,with_grpc";
           };
         }
       );

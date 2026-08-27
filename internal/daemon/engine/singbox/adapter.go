@@ -56,11 +56,14 @@ func (e *Engine) Start(n domain.Node, tun bool) error {
 }
 
 func (e *Engine) Stage() error {
-	e.dropStaged()
+	if err := e.dropStaged(); err != nil {
+		return err
+	}
 	inst, err := sbox.New(sbox.Options{Options: *BlockConfig(e.settings, e.logPath), Context: Context(context.Background())})
 	if err != nil {
 		if inst != nil {
-			_ = inst.Close()
+			e.staged = inst
+			err = errors.Join(err, e.dropStaged())
 		}
 		return err
 	}
@@ -69,14 +72,13 @@ func (e *Engine) Stage() error {
 }
 func (e *Engine) Block() error {
 	inst := e.staged
-	e.staged = nil
 	if inst == nil {
 		return errors.New("kill switch: nothing staged")
 	}
 	if err := rideOutEBusy(inst.Start); err != nil {
-		_ = inst.Close()
 		return err
 	}
+	e.staged = nil
 	e.inst, e.tun = inst, true
 	return nil
 }
@@ -174,29 +176,32 @@ func (e *Engine) TunRemove() error {
 	return nil
 }
 
-func (e *Engine) dropStaged() {
+func (e *Engine) dropStaged() error {
 	if e.staged != nil {
-		_ = e.staged.Close()
+		if err := e.staged.Close(); err != nil {
+			return err
+		}
 		e.staged = nil
 	}
+	return nil
 }
 
 func (e *Engine) Close() error {
-	e.dropStaged()
+	stagedErr := e.dropStaged()
 	if e.inst == nil {
-		return nil
+		return stagedErr
 	}
 	err := e.inst.Close()
 	if e.tun {
 		if !waitGone(domain.TunInterface) {
-			return errors.Join(err, fmt.Errorf("%s still up after closing engine", domain.TunInterface))
+			return errors.Join(stagedErr, err, fmt.Errorf("%s still up after closing engine", domain.TunInterface))
 		}
 	}
 	if err != nil {
-		return err
+		return errors.Join(stagedErr, err)
 	}
 	e.inst, e.tun = nil, false
-	return err
+	return stagedErr
 }
 
 func (e *Engine) runtimeCtx() context.Context {

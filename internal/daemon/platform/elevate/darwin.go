@@ -6,42 +6,46 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 )
 
+const helper = "/Library/PrivilegedHelperTools/justrayd"
+
 func Needed(err error) bool {
-	self, _ := os.Executable()
-	return err != nil && strings.Contains(err.Error(), "operation not permitted") && !isSetuidRoot(self)
+	return err != nil && strings.Contains(err.Error(), "operation not permitted") && os.Geteuid() != 0
 }
 
 func Tun(logger *log.Logger, dir string) {
-	target, err := cachedCopy(dir)
+	_ = os.RemoveAll(filepath.Join(dir, "elevated"))
+	self, err := os.Executable()
 	if err != nil {
 		logger.Print(err)
 		return
 	}
-
-	if !isSetuidRoot(target) {
-		script := `do shell script "chown root:wheel \"$JUSTRAY_ELEVATE\" && chmod u+s \"$JUSTRAY_ELEVATE\"" with administrator privileges`
+	if !sameHelper(self) {
+		script := `set source to system attribute "JUSTRAY_SOURCE"
+do shell script "/usr/bin/install -o root -g wheel -m 4755 " & quoted form of source & " ` + helper + `" with administrator privileges`
 		cmd := exec.Command("osascript", "-e", script)
-		cmd.Env = append(os.Environ(), "JUSTRAY_ELEVATE="+target)
+		cmd.Env = append(os.Environ(), "JUSTRAY_SOURCE="+self)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			logger.Printf("%v: %s", err, out)
 			return
 		}
 	}
-
-	if err := syscall.Exec(target, os.Args, os.Environ()); err != nil {
+	if err := syscall.Exec(helper, os.Args, os.Environ()); err != nil {
 		logger.Print(err)
 	}
 }
 
-func isSetuidRoot(path string) bool {
-	info, err := os.Stat(path)
-	if err != nil {
+func sameHelper(source string) bool {
+	sourceSum, sourceErr := hashFile(source)
+	helperSum, helperErr := hashFile(helper)
+	info, err := os.Stat(helper)
+	if sourceErr != nil || helperErr != nil || err != nil {
 		return false
 	}
 	stat, ok := info.Sys().(*syscall.Stat_t)
-	return ok && stat.Uid == 0 && info.Mode()&os.ModeSetuid != 0
+	return ok && stat.Uid == 0 && info.Mode()&os.ModeSetuid != 0 && info.Mode().Perm()&0o022 == 0 && sourceSum == helperSum
 }

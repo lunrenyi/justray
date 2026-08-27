@@ -15,7 +15,7 @@ func (a *app) status(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	stateHeadline(st)
-	warn(st.LastErr)
+	a.warn(st.LastErr)
 
 	if st.Connected {
 		a.nodeDetails(st)
@@ -31,6 +31,6 @@ func (a *app) status(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 	last := [][2]string{{"Last node", a.nodeName(n.Name, n.ID)}}
-	fields(append(last, nodeFields(n)...)...)
+	fields(append(last, a.nodeFields(n)...)...)
 	return nil
 }

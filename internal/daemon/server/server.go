@@ -10,6 +10,7 @@ import (
 
 	"github.com/luynrs/justray/internal/daemon/connection"
 	"github.com/luynrs/justray/internal/daemon/platform/lock"
+	"github.com/luynrs/justray/internal/daemon/platform/owner"
 	"github.com/luynrs/justray/internal/daemon/subscription"
 )
 
@@ -41,6 +42,10 @@ func Listen(socket string) (net.Listener, error) {
 		return nil, err
 	}
 	if err := os.Chmod(socket, 0o600); err != nil {
+		_ = ln.Close()
+		return nil, err
+	}
+	if err := owner.File(socket); err != nil {
 		_ = ln.Close()
 		return nil, err
 	}

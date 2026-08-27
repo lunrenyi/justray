@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/luynrs/justray/internal/daemon/platform/owner"
 	"github.com/luynrs/justray/internal/shared/domain"
 	"gopkg.in/yaml.v3"
 )
@@ -131,6 +132,9 @@ func write(path string, data []byte) error {
 		return err
 	}
 	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := owner.File(tmp.Name()); err != nil {
 		return err
 	}
 	return os.Rename(tmp.Name(), path)

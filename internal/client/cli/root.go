@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -108,7 +109,11 @@ func Execute() error {
 	}
 	setHelpText(rootCmd)
 
-	return rootCmd.Execute()
+	err := rootCmd.Execute()
+	if err != nil {
+		return errors.New(a.clean(err.Error()))
+	}
+	return nil
 }
 
 func setHelpText(c *cobra.Command) {

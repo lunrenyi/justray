@@ -2,6 +2,7 @@
 package connection
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -28,6 +29,7 @@ type Service struct {
 
 	mu       sync.Mutex
 	session  session
+	cleanup  engine.Engine
 	lastErr  string
 	tun      bool
 	settings domain.Settings
@@ -110,18 +112,20 @@ func (s *Service) SetSettings(in domain.Settings) (Status, error) {
 	if cur.blocked {
 		switch {
 		case in.KillSwitch != "on":
-			s.stop()
+			err = s.stop()
 		case engineChanged(old, in):
-			s.clear()
+			err = s.clear()
 		}
-		return s.finish(nil)
+		return s.finish(err)
 	}
 
 	if cur.eng == nil || !engineChanged(old, in) {
 		s.arm()
 		return s.finish(nil)
 	}
-	s.stop()
+	if err := s.stop(); err != nil {
+		return s.finish(err)
+	}
 	return s.finish(s.start(cur.node, cur.sub))
 }
 
@@ -157,7 +161,9 @@ func (s *Service) Disconnect() (Status, error) {
 	name := s.session.node.Name
 	s.mu.Unlock()
 
-	s.clear()
+	if err := s.clear(); err != nil {
+		return s.finish(err)
+	}
 
 	if name != "" {
 		s.log.Printf("disconnected from %s", name)
@@ -170,19 +176,17 @@ func (s *Service) SetTun(enable bool) (Status, error) {
 	defer s.opMu.Unlock()
 
 	s.mu.Lock()
-	s.tun = enable
-	if err := s.store.SetTun(enable); err != nil {
-		s.log.Print(err)
-	}
 	cur := s.session
 	s.mu.Unlock()
 
 	// the kill switch is only a TUN; turning TUN off takes it down with it
 	if cur.blocked {
 		if !enable {
-			s.stop()
+			if err := s.stop(); err != nil {
+				return s.finish(err)
+			}
 		}
-		return s.finish(nil)
+		return s.commitTun(enable)
 	}
 
 	var err error
@@ -195,8 +199,16 @@ func (s *Service) SetTun(enable bool) (Status, error) {
 	}
 
 	if err != nil && enable && elevate.Needed(err) {
+		s.setErr(rpc.ErrElevate)
 		go elevate.Tun(s.log, s.dir)
 		return s.finish(rpc.ErrElevate)
+	}
+	if err != nil && enable && s.current().KillSwitch == "on" {
+		closeErr := s.stop()
+		if closeErr == nil {
+			closeErr = s.block()
+		}
+		err = errors.Join(err, closeErr)
 	}
 
 	s.mu.Lock()
@@ -206,16 +218,30 @@ func (s *Service) SetTun(enable bool) (Status, error) {
 		s.lastErr = err.Error()
 	}
 	s.mu.Unlock()
+	if err == nil {
+		return s.commitTun(enable)
+	}
 
-	s.arm()
 	return s.finish(err)
+}
+
+func (s *Service) commitTun(enable bool) (Status, error) {
+	if err := s.store.SetTun(enable); err != nil {
+		return s.finish(err)
+	}
+	s.mu.Lock()
+	s.tun = enable
+	s.mu.Unlock()
+	return s.finish(nil)
 }
 
 // Shutdown tears the active engine down without broadcasting, for process exit.
 func (s *Service) Shutdown() {
 	s.opMu.Lock()
 	defer s.opMu.Unlock()
-	s.stop()
+	if err := s.stop(); err != nil {
+		s.log.Print(err)
+	}
 }
 
 // ActiveID returns the connected node id, or the last one used, or "" if none.

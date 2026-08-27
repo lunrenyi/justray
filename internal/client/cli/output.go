@@ -59,7 +59,7 @@ func stateHeadline(st rpc.Status) {
 
 func (a *app) statusFields(st rpc.Status, n rpc.Node) [][2]string {
 	f := [][2]string{{"Node", a.nodeName(st.NodeName, st.NodeID)}}
-	f = append(f, nodeFields(n)...)
+	f = append(f, a.nodeFields(n)...)
 	if st.Uptime > 0 {
 		f = append(f, [2]string{"Uptime", style.Uptime(time.Duration(st.Uptime) * time.Second)})
 	}
@@ -71,21 +71,21 @@ func (a *app) nodeDetails(st rpc.Status) {
 	fields(a.statusFields(st, n)...)
 }
 
-func nodeFields(n rpc.Node) [][2]string {
+func (a *app) nodeFields(n rpc.Node) [][2]string {
 	if n.Server == "" {
 		return nil
 	}
 	return [][2]string{
-		{"Server", fmt.Sprintf("%s:%d", style.Sanitize(n.Server, true), n.Port)},
+		{"Server", fmt.Sprintf("%s:%d", a.clean(n.Server), n.Port)},
 		{"Protocol", n.Protocol},
 	}
 }
 
 func (a *app) nodeName(name, id string) string {
 	if id == "" {
-		return style.Sanitize(name, a.emoji)
+		return a.clean(name)
 	}
-	return style.Sanitize(name, a.emoji) + " " + style.Dim.Render("("+id+")")
+	return a.clean(name) + " " + style.Dim.Render("("+id+")")
 }
 
 func modeWord(tun bool) string {
@@ -108,11 +108,13 @@ func Fail(err error) {
 	_, _ = lipgloss.Fprintln(os.Stderr, style.Err.Bold(true).Render("✗"), upperFirst(style.Sanitize(err.Error(), true)))
 }
 
-func warn(msg string) {
+func (a *app) warn(msg string) {
 	if msg != "" {
-		out("  " + style.Err.Render(style.Sanitize(style.FirstLine(msg), true)))
+		out("  " + style.Err.Render(a.clean(style.FirstLine(msg))))
 	}
 }
+
+func (a *app) clean(s string) string { return style.Sanitize(s, a.emoji) }
 
 func spin(text string) func() {
 	if fi, err := os.Stdout.Stat(); err != nil || fi.Mode()&os.ModeCharDevice == 0 {

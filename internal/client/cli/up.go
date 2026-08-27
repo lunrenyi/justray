@@ -8,7 +8,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/luynrs/justray/internal/client/tui/style"
 	"github.com/luynrs/justray/internal/shared/rpc"
 )
 
@@ -74,7 +73,7 @@ func (a *app) connectNode(key string, mode *bool) error {
 	if err != nil {
 		return err
 	}
-	spinText := "Connecting to " + style.Sanitize(n.Name, a.emoji)
+	spinText := "Connecting to " + a.clean(n.Name)
 	if mode != nil {
 		if _, err := a.runOp(spinText, func() (rpc.Status, error) { return a.client.SetTun(*mode) }, mode); err != nil {
 			return err
@@ -100,21 +99,31 @@ func (a *app) runOp(text string, op func() (rpc.Status, error), want *bool) (rpc
 	}
 	stop = spin("Granting permissions")
 	defer stop()
-	return awaitElevate(a.client.Status, want, 3*time.Minute)
+	st, err = awaitElevate(a.client.Status, want, 3*time.Minute)
+	if err == nil && want != nil && (!st.Connected || st.Tun != *want) {
+		return op()
+	}
+	return st, err
 }
 
 var elevatePoll = 500 * time.Millisecond
 
 func awaitElevate(status func() (rpc.Status, error), want *bool, timeout time.Duration) (rpc.Status, error) {
+	pending := false
 	for deadline := time.Now().Add(timeout); time.Now().Before(deadline); {
 		time.Sleep(elevatePoll)
 		st, err := status()
 		switch {
 		case err != nil: // the daemon is mid exec-restart
+			pending = true
+		case st.LastErr == rpc.ErrElevate.Error():
+			pending = true
+		case st.LastErr != "":
+			return st, errors.New(st.LastErr)
+		case pending:
+			return st, nil
 		case st.Connected && (want == nil || st.Tun == *want):
 			return st, nil
-		case st.LastErr != "" && st.LastErr != rpc.ErrElevate.Error():
-			return st, errors.New(st.LastErr)
 		}
 	}
 	return rpc.Status{}, errors.New("timed out waiting for permissions")
@@ -138,7 +147,7 @@ func (a *app) switchMode(st rpc.Status, tun bool) error {
 func (a *app) report(headline string, st rpc.Status) {
 	done(headline)
 	a.nodeDetails(st)
-	warn(st.LastErr)
+	a.warn(st.LastErr)
 }
 
 func (a *app) resolveNode(key string) (rpc.Node, error) {

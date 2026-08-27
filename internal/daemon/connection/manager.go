@@ -1,9 +1,11 @@
 package connection
 
 import (
+	"errors"
 	"slices"
 	"time"
 
+	"github.com/luynrs/justray/internal/daemon/engine"
 	"github.com/luynrs/justray/internal/daemon/platform/elevate"
 	"github.com/luynrs/justray/internal/daemon/store"
 	"github.com/luynrs/justray/internal/shared/domain"
@@ -61,7 +63,11 @@ func (s *Service) ForgetIfRemoved(subID string, nodes []domain.Node) {
 		return
 	}
 
-	s.clear()
+	if err := s.clear(); err != nil {
+		s.log.Print(err)
+		s.setErr(err)
+		return
+	}
 	if name != "" {
 		s.log.Printf("disconnected from %s", name)
 	}
@@ -74,7 +80,8 @@ func (s *Service) start(n domain.Node, sub string) (err error) {
 	s.mu.Unlock()
 
 	eng := cur.eng
-	if cur.eng != nil && !cur.blocked {
+	hot := cur.eng != nil && !cur.blocked
+	if hot {
 		err = cur.eng.Swap(n)
 		if err == nil && tun != cur.tun {
 			reconcile := cur.eng.TunRemove
@@ -84,7 +91,10 @@ func (s *Service) start(n domain.Node, sub string) (err error) {
 			err = reconcile()
 		}
 	} else {
-		s.stop()
+		if err = s.stop(); err != nil {
+			s.setErr(err)
+			return err
+		}
 
 		if err = rpc.ClearLog(rpc.EngineLog(s.dir)); err != nil {
 			s.log.Print(err)
@@ -92,7 +102,7 @@ func (s *Service) start(n domain.Node, sub string) (err error) {
 
 		eng = s.newEngine(s.current(), rpc.EngineLog(s.dir))
 		if err = eng.Start(n, tun); err != nil {
-			_ = eng.Close()
+			err = errors.Join(err, s.discard(eng))
 		}
 	}
 	if err != nil {
@@ -100,6 +110,8 @@ func (s *Service) start(n domain.Node, sub string) (err error) {
 			s.persistActive(n.ID)
 			go elevate.Tun(s.log, s.dir)
 			err = rpc.ErrElevate
+		} else if !hot && tun && s.current().KillSwitch == "on" {
+			err = errors.Join(err, s.block())
 		}
 		s.setErr(err)
 		return err
@@ -115,32 +127,40 @@ func (s *Service) start(n domain.Node, sub string) (err error) {
 	return nil
 }
 
-func (s *Service) stop() {
+func (s *Service) stop() error {
+	if err := s.closeCleanup(); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	eng := s.session.eng
-	s.session = session{}
 	s.mu.Unlock()
-
 	if eng == nil {
-		return
+		return nil
 	}
 	if err := eng.Close(); err != nil {
-		s.log.Print(err)
+		return err
 	}
+	s.mu.Lock()
+	s.session = session{}
+	s.mu.Unlock()
+	return nil
 }
 
-func (s *Service) clear() {
+func (s *Service) clear() error {
 	s.mu.Lock()
 	s.lastErr = ""
 	block := s.tun && s.settings.KillSwitch == "on"
 	s.mu.Unlock()
 
-	s.persistActive("")
 	if !block {
-		s.stop()
-		return
+		if err := s.stop(); err != nil {
+			return err
+		}
+	} else if err := s.block(); err != nil {
+		return err
 	}
-	s.raise()
+	s.persistActive("")
+	return nil
 }
 
 func (s *Service) arm() {
@@ -148,35 +168,68 @@ func (s *Service) arm() {
 	idle := s.session.eng == nil && s.tun && s.settings.KillSwitch == "on"
 	s.mu.Unlock()
 	if idle {
-		s.raise()
+		if err := s.block(); err != nil {
+			s.log.Print(err)
+			s.setErr(err)
+		}
 	}
 }
 
-func (s *Service) raise() {
-	if err := s.block(); err != nil {
-		s.log.Print(err)
-		s.stop()
-		s.setErr(err)
-	}
-}
 func (s *Service) block() error {
+	if err := s.closeCleanup(); err != nil {
+		return err
+	}
+
 	eng := s.newEngine(s.current(), rpc.EngineLog(s.dir))
 	if err := eng.Stage(); err != nil {
-		_ = eng.Close()
-		return err
+		return errors.Join(err, s.discard(eng))
 	}
 
 	s.mu.Lock()
 	old := s.session.eng
-	s.session = session{eng: eng, tun: true, blocked: true}
 	s.mu.Unlock()
 
 	if old != nil {
 		if err := old.Close(); err != nil {
-			s.log.Print(err)
+			return errors.Join(err, s.discard(eng))
 		}
+		s.mu.Lock()
+		s.session = session{}
+		s.mu.Unlock()
 	}
-	return eng.Block()
+	if err := eng.Block(); err != nil {
+		return errors.Join(err, s.discard(eng))
+	}
+	s.mu.Lock()
+	s.session = session{eng: eng, tun: true, blocked: true}
+	s.mu.Unlock()
+	return nil
+}
+
+func (s *Service) closeCleanup() error {
+	s.mu.Lock()
+	eng := s.cleanup
+	s.mu.Unlock()
+	if eng == nil {
+		return nil
+	}
+	if err := eng.Close(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	s.cleanup = nil
+	s.mu.Unlock()
+	return nil
+}
+
+func (s *Service) discard(eng engine.Engine) error {
+	err := eng.Close()
+	if err != nil {
+		s.mu.Lock()
+		s.cleanup = eng
+		s.mu.Unlock()
+	}
+	return err
 }
 
 func (s *Service) setErr(err error) {
