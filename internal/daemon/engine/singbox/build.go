@@ -1,6 +1,7 @@
 package singbox
 
 import (
+	"context"
 	"net/netip"
 	"strconv"
 	"strings"
@@ -16,7 +17,11 @@ import (
 	"github.com/luynrs/justray/internal/shared/domain"
 )
 
-const Tag = "proxy"
+const (
+	Tag           = "proxy"
+	maxProbeNodes = 512
+	probeWorkers  = 32
+)
 
 func Build(n domain.Node, s domain.Settings, logPath string, tun bool) (*option.Options, error) {
 	ep, obs, err := Proxy(n, s)
@@ -67,54 +72,59 @@ func Build(n domain.Node, s domain.Settings, logPath string, tun bool) (*option.
 }
 
 func Proxy(n domain.Node, s domain.Settings) (*option.Endpoint, []option.Outbound, error) {
-	n, err := resolved(n, s)
+	n, err := resolved(context.Background(), n, s)
 	if err != nil {
 		return nil, nil, err
 	}
 	return outbound.New(n, Tag)
 }
 
-func BlockConfig(s domain.Settings, logPath string) *option.Options {
-	return &option.Options{
-		Log:      &option.LogOptions{Level: s.LogLevel, Output: logPath},
-		Inbounds: []option.Inbound{TunInbound(s, resolvers.Get())},
-		Route: &option.RouteOptions{
-			AutoDetectInterface: true,
-			Rules: []option.Rule{{Type: C.RuleTypeDefault, DefaultOptions: option.DefaultRule{
-				RawDefaultRule: option.RawDefaultRule{Inbound: []string{"tun-in"}},
-				RuleAction:     reject,
-			}}},
-		},
-	}
-}
-
 func ProbeTag(i int) string { return "p" + strconv.Itoa(i) }
 
-func ProbeConfig(nodes []domain.Node, s domain.Settings, logPath string) *option.Options {
+func ProbeConfig(ctx context.Context, nodes []domain.Node, s domain.Settings, logPath string) (*option.Options, error) {
 	opts := &option.Options{
 		Log:   &option.LogOptions{Level: s.LogLevel, Output: logPath},
 		Route: &option.RouteOptions{AutoDetectInterface: true},
 	}
-	resolvedNodes := make([]domain.Node, len(nodes))
+	resolvedNodes := make([]*domain.Node, len(nodes))
+	jobs := make(chan int)
 	var wg sync.WaitGroup
-	for i, n := range nodes {
+	for range min(probeWorkers, len(nodes)) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if r, err := resolved(n, s); err == nil {
-				n = r
+			for i := range jobs {
+				n := nodes[i]
+				if r, err := resolved(ctx, n, s); err == nil {
+					resolvedNodes[i] = &r
+				}
 			}
-			resolvedNodes[i] = n
 		}()
 	}
+	for i := range nodes {
+		select {
+		case jobs <- i:
+		case <-ctx.Done():
+			close(jobs)
+			wg.Wait()
+			return nil, ctx.Err()
+		}
+	}
+	close(jobs)
 	wg.Wait()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	for i, n := range resolvedNodes {
-		if ep, obs, err := outbound.New(n, ProbeTag(i)); err == nil {
+		if n == nil {
+			continue
+		}
+		if ep, obs, err := outbound.New(*n, ProbeTag(i)); err == nil {
 			attach(opts, ep, obs)
 		}
 	}
-	return opts
+	return opts, nil
 }
 
 func attach(opts *option.Options, ep *option.Endpoint, obs []option.Outbound) {

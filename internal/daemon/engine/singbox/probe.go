@@ -16,8 +16,15 @@ import (
 	"github.com/luynrs/justray/internal/shared/domain"
 )
 
-func Probe(nodes []domain.Node, s domain.Settings, logPath string) (map[string]engine.Result, error) {
-	inst, err := sbox.New(sbox.Options{Options: *ProbeConfig(nodes, s, logPath), Context: Context(context.Background())})
+func Probe(ctx context.Context, nodes []domain.Node, s domain.Settings, logPath string) (map[string]engine.Result, error) {
+	if len(nodes) > maxProbeNodes {
+		return nil, fmt.Errorf("too many nodes to probe: %d (maximum %d)", len(nodes), maxProbeNodes)
+	}
+	opts, err := ProbeConfig(ctx, nodes, s, logPath)
+	if err != nil {
+		return nil, err
+	}
+	inst, err := sbox.New(sbox.Options{Options: *opts, Context: Context(ctx)})
 	if err != nil {
 		return nil, fmt.Errorf("build probe engine: %w", err)
 	}
@@ -28,7 +35,7 @@ func Probe(nodes []domain.Node, s domain.Settings, logPath string) (map[string]e
 	defer func() { _ = inst.Close() }()
 
 	out := map[string]engine.Result{}
-	sem := make(chan struct{}, 5) // workers
+	sem := make(chan struct{}, probeWorkers)
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	for i, n := range nodes {
@@ -39,13 +46,18 @@ func Probe(nodes []domain.Node, s domain.Settings, logPath string) (map[string]e
 			mu.Unlock()
 			continue
 		}
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			wg.Wait()
+			return nil, ctx.Err()
+		}
 		wg.Add(1)
-		sem <- struct{}{}
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			ms, err := delay(dialer, s.ProbeURL)
+			ms, err := delay(ctx, dialer, s.ProbeURL)
 			if err != nil {
 				forget(n.Server, s)
 			}
@@ -58,9 +70,15 @@ func Probe(nodes []domain.Node, s domain.Settings, logPath string) (map[string]e
 	return out, nil
 }
 
-func delay(dialer N.Dialer, url string) (int, error) {
+func delay(ctx context.Context, dialer N.Dialer, url string) (int, error) {
 	client := &http.Client{
 		Timeout: 5 * time.Second,
+		CheckRedirect: func(r *http.Request, _ []*http.Request) error {
+			if r.URL.Scheme != "https" {
+				return fmt.Errorf("probe redirect must use https")
+			}
+			return nil
+		},
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
 				return dialer.DialContext(ctx, N.NetworkTCP, M.ParseSocksaddr(addr))
@@ -70,7 +88,11 @@ func delay(dialer N.Dialer, url string) (int, error) {
 	defer client.CloseIdleConnections()
 
 	start := time.Now()
-	resp, err := client.Get(url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return 0, err
+	}
+	resp, err := client.Do(req)
 	ms := int(time.Since(start).Milliseconds())
 	if err != nil {
 		return ms, err

@@ -16,7 +16,7 @@ const (
 	DefaultTunMTU   = 9000
 	DefaultTunStack = "gvisor"
 	DefaultRefresh  = 6
-	DefaultProbeURL = "http://connectivitycheck.gstatic.com/generate_204"
+	DefaultProbeURL = "https://connectivitycheck.gstatic.com/generate_204"
 	TunInterface    = "justray"
 )
 
@@ -49,13 +49,12 @@ type General struct {
 }
 
 type Network struct {
-	KillSwitch string `yaml:"kill_switch,omitempty"` // on/off, empty = off
-	DNSHijack  string `yaml:"dns_hijack,omitempty"`  // on/off, empty = on
-	DNS        string `yaml:"dns,omitempty"`
-	IPVersion  string `yaml:"ip_version,omitempty"`
-	TunStack   string `yaml:"stack,omitempty"`
-	TunMTU     int    `yaml:"mtu,omitempty"`
-	TunStrict  string `yaml:"strict_route,omitempty"` // on/off, empty = off
+	DNSHijack string `yaml:"dns_hijack,omitempty"` // on/off, empty = on
+	DNS       string `yaml:"dns,omitempty"`
+	IPVersion string `yaml:"ip_version,omitempty"`
+	TunStack  string `yaml:"stack,omitempty"`
+	TunMTU    int    `yaml:"mtu,omitempty"`
+	TunStrict string `yaml:"strict_route,omitempty"` // on/off, empty = on
 }
 
 type Routing struct {
@@ -80,15 +79,14 @@ func (s Settings) Normalize() (Settings, error) {
 		one("stack", &s.TunStack, DefaultTunStack, TunStacks),
 		one("ip version", &s.IPVersion, "auto", IPVersions),
 		one("mode", &s.Mode, ProxyAll, Modes),
-		one("strict route", &s.TunStrict, "off", Toggle),
+		one("strict route", &s.TunStrict, "on", Toggle),
 		one("dns hijack", &s.DNSHijack, "on", Toggle),
 		one("block quic", &s.BlockQUIC, "off", Toggle),
 		one("local networks", &s.BypassLocal, "on", Toggle),
 		one("autostart", &s.Autostart, "off", Toggle),
 		one("emoji", &s.Emoji, "off", Toggle),
-		one("kill switch", &s.KillSwitch, "off", Toggle),
 		text("dns", &s.DNS, DefaultDNS, "an ip address", isAddr),
-		text("probe url", &s.ProbeURL, DefaultProbeURL, "an http url", isHTTPURL),
+		text("probe url", &s.ProbeURL, DefaultProbeURL, "an https url", isHTTPSURL),
 		canon(&s.Except),
 		canon(&s.Blocked),
 	} {
@@ -157,9 +155,9 @@ func isAddr(v string) bool {
 	return err == nil
 }
 
-func isHTTPURL(v string) bool {
+func isHTTPSURL(v string) bool {
 	u, err := url.Parse(v)
-	return err == nil && u.Host != "" && (u.Scheme == "http" || u.Scheme == "https")
+	return err == nil && u.Host != "" && u.Scheme == "https"
 }
 
 // ParseRule canonicalises a network, domain or program rule

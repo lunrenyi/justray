@@ -19,7 +19,7 @@ func TestEngineChanged(t *testing.T) {
 		"log level":      func(s *domain.Settings) { s.LogLevel = "debug" },
 		"mtu":            func(s *domain.Settings) { s.TunMTU = 1400 },
 		"stack":          func(s *domain.Settings) { s.TunStack = "system" },
-		"strict route":   func(s *domain.Settings) { s.TunStrict = "on" },
+		"strict route":   func(s *domain.Settings) { s.TunStrict = "off" },
 		"ip version":     func(s *domain.Settings) { s.IPVersion = "ipv4" },
 		"local networks": func(s *domain.Settings) { s.BypassLocal = "off" },
 		"block quic":     func(s *domain.Settings) { s.BlockQUIC = "on" },
@@ -36,11 +36,10 @@ func TestEngineChanged(t *testing.T) {
 	}
 
 	live := map[string]func(*domain.Settings){
-		"probe url":   func(s *domain.Settings) { s.ProbeURL = "https://example.com/204" },
-		"refresh":     func(s *domain.Settings) { s.RefreshEvery = 6 },
-		"kill switch": func(s *domain.Settings) { s.KillSwitch = "on" },
-		"autostart":   func(s *domain.Settings) { s.Autostart = "on" },
-		"emoji":       func(s *domain.Settings) { s.Emoji = "on" },
+		"probe url": func(s *domain.Settings) { s.ProbeURL = "https://example.com/204" },
+		"refresh":   func(s *domain.Settings) { s.RefreshEvery = 6 },
+		"autostart": func(s *domain.Settings) { s.Autostart = "on" },
+		"emoji":     func(s *domain.Settings) { s.Emoji = "on" },
 	}
 	for name, edit := range live {
 		next := base

@@ -1,11 +1,13 @@
 package subscription
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"io"
 	"mime"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -14,24 +16,39 @@ import (
 	"github.com/luynrs/justray/internal/shared/parser"
 )
 
-func (s *Service) fetch(rawURL string) ([]domain.Node, string, domain.Traffic, error) {
+func (s *Service) fetch(ctx context.Context, rawURL string) ([]domain.Node, string, domain.Traffic, error) {
 	var none domain.Traffic
+	if err := check(rawURL); err != nil {
+		return nil, "", none, err
+	}
+	if s.device.Get("X-Hwid") == "" {
+		return nil, "", none, fmt.Errorf("device id unavailable")
+	}
 
-	req, err := http.NewRequest(http.MethodGet, rawURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, "", none, err
 	}
 	req.Header = s.device.Clone()
+	if u, err := url.Parse(rawURL); err == nil {
+		req.Header.Set("X-Hwid", hash(s.device.Get("X-Hwid")+u.Hostname()))
+	}
 
 	client := http.Client{
 		Timeout: 20 * time.Second,
 		CheckRedirect: func(r *http.Request, via []*http.Request) error {
+			if r.URL.Scheme != "https" {
+				return fmt.Errorf("subscription redirect must use https")
+			}
 			if len(via) >= 10 {
 				return fmt.Errorf("stopped after 10 redirects")
 			}
 			if r.URL.Host != via[0].URL.Host {
 				for k := range s.device {
 					r.Header.Del(k)
+				}
+				if hwid := s.device.Get("X-Hwid"); hwid != "" {
+					r.Header.Set("X-Hwid", hash(hwid+r.URL.Hostname()))
 				}
 			}
 			return nil
@@ -58,6 +75,9 @@ func (s *Service) fetch(rawURL string) ([]domain.Node, string, domain.Traffic, e
 	}
 	nodes, err := parser.ParseSubscription(body)
 	if err != nil {
+		return nil, "", none, err
+	}
+	if err := validateNodes(nodes); err != nil {
 		return nil, "", none, err
 	}
 	return nodes, title(resp.Header), usage(resp.Header), nil

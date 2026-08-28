@@ -2,6 +2,7 @@
 package subscription
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -42,13 +43,13 @@ func (s *Service) List() ([]rpc.Sub, error) {
 	return out, nil
 }
 
-func (s *Service) Add(rawURL string) (rpc.Sub, error) {
+func (s *Service) Add(ctx context.Context, rawURL string) (rpc.Sub, error) {
 	if err := check(rawURL); err != nil {
 		return rpc.Sub{}, err
 	}
 
 	sub := store.Subscription{ID: store.NewID(), URL: rawURL}
-	if err := s.fill(&sub); err != nil {
+	if err := s.fill(ctx, &sub); err != nil {
 		return rpc.Sub{}, err
 	}
 	if sub.Name == "" {
@@ -111,7 +112,10 @@ func check(rawURL string) error {
 		return nil
 	}
 	u, err := url.Parse(rawURL)
-	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+	if err != nil || u.Host == "" || u.Scheme != "https" {
+		if err == nil && u.Scheme == "http" {
+			return fmt.Errorf("subscription must use https")
+		}
 		return fmt.Errorf("%q is not a url or a share link", rawURL)
 	}
 	return nil

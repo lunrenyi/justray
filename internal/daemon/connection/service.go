@@ -1,7 +1,6 @@
 package connection
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -35,6 +34,7 @@ type Service struct {
 	probes   map[string]engine.Result
 
 	watchers map[chan Status]struct{}
+	restart  chan struct{}
 }
 
 func New(dir string, st store.Disk, newEngine engine.New, probe engine.Probe, logger *log.Logger) *Service {
@@ -58,6 +58,7 @@ func New(dir string, st store.Disk, newEngine engine.New, probe engine.Probe, lo
 		settings:  settings,
 		probes:    map[string]engine.Result{},
 		watchers:  map[chan Status]struct{}{},
+		restart:   make(chan struct{}, 1),
 	}
 }
 
@@ -108,18 +109,7 @@ func (s *Service) SetSettings(in domain.Settings) (Status, error) {
 	cur := s.session
 	s.mu.Unlock()
 
-	if cur.blocked {
-		switch {
-		case in.KillSwitch != "on":
-			err = s.stop()
-		case engineChanged(old, in):
-			err = s.clear()
-		}
-		return s.finish(err)
-	}
-
 	if cur.eng == nil || !engineChanged(old, in) {
-		s.arm()
 		return s.finish(nil)
 	}
 	if err := s.stop(); err != nil {
@@ -131,7 +121,6 @@ func (s *Service) SetSettings(in domain.Settings) (Status, error) {
 func engineChanged(x, y domain.Settings) bool {
 	x.ProbeURL, y.ProbeURL = "", ""
 	x.RefreshEvery, y.RefreshEvery = 0, 0
-	x.KillSwitch, y.KillSwitch = "", ""
 	x.Autostart, y.Autostart = "", ""
 	x.Emoji, y.Emoji = "", ""
 	return !x.Equal(y)
@@ -179,16 +168,6 @@ func (s *Service) SetTun(enable bool) (Status, error) {
 	cur := s.session
 	s.mu.Unlock()
 
-	// the kill switch is only a TUN; turning TUN off takes it down with it
-	if cur.blocked {
-		if !enable {
-			if err := s.stop(); err != nil {
-				return s.finish(err)
-			}
-		}
-		return s.commitTun(enable)
-	}
-
 	var err error
 	if cur.eng != nil && enable != cur.tun {
 		if enable {
@@ -200,17 +179,9 @@ func (s *Service) SetTun(enable bool) (Status, error) {
 
 	if err != nil && enable && elevate.Needed(err) {
 		s.setErr(rpc.ErrElevate)
-		go elevate.Tun(s.log, s.dir)
+		s.requestRestart()
 		return s.finish(rpc.ErrElevate)
 	}
-	if err != nil && enable && s.current().KillSwitch == "on" {
-		closeErr := s.stop()
-		if closeErr == nil {
-			closeErr = s.block()
-		}
-		err = errors.Join(err, closeErr)
-	}
-
 	s.mu.Lock()
 	if err == nil {
 		s.session.tun = enable
@@ -223,6 +194,18 @@ func (s *Service) SetTun(enable bool) (Status, error) {
 	}
 
 	return s.finish(err)
+}
+
+func (s *Service) RestartRequested() <-chan struct{} { return s.restart }
+
+func (s *Service) requestRestart() {
+	if s.restart == nil {
+		return
+	}
+	select {
+	case s.restart <- struct{}{}:
+	default:
+	}
 }
 
 func (s *Service) commitTun(enable bool) (Status, error) {
@@ -260,8 +243,8 @@ func (s *Service) Status() Status {
 }
 
 func (s *Service) status() Status {
-	st := Status{Port: s.settings.Port, Tun: s.tun, LastErr: s.lastErr, Blocked: s.session.blocked}
-	if s.session.eng != nil && !s.session.blocked {
+	st := Status{Port: s.settings.Port, Tun: s.tun, LastErr: s.lastErr}
+	if s.session.eng != nil {
 		st.Connected = true
 		st.NodeID, st.NodeName = s.session.node.ID, s.session.node.Name
 		st.Uptime = int64(time.Since(s.session.started).Seconds())

@@ -15,12 +15,22 @@ func (s *Server) AutoRefresh(done <-chan struct{}) {
 		if every == 0 {
 			continue
 		}
-		for _, id := range s.stale(every) {
+		stale := s.stale(every)
+		active := make(map[string]struct{}, len(stale))
+		for _, id := range stale {
+			active[id] = struct{}{}
+		}
+		for id := range tried {
+			if _, ok := active[id]; !ok {
+				delete(tried, id)
+			}
+		}
+		for _, id := range stale {
 			if time.Since(tried[id]) < 15*time.Minute {
 				continue
 			}
 			tried[id] = time.Now()
-			if _, err := s.subs.Refresh(id); err != nil {
+			if _, err := s.subs.Refresh(s.ctx, id); err != nil {
 				s.log.Print(err)
 			}
 		}

@@ -16,7 +16,6 @@ func (s *Service) Restore() {
 	s.opMu.Lock()
 	defer s.opMu.Unlock()
 	defer s.broadcast()
-	defer s.arm()
 
 	id, err := s.store.Active()
 	if err != nil || id == "" {
@@ -75,12 +74,15 @@ func (s *Service) ForgetIfRemoved(subID string, nodes []domain.Node) {
 }
 
 func (s *Service) start(n domain.Node, sub string) (err error) {
+	if n.TLS != nil && n.TLS.Insecure {
+		return errors.New("insecure TLS node is not allowed")
+	}
 	s.mu.Lock()
 	tun, cur := s.tun, s.session
 	s.mu.Unlock()
 
 	eng := cur.eng
-	hot := cur.eng != nil && !cur.blocked
+	hot := cur.eng != nil
 	if hot {
 		err = cur.eng.Swap(n)
 		if err == nil && tun != cur.tun {
@@ -101,17 +103,17 @@ func (s *Service) start(n domain.Node, sub string) (err error) {
 		}
 
 		eng = s.newEngine(s.current(), rpc.EngineLog(s.dir))
-		if err = eng.Start(n, tun); err != nil {
+		if eng == nil {
+			err = errors.New("initialize engine: engine is nil")
+		} else if err = eng.Start(n, tun); err != nil {
 			err = errors.Join(err, s.discard(eng))
 		}
 	}
 	if err != nil {
 		if tun && elevate.Needed(err) {
 			s.persistActive(n.ID)
-			go elevate.Tun(s.log, s.dir)
+			s.requestRestart()
 			err = rpc.ErrElevate
-		} else if !hot && tun && s.current().KillSwitch == "on" {
-			err = errors.Join(err, s.block())
 		}
 		s.setErr(err)
 		return err
@@ -128,97 +130,44 @@ func (s *Service) start(n domain.Node, sub string) (err error) {
 }
 
 func (s *Service) stop() error {
-	if err := s.closeCleanup(); err != nil {
-		return err
-	}
 	s.mu.Lock()
-	eng := s.session.eng
+	cleanup, eng := s.cleanup, s.session.eng
 	s.mu.Unlock()
-	if eng == nil {
-		return nil
+	var errs []error
+	if cleanup != nil {
+		if err := cleanup.Close(); err != nil {
+			errs = append(errs, err)
+		} else {
+			s.mu.Lock()
+			if s.cleanup == cleanup {
+				s.cleanup = nil
+			}
+			s.mu.Unlock()
+		}
 	}
-	if err := eng.Close(); err != nil {
-		return err
+	if eng != nil && eng != cleanup {
+		if err := eng.Close(); err != nil {
+			errs = append(errs, err)
+		} else {
+			s.mu.Lock()
+			if s.session.eng == eng {
+				s.session = session{}
+			}
+			s.mu.Unlock()
+		}
 	}
-	s.mu.Lock()
-	s.session = session{}
-	s.mu.Unlock()
-	return nil
+	return errors.Join(errs...)
 }
 
 func (s *Service) clear() error {
 	s.mu.Lock()
 	s.lastErr = ""
-	block := s.tun && s.settings.KillSwitch == "on"
 	s.mu.Unlock()
 
-	if !block {
-		if err := s.stop(); err != nil {
-			return err
-		}
-	} else if err := s.block(); err != nil {
+	if err := s.stop(); err != nil {
 		return err
 	}
 	s.persistActive("")
-	return nil
-}
-
-func (s *Service) arm() {
-	s.mu.Lock()
-	idle := s.session.eng == nil && s.tun && s.settings.KillSwitch == "on"
-	s.mu.Unlock()
-	if idle {
-		if err := s.block(); err != nil {
-			s.log.Print(err)
-			s.setErr(err)
-		}
-	}
-}
-
-func (s *Service) block() error {
-	if err := s.closeCleanup(); err != nil {
-		return err
-	}
-
-	eng := s.newEngine(s.current(), rpc.EngineLog(s.dir))
-	if err := eng.Stage(); err != nil {
-		return errors.Join(err, s.discard(eng))
-	}
-
-	s.mu.Lock()
-	old := s.session.eng
-	s.mu.Unlock()
-
-	if old != nil {
-		if err := old.Close(); err != nil {
-			return errors.Join(err, s.discard(eng))
-		}
-		s.mu.Lock()
-		s.session = session{}
-		s.mu.Unlock()
-	}
-	if err := eng.Block(); err != nil {
-		return errors.Join(err, s.discard(eng))
-	}
-	s.mu.Lock()
-	s.session = session{eng: eng, tun: true, blocked: true}
-	s.mu.Unlock()
-	return nil
-}
-
-func (s *Service) closeCleanup() error {
-	s.mu.Lock()
-	eng := s.cleanup
-	s.mu.Unlock()
-	if eng == nil {
-		return nil
-	}
-	if err := eng.Close(); err != nil {
-		return err
-	}
-	s.mu.Lock()
-	s.cleanup = nil
-	s.mu.Unlock()
 	return nil
 }
 

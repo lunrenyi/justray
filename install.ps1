@@ -79,9 +79,14 @@ try {
 	New-Item -ItemType Directory -Force -Path $dir | Out-Null
 
 	if (Get-Process justrayd -ErrorAction SilentlyContinue) {
+		if (Test-Path "$dir\justray.exe") {
+			& "$dir\justray.exe" down
+		}
+		Stop-Process -Name justrayd -ErrorAction SilentlyContinue
+		while (Get-Process justrayd -ErrorAction SilentlyContinue) {
+			Start-Sleep -Milliseconds 100
+		}
 		$restartDaemon = $true
-		Stop-Process -Name justrayd -Force
-		Start-Sleep -Milliseconds 300
 	}
 
 	Copy-Item "$out\justrayd.exe" "$dir\justrayd.exe" -Force
@@ -104,7 +109,7 @@ try {
 finally {
 	Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
 
-	if ($restartDaemon -and (Test-Path "$dir\justrayd.exe")) {
+	if ($restartDaemon -and -not (Get-Process justrayd -ErrorAction SilentlyContinue) -and (Test-Path "$dir\justrayd.exe")) {
 		Start-Process "$dir\justrayd.exe" -WindowStyle Hidden
 	}
 }

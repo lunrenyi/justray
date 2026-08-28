@@ -1,6 +1,7 @@
 package subscription
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"sync"
@@ -9,24 +10,38 @@ import (
 	"github.com/luynrs/justray/internal/daemon/store"
 	"github.com/luynrs/justray/internal/shared/domain"
 	"github.com/luynrs/justray/internal/shared/parser"
+	"github.com/luynrs/justray/internal/shared/parser/protocols"
 	"github.com/luynrs/justray/internal/shared/rpc"
 )
 
-func (s *Service) RefreshAll() ([]rpc.Sub, error) {
+func (s *Service) RefreshAll(ctx context.Context) ([]rpc.Sub, error) {
 	subs, err := s.store.Subscriptions()
 	if err != nil {
 		return nil, err
 	}
 
 	errs := make([]error, len(subs))
+	jobs := make(chan int)
 	var wg sync.WaitGroup
-	for i := range subs {
+	for range min(8, len(subs)) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			errs[i] = s.fill(&subs[i])
+			for i := range jobs {
+				errs[i] = s.fill(ctx, &subs[i])
+			}
 		}()
 	}
+	for i := range subs {
+		select {
+		case jobs <- i:
+		case <-ctx.Done():
+			close(jobs)
+			wg.Wait()
+			return nil, ctx.Err()
+		}
+	}
+	close(jobs)
 	wg.Wait()
 
 	out := make([]rpc.Sub, len(subs))
@@ -54,7 +69,7 @@ func (s *Service) RefreshAll() ([]rpc.Sub, error) {
 	return out, nil
 }
 
-func (s *Service) Refresh(id string) (rpc.Sub, error) {
+func (s *Service) Refresh(ctx context.Context, id string) (rpc.Sub, error) {
 	subs, err := s.store.Subscriptions()
 	if err != nil {
 		return rpc.Sub{}, err
@@ -63,7 +78,7 @@ func (s *Service) Refresh(id string) (rpc.Sub, error) {
 	if i < 0 {
 		return rpc.Sub{}, fmt.Errorf("subscription %q not found", id)
 	}
-	if err := s.fill(&subs[i]); err != nil {
+	if err := s.fill(ctx, &subs[i]); err != nil {
 		return rpc.Sub{}, err
 	}
 
@@ -88,24 +103,54 @@ func (s *Service) merge(updated []store.Subscription) error {
 	return s.store.Save(subs)
 }
 
-func (s *Service) fill(sub *store.Subscription) error {
+func (s *Service) fill(ctx context.Context, sub *store.Subscription) error {
 	if parser.IsLink(sub.URL) {
 		n, err := parser.ParseURI(sub.URL)
 		if err != nil {
 			return err
 		}
-		sub.Nodes, sub.Name, sub.Traffic = []domain.Node{n}, n.Name, domain.Traffic{}
+		nodes := []domain.Node{n}
+		if err := validateNodes(nodes); err != nil {
+			return err
+		}
+		preserveIDs(nodes, sub.Nodes)
+		sub.Nodes, sub.Name, sub.Traffic = nodes, n.Name, domain.Traffic{}
 		sub.UpdatedAt = time.Now().UTC()
 		return nil
 	}
 
-	nodes, name, traffic, err := s.fetch(sub.URL)
+	nodes, name, traffic, err := s.fetch(ctx, sub.URL)
 	if err != nil {
 		return err
 	}
+	preserveIDs(nodes, sub.Nodes)
 	sub.Nodes, sub.Traffic, sub.UpdatedAt = nodes, traffic, time.Now().UTC()
 	if name != "" { // change name if it changed on server
 		sub.Name = name
 	}
 	return nil
+}
+
+func validateNodes(nodes []domain.Node) error {
+	for _, n := range nodes {
+		if n.TLS != nil && n.TLS.Insecure {
+			return fmt.Errorf("subscription contains an insecure node")
+		}
+	}
+	return nil
+}
+
+func preserveIDs(nodes, old []domain.Node) {
+	ids := make(map[string]string, len(old))
+	for _, previous := range old {
+		id := protocols.NodeID(previous)
+		if _, ok := ids[id]; !ok {
+			ids[id] = previous.ID
+		}
+	}
+	for i := range nodes {
+		if id, ok := ids[nodes[i].ID]; ok {
+			nodes[i].ID = id
+		}
+	}
 }

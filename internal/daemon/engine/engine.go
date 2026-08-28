@@ -1,11 +1,13 @@
 package engine
 
-import "github.com/luynrs/justray/internal/shared/domain"
+import (
+	"context"
+
+	"github.com/luynrs/justray/internal/shared/domain"
+)
 
 type Engine interface {
 	Start(n domain.Node, tun bool) error
-	Stage() error
-	Block() error
 	Swap(n domain.Node) error
 	TunAdd() error
 	TunRemove() error
@@ -19,4 +21,4 @@ type Result struct {
 
 type New func(s domain.Settings, logPath string) Engine
 
-type Probe func(nodes []domain.Node, s domain.Settings, logPath string) (map[string]Result, error)
+type Probe func(context.Context, []domain.Node, domain.Settings, string) (map[string]Result, error)

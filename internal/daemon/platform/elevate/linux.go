@@ -5,7 +5,7 @@ package elevate
 import (
 	"encoding/binary"
 	"errors"
-	"log"
+	"fmt"
 	"os"
 	"os/exec"
 	"syscall"
@@ -16,11 +16,10 @@ func Needed(err error) bool {
 	return err != nil && errors.Is(err, os.ErrPermission) && !hasNetAdmin(self)
 }
 
-func Tun(logger *log.Logger, dir string) {
+func Restart(dir string) error {
 	target, err := cachedCopy(dir)
 	if err != nil {
-		logger.Print(err)
-		return
+		return err
 	}
 
 	if !hasNetAdmin(target) {
@@ -29,14 +28,15 @@ func Tun(logger *log.Logger, dir string) {
 			elevate = "sudo"
 		}
 		if out, err := exec.Command(elevate, "setcap", "cap_net_admin+ep", target).CombinedOutput(); err != nil {
-			logger.Printf("%v: %s", err, out)
-			return
+			return fmt.Errorf("%v: %s", err, out)
 		}
 	}
 
-	if err := syscall.Exec(target, os.Args, os.Environ()); err != nil {
-		logger.Print(err)
+	cmd := exec.Command(target, os.Args[1:]...)
+	if err := cmd.Start(); err != nil {
+		return err
 	}
+	return cmd.Process.Release()
 }
 
 func hasNetAdmin(path string) bool {

@@ -23,6 +23,11 @@ func (s *Server) handle(conn net.Conn) {
 		s.watch(conn)
 		return
 	}
+	if req.Method == "Shutdown" {
+		reply(conn, nil, nil)
+		s.requestShutdown()
+		return
+	}
 	_ = conn.SetDeadline(time.Time{})
 	result, err := s.dispatch(req)
 	_ = conn.SetDeadline(time.Now().Add(rpc.IdleTimeout))
@@ -41,19 +46,19 @@ func (s *Server) dispatch(req rpc.Req) (any, error) {
 	case "Subs":
 		return s.subs.List()
 	case "AddSub":
-		return s.subs.Add(a.URL)
+		return s.subs.Add(s.ctx, a.URL)
 	case "RemoveSub":
 		return nil, s.removeSub(a.ID)
 	case "MoveSub":
 		return nil, s.subs.MoveSub(a.ID, a.Dir)
 	case "RefreshAll":
-		return s.subs.RefreshAll()
+		return s.subs.RefreshAll(s.ctx)
 	case "Refresh":
-		return s.subs.Refresh(a.ID)
+		return s.subs.Refresh(s.ctx, a.ID)
 	case "Nodes":
 		return s.conn.Nodes()
 	case "Probe":
-		return s.conn.Probe(a.Sub, a.ID)
+		return s.conn.Probe(s.ctx, a.Sub, a.ID)
 	case "Connect":
 		return s.conn.Connect(a.ID)
 	case "Disconnect":
@@ -96,6 +101,8 @@ func (s *Server) watch(conn net.Conn) {
 	}
 	for {
 		select {
+		case <-s.ctx.Done():
+			return
 		case <-gone:
 			return
 		case st := <-ch:
