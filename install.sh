@@ -5,21 +5,48 @@ set -eu
 repo="https://github.com/luynrs/justray"
 version="${JUSTRAY_VERSION:-latest}"
 
-die() {
-	echo "justray: $*" >&2
+if [ -t 1 ]; then
+	c_clr="\r\033[K"
+else
+	c_clr=""
+fi
+
+step() {
+	if [ -n "$c_clr" ]; then
+		printf "• %s" "$1"
+	else
+		printf "• %s\n" "$1"
+	fi
+}
+
+done_msg() {
+	if [ -n "$c_clr" ]; then
+		printf "%b✓ %s\n" "$c_clr" "$1"
+	else
+		printf "✓ %s\n" "$1"
+	fi
+}
+
+fail() {
+	if [ -n "$c_clr" ]; then
+		printf "%b" "$c_clr" >&2
+	fi
+	first=$(printf %.1s "$1" | tr '[:lower:]' '[:upper:]')
+	rest=$(printf %s "$1" | cut -c 2-)
+	printf "✗ %s%s\n" "$first" "$rest" >&2
 	exit 1
 }
 
 case "$(uname -s)" in
 	Linux) os=linux ;;
 	Darwin) os=darwin ;;
-	*) die "unsupported OS: $(uname -s)" ;;
+	*) fail "unsupported OS: $(uname -s)" ;;
 esac
 
 case "$(uname -m)" in
 	x86_64|amd64) arch=amd64 ;;
 	arm64|aarch64) arch=arm64 ;;
-	*) die "unsupported arch: $(uname -m)" ;;
+	*) fail "unsupported arch: $(uname -m)" ;;
 esac
 
 if [ "$version" = latest ]; then
@@ -31,34 +58,27 @@ fi
 if [ -n "${JUSTRAY_INSTALL_DIR:-}" ]; then
 	dir="$JUSTRAY_INSTALL_DIR"
 else
-	dir=
-
-	for candidate in "$HOME/.local/bin" "$HOME/bin" /usr/local/bin; do
+	dir="$HOME/.local/bin"
+	for c in "$HOME/.local/bin" "$HOME/bin" /usr/local/bin; do
 		case ":$PATH:" in
-			*":$candidate:"*)
-				dir="$candidate"
+			*":$c:"*)
+				dir="$c"
 				break
 				;;
 		esac
 	done
-
-	[ -n "$dir" ] || die "no suitable install directory found in PATH"
 fi
 
-sudo=
-if ! mkdir -p "$dir" 2>/dev/null || [ ! -w "$dir" ]; then
-	command -v sudo >/dev/null 2>&1 || die "cannot write to $dir"
-	sudo=sudo
-	$sudo mkdir -p "$dir"
-fi
+mkdir -p "$dir" 2>/dev/null || fail "cannot create directory $dir"
+[ -w "$dir" ] || fail "cannot write to $dir"
 
 tmp=$(mktemp -d)
-restart_daemon=0
+restart=0
 
 cleanup() {
 	rm -rf "$tmp"
 
-	if [ "$restart_daemon" -eq 1 ] && [ -x "$dir/justrayd" ]; then
+	if [ "$restart" -eq 1 ] && [ -x "$dir/justrayd" ]; then
 		nohup "$dir/justrayd" >/dev/null 2>&1 </dev/null &
 	fi
 }
@@ -66,59 +86,118 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 1' HUP INT TERM
 
-echo "justray: fetching release"
+step "Fetching release..."
 
 checksums="$tmp/checksums.txt"
-curl -fsSL --retry 3 "$base/checksums.txt" -o "$checksums"
+curl -fsSL --retry 3 "$base/checksums.txt" -o "$checksums" 2>/dev/null || fail "failed to fetch release metadata"
 
 line=$(
-	awk -v suffix="_${os}_${arch}.tar.gz" '
-		$2 ~ ("justray_.*" suffix "$") { print $1, $2 }
+	awk -v s="_${os}_${arch}.tar.gz" '
+		$2 ~ ("justray_.*" s "$") { print $1, $2 }
 	' "$checksums"
 )
 
 set -- $line
-[ "$#" -eq 2 ] || die "expected exactly one release for ${os}_${arch}"
+[ "$#" -eq 2 ] || fail "expected exactly one release for ${os}_${arch}"
 
 expected="$1"
 archive="$2"
 
-echo "justray: downloading $archive"
+tag=$(echo "$archive" | sed -E 's/^justray_(.+)_[^_]+_[^_]+\.tar\.gz$/\1/')
+done_msg "Found v$tag for ${os}/${arch}"
 
-curl -fsSL --retry 3 "$base/$archive" -o "$tmp/$archive"
+step "Downloading $archive..."
+
+curl -fsSL --retry 3 "$base/$archive" -o "$tmp/$archive" 2>/dev/null || fail "failed to download $archive"
 
 if command -v sha256sum >/dev/null 2>&1; then
-	actual=$(sha256sum "$tmp/$archive" | awk '{print $1}')
+	actual=$(sha256sum "$tmp/$archive" 2>/dev/null | awk '{print $1}')
 elif command -v shasum >/dev/null 2>&1; then
-	actual=$(shasum -a 256 "$tmp/$archive" | awk '{print $1}')
+	actual=$(shasum -a 256 "$tmp/$archive" 2>/dev/null | awk '{print $1}')
 else
-	die "sha256sum or shasum is required"
+	fail "sha256sum or shasum is required"
 fi
 
-[ "$actual" = "$expected" ] || die "checksum mismatch"
+[ "$actual" = "$expected" ] || fail "checksum mismatch"
 
-mkdir "$tmp/out"
-tar -xzf "$tmp/$archive" -C "$tmp/out"
+done_msg "Verified checksum"
 
-[ -f "$tmp/out/justray" ] || die "archive is missing justray"
-[ -f "$tmp/out/justrayd" ] || die "archive is missing justrayd"
+mkdir -p "$tmp/out"
+tar -xzf "$tmp/$archive" -C "$tmp/out" 2>/dev/null || fail "failed to extract archive"
 
-if command -v pgrep >/dev/null 2>&1 &&
-   pgrep -u "$(id -u)" -x justrayd >/dev/null 2>&1; then
-	if [ -x "$dir/justray" ]; then
-		"$dir/justray" down
-	elif command -v jray >/dev/null 2>&1; then
-		jray down
+[ -f "$tmp/out/justray" ] || fail "archive is missing justray"
+[ -f "$tmp/out/justrayd" ] || fail "archive is missing justrayd"
+
+step "Installing..."
+
+pids=""
+if command -v pgrep >/dev/null 2>&1; then
+	pids=$(pgrep -u "$(id -u)" -x justrayd 2>/dev/null || true)
+fi
+
+target_pids=""
+for p in $pids; do
+	exe=""
+	if [ -f "/proc/$p/exe" ]; then
+		exe=$(readlink -f "/proc/$p/exe" 2>/dev/null || true)
+	elif command -v lsof >/dev/null 2>&1; then
+		exe=$(lsof -p "$p" -a -d txt -Fn 2>/dev/null | sed -n 's/^n//p' || true)
 	fi
-	pkill -TERM -u "$(id -u)" -x justrayd || true
-	while pgrep -u "$(id -u)" -x justrayd >/dev/null 2>&1; do
-		sleep 0.1 2>/dev/null || sleep 1
+
+	if [ -z "$exe" ] || [ "$exe" = "$dir/justrayd" ]; then
+		target_pids="$target_pids $p"
+	fi
+done
+
+if [ -n "$target_pids" ]; then
+	restart=1
+	if [ -x "$dir/justray" ]; then
+		"$dir/justray" down >/dev/null 2>&1 || true
+	elif command -v jray >/dev/null 2>&1; then
+		jray down >/dev/null 2>&1 || true
+	fi
+
+	for p in $target_pids; do
+		kill -TERM "$p" 2>/dev/null || true
 	done
-	restart_daemon=1
+
+	t=0
+	while [ "$t" -lt 30 ]; do
+		alive=0
+		for p in $target_pids; do
+			kill -0 "$p" 2>/dev/null && alive=1 && break
+		done
+		[ "$alive" -eq 0 ] && break
+		sleep 0.1 2>/dev/null || sleep 1
+		t=$((t + 1))
+	done
+
+	for p in $target_pids; do
+		if kill -0 "$p" 2>/dev/null; then
+			kill -KILL "$p" 2>/dev/null || true
+		fi
+	done
 fi
 
-$sudo install -m 755 "$tmp/out/justrayd" "$dir/justrayd"
-$sudo install -m 755 "$tmp/out/justray" "$dir/justray"
-$sudo ln -sf justray "$dir/jray"
+install -m 755 "$tmp/out/justrayd" "$dir/justrayd" 2>/dev/null || cp -f "$tmp/out/justrayd" "$dir/justrayd" 2>/dev/null || fail "failed to install justrayd"
+chmod 755 "$dir/justrayd" 2>/dev/null || true
 
-echo "justray: installed justray, jray, justrayd to $dir"
+install -m 755 "$tmp/out/justray" "$dir/justray" 2>/dev/null || cp -f "$tmp/out/justray" "$dir/justray" 2>/dev/null || fail "failed to install justray"
+chmod 755 "$dir/justray" 2>/dev/null || true
+
+ln -sf justray "$dir/jray" 2>/dev/null || cp -f "$dir/justray" "$dir/jray" 2>/dev/null || fail "failed to link jray"
+
+done_msg "Installed to $dir"
+
+case ":$PATH:" in
+	*":$dir:"*)
+		printf "\nTo get started, run jray in a new terminal window\n"
+		;;
+	*)
+		path_display="$dir"
+		case "$dir" in
+			"$HOME"/*) path_display="\$HOME/${dir#"$HOME"/}" ;;
+		esac
+		printf "\nTo get started, add %s to your PATH:\n  export PATH=\"%s:\$PATH\"\n\nThen run jray\n" "$dir" "$path_display"
+		;;
+esac

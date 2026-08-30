@@ -11,6 +11,41 @@ $dir = if ($env:JUSTRAY_INSTALL_DIR) {
 	Join-Path $env:LOCALAPPDATA "justray"
 }
 
+$isTty = [Environment]::UserInteractive -and -not [Console]::IsOutputRedirected
+
+function clear_line() {
+	if ($isTty) {
+		try {
+			[Console]::SetCursorPosition(0, [Console]::CursorTop)
+			Write-Host (" " * [Console]::BufferWidth) -NoNewline
+			[Console]::SetCursorPosition(0, [Console]::CursorTop)
+		} catch {}
+	}
+}
+
+function step($msg) {
+	if ($isTty) {
+		clear_line
+		Write-Host "• $msg" -NoNewline
+	} else {
+		Write-Host "• $msg"
+	}
+}
+
+function done($msg) {
+	clear_line
+	Write-Host "✓ $msg"
+}
+
+function fail($msg) {
+	clear_line
+	if ($msg.Length -gt 0) {
+		$msg = $msg.Substring(0, 1).ToUpper() + $msg.Substring(1)
+	}
+	[Console]::Error.WriteLine("✗ $msg")
+	exit 1
+}
+
 $nativeArch = if ($env:PROCESSOR_ARCHITEW6432) {
 	$env:PROCESSOR_ARCHITEW6432
 } else {
@@ -20,7 +55,7 @@ $nativeArch = if ($env:PROCESSOR_ARCHITEW6432) {
 $arch = switch ($nativeArch) {
 	"AMD64" { "amd64" }
 	"ARM64" { "arm64" }
-	default { throw "justray: unsupported arch: $nativeArch" }
+	default { fail "unsupported arch: $nativeArch" }
 }
 
 $base = if ($version -eq "latest") {
@@ -33,16 +68,32 @@ if ($PSVersionTable.PSVersion.Major -lt 6) {
 	[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 }
 
+function download($uri, $out) {
+	for ($i = 1; $i -le 3; $i++) {
+		try {
+			Invoke-WebRequest -Uri $uri -OutFile $out -UseBasicParsing
+			return
+		} catch {
+			if ($i -eq 3) { throw $_ }
+			Start-Sleep -Seconds (1 * $i)
+		}
+	}
+}
+
 $tmp = Join-Path ([IO.Path]::GetTempPath()) ("justray-" + [guid]::NewGuid())
-$restartDaemon = $false
+$restart = $false
 
 New-Item -ItemType Directory -Path $tmp | Out-Null
 
 try {
-	Write-Host "justray: fetching release"
+	step "Fetching release..."
 
 	$checksums = Join-Path $tmp "checksums.txt"
-	Invoke-WebRequest "$base/checksums.txt" -OutFile $checksums -UseBasicParsing
+	try {
+		download "$base/checksums.txt" $checksums
+	} catch {
+		fail "failed to fetch release metadata"
+	}
 
 	$lines = @(
 		Get-Content $checksums |
@@ -52,48 +103,107 @@ try {
 	)
 
 	if ($lines.Count -ne 1) {
-		throw "justray: expected exactly one release for windows_$arch"
+		fail "expected exactly one release for windows_$arch"
 	}
 
 	$hash, $archive = $lines[0].Trim() -split '\s+', 2
 	$archive = $archive.TrimStart("*")
 
-	Write-Host "justray: downloading $archive"
+	$tag = if ($archive -match "^justray_(.+)_[^_]+_[^_]+\.zip$") { $Matches[1] } else { $version }
+	done "Found v$tag for windows/$arch"
+
+	step "Downloading $archive..."
 
 	$zip = Join-Path $tmp $archive
-	Invoke-WebRequest "$base/$archive" -OutFile $zip -UseBasicParsing
-
-	if ((Get-FileHash $zip -Algorithm SHA256).Hash -ne $hash) {
-		throw "justray: checksum mismatch"
+	try {
+		download "$base/$archive" $zip
+	} catch {
+		fail "failed to download $archive"
 	}
 
+	if ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne $hash.ToLowerInvariant()) {
+		fail "checksum mismatch"
+	}
+
+	done "Verified checksum"
+
 	$out = Join-Path $tmp "out"
-	Expand-Archive $zip -DestinationPath $out -Force
+	try {
+		Expand-Archive $zip -DestinationPath $out -Force
+	} catch {
+		fail "failed to extract archive"
+	}
 
 	foreach ($exe in "justray.exe", "justrayd.exe") {
 		if (-not (Test-Path (Join-Path $out $exe) -PathType Leaf)) {
-			throw "justray: archive is missing $exe"
+			fail "archive is missing $exe"
 		}
 	}
 
-	New-Item -ItemType Directory -Force -Path $dir | Out-Null
+	step "Installing..."
 
-	if (Get-Process justrayd -ErrorAction SilentlyContinue) {
+	$daemonExe = Join-Path $dir "justrayd.exe"
+	$daemons = @(Get-Process justrayd -ErrorAction SilentlyContinue | Where-Object {
+		try { $_.Path -eq $daemonExe } catch { $true }
+	})
+
+	if ($daemons.Count -gt 0) {
+		$restart = $true
 		if (Test-Path "$dir\justray.exe") {
-			& "$dir\justray.exe" down
+			& "$dir\justray.exe" down *>$null
+		} elseif (Get-Command jray -ErrorAction SilentlyContinue) {
+			& (Get-Command jray).Source down *>$null
 		}
-		Stop-Process -Name justrayd -ErrorAction SilentlyContinue
-		while (Get-Process justrayd -ErrorAction SilentlyContinue) {
+
+		$daemons | Stop-Process -ErrorAction SilentlyContinue
+		$sw = [Diagnostics.Stopwatch]::StartNew()
+		while ($sw.ElapsedMilliseconds -lt 3000) {
+			$remaining = @(Get-Process justrayd -ErrorAction SilentlyContinue | Where-Object {
+				try { $_.Path -eq $daemonExe } catch { $true }
+			})
+			if ($remaining.Count -eq 0) { break }
 			Start-Sleep -Milliseconds 100
 		}
-		$restartDaemon = $true
+
+		$remaining = @(Get-Process justrayd -ErrorAction SilentlyContinue | Where-Object {
+			try { $_.Path -eq $daemonExe } catch { $true }
+		})
+		if ($remaining.Count -gt 0) {
+			$remaining | Stop-Process -Force -ErrorAction SilentlyContinue
+		}
 	}
 
-	Copy-Item "$out\justrayd.exe" "$dir\justrayd.exe" -Force
-	Copy-Item "$out\justray.exe" "$dir\justray.exe" -Force
-	Copy-Item "$out\justray.exe" "$dir\jray.exe" -Force
+	try {
+		New-Item -ItemType Directory -Force -Path $dir | Out-Null
+		Copy-Item "$out\justrayd.exe" "$dir\justrayd.exe" -Force
+		Copy-Item "$out\justray.exe" "$dir\justray.exe" -Force
+	} catch {
+		fail "failed to install binaries"
+	}
+
+	$jray = Join-Path $dir "jray.exe"
+	if (Test-Path $jray) {
+		Remove-Item -Force $jray -ErrorAction SilentlyContinue
+	}
+
+	try {
+		New-Item -ItemType HardLink -Path $jray -Target (Join-Path $dir "justray.exe") | Out-Null
+	} catch {
+		try {
+			New-Item -ItemType SymbolicLink -Path $jray -Target "justray.exe" | Out-Null
+		} catch {
+			try {
+				Copy-Item "$out\justray.exe" $jray -Force
+			} catch {
+				fail "failed to link jray"
+			}
+		}
+	}
 
 	$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+	if ($null -eq $userPath) {
+		$userPath = ""
+	}
 
 	if (($userPath -split ";") -notcontains $dir) {
 		$userPath = "$($userPath.TrimEnd(";"));$dir".TrimStart(";")
@@ -104,12 +214,13 @@ try {
 		$env:Path = "$($env:Path.TrimEnd(";"));$dir"
 	}
 
-	Write-Host "justray: installed justray, jray, justrayd to $dir"
+	done "Installed to $dir"
+	Write-Host "`nTo get started, run jray in a new terminal window"
 }
 finally {
 	Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
 
-	if ($restartDaemon -and -not (Get-Process justrayd -ErrorAction SilentlyContinue) -and (Test-Path "$dir\justrayd.exe")) {
+	if ($restart -and -not (Get-Process justrayd -ErrorAction SilentlyContinue | Where-Object { try { $_.Path -eq (Join-Path $dir "justrayd.exe") } catch { $true } }) -and (Test-Path "$dir\justrayd.exe")) {
 		Start-Process "$dir\justrayd.exe" -WindowStyle Hidden
 	}
 }
