@@ -28,9 +28,9 @@ func (m Model) activate() (tea.Model, tea.Cmd) {
 	act := m.client.Disconnect
 	if !m.connected() || m.status.NodeRef != r.Node.Ref() {
 		ref := r.Node.Ref()
-		act = func() (rpc.Status, error) { return m.client.Connect(ref) }
+		act = func() (rpc.Snapshot, error) { return m.client.Connect(ref) }
 	}
-	return m, tea.Batch(m.spin.Tick, connectCmd(func() error { _, err := act(); return err }))
+	return m, tea.Batch(m.spin.Tick, connectCmd(act))
 }
 
 func (m Model) collapse() (tea.Model, tea.Cmd) {
@@ -74,6 +74,9 @@ func (m Model) probe() (tea.Model, tea.Cmd) {
 		m.probing[r.Node.Ref()] = true
 		return m, probeCmd(m.client, r.Node.Sub, r.Node.ID)
 	}
+	if r.Sub.ID == tree.Default {
+		return m, nil
+	}
 	for _, n := range m.data().SubNodes(r.Sub.ID) {
 		m.probing[n.Ref()] = true
 	}
@@ -94,8 +97,11 @@ func (m Model) refresh() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	id := r.SubID()
+	if id == tree.Default {
+		return m, nil
+	}
 	m.refreshing = map[string]bool{id: true}
-	return m, tea.Batch(m.spin.Tick, act(m.client, func() error { _, err := m.client.Refresh(id); return err }))
+	return m, tea.Batch(m.spin.Tick, refreshCmd(func() (rpc.Snapshot, error) { return m.client.Refresh(id) }))
 }
 
 func (m Model) refreshAll() (tea.Model, tea.Cmd) {
@@ -103,12 +109,12 @@ func (m Model) refreshAll() (tea.Model, tea.Cmd) {
 	for _, sub := range m.subs {
 		m.refreshing[sub.ID] = true
 	}
-	return m, tea.Batch(m.spin.Tick, act(m.client, func() error { _, err := m.client.RefreshAll(); return err }))
+	return m, tea.Batch(m.spin.Tick, refreshCmd(m.client.RefreshAll))
 }
 
 func (m Model) moveSub(dir int) (tea.Model, tea.Cmd) {
 	r, ok := m.at()
-	if !ok || r.Kind != tree.Header {
+	if !ok || r.Kind != tree.Header || r.Sub.ID == tree.Default {
 		return m, nil
 	}
 	id := r.Sub.ID
@@ -117,12 +123,7 @@ func (m Model) moveSub(dir int) (tea.Model, tea.Cmd) {
 	if i < 0 || j < 0 || j >= len(m.subs) {
 		return m, nil
 	}
-	subs := slices.Clone(m.subs)
-	subs[i], subs[j] = subs[j], subs[i]
-	m.subs = subs
-	m.toHeader(id)
-	m.clamp()
-	return m, act(m.client, func() error { return m.client.MoveSub(id, dir) })
+	return m, act(func() (rpc.Snapshot, error) { return m.client.MoveSub(id, dir) })
 }
 
 func (m Model) setTun(enable bool) (tea.Model, tea.Cmd) {
@@ -130,5 +131,5 @@ func (m Model) setTun(enable bool) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.connecting = true
-	return m, tea.Batch(m.spin.Tick, connectCmd(func() error { _, err := m.client.SetTun(enable); return err }))
+	return m, tea.Batch(m.spin.Tick, connectCmd(func() (rpc.Snapshot, error) { return m.client.SetTun(enable) }))
 }

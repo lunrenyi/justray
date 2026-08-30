@@ -1,21 +1,29 @@
 package server
 
-import "time"
+import (
+	"sync"
+	"time"
 
-func (s *Server) AutoRefresh(done <-chan struct{}) {
+	"github.com/luynrs/justray/internal/shared/rpc"
+)
+
+func (s *Server) AutoRefresh() {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
 	tried := map[string]time.Time{}
 	for {
 		select {
-		case <-done:
+		case <-s.ctx.Done():
 			return
-		case <-time.After(time.Minute):
+		case <-ticker.C:
 		}
 
-		every := time.Duration(s.conn.RefreshEvery()) * time.Hour
+		snapshot := s.core.Snapshot()
+		every := time.Duration(snapshot.Settings.RefreshEvery) * time.Hour
 		if every == 0 {
 			continue
 		}
-		stale := s.stale(every)
+		stale := stale(snapshot.Subscriptions, every)
 		active := make(map[string]struct{}, len(stale))
 		for _, id := range stale {
 			active[id] = struct{}{}
@@ -25,24 +33,33 @@ func (s *Server) AutoRefresh(done <-chan struct{}) {
 				delete(tried, id)
 			}
 		}
+		var wg sync.WaitGroup
+		sem := make(chan struct{}, 4)
 		for _, id := range stale {
 			if time.Since(tried[id]) < 15*time.Minute {
 				continue
 			}
 			tried[id] = time.Now()
-			if _, err := s.subs.Refresh(s.ctx, id); err != nil {
-				s.log.Print(err)
-			}
+			subID := id
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				select {
+				case sem <- struct{}{}:
+					defer func() { <-sem }()
+				case <-s.ctx.Done():
+					return
+				}
+				if _, err := s.core.RefreshSubscription(s.ctx, subID); err != nil {
+					s.log.Print(err)
+				}
+			}()
 		}
+		wg.Wait()
 	}
 }
 
-func (s *Server) stale(every time.Duration) []string {
-	list, err := s.subs.List()
-	if err != nil {
-		s.log.Printf("auto refresh: %v", err)
-		return nil
-	}
+func stale(list []rpc.Sub, every time.Duration) []string {
 	var out []string
 	for _, sub := range list {
 		if time.Since(sub.UpdatedAt) >= every {

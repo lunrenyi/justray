@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/luynrs/justray/internal/daemon/connection"
+	"github.com/luynrs/justray/internal/daemon/core"
 	"github.com/luynrs/justray/internal/daemon/store"
 	"github.com/luynrs/justray/internal/daemon/subscription"
 	"github.com/luynrs/justray/internal/shared/rpc"
@@ -39,7 +41,12 @@ func TestShutdownClosesWatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	logger := log.New(io.Discard, "", 0)
-	srv := New(logger, connection.New(dir, store.Disk{Dir: dir}, nil, nil, logger), subscription.New(store.Disk{Dir: dir}, logger))
+	st := store.Disk{Dir: dir}
+	app, err := core.New(st, connection.New(context.Background(), dir, nil, nil, logger), subscription.New(context.Background(), logger), logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := New(context.Background(), logger, app)
 	served := make(chan error, 1)
 	go func() { served <- srv.Serve(ln) }()
 
@@ -52,8 +59,8 @@ func TestShutdownClosesWatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = client.SetReadDeadline(time.Now().Add(time.Second))
-	if err := json.NewDecoder(client).Decode(&rpc.Status{}); err != nil {
-		t.Fatalf("initial Watch status: %v", err)
+	if err := json.NewDecoder(client).Decode(&rpc.Changed{}); err != nil {
+		t.Fatalf("initial Watch revision: %v", err)
 	}
 
 	stopped := make(chan struct{})

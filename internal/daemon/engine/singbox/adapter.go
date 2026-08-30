@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"reflect"
 	"runtime"
 	"strings"
 	"syscall"
@@ -25,6 +26,7 @@ import (
 )
 
 type Engine struct {
+	lifetime context.Context
 	settings domain.Settings
 	logPath  string
 
@@ -34,32 +36,70 @@ type Engine struct {
 	node domain.Node
 }
 
-func New(s domain.Settings, logPath string) engine.Engine {
-	return &Engine{settings: s, logPath: logPath}
+func New(ctx context.Context, logPath string) engine.Engine {
+	return &Engine{lifetime: ctx, logPath: logPath}
 }
 
-func (e *Engine) Start(n domain.Node, tun bool) error {
-	opts, err := Build(n, e.settings, e.logPath, tun)
+func (e *Engine) Apply(ctx context.Context, spec engine.SessionSpec) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if e.inst == nil {
+		return e.start(ctx, spec)
+	}
+	nodeChanged := !reflect.DeepEqual(e.node, spec.Node)
+	tunChanged := spec.Tun != e.tun
+
+	if engine.Rebuilds(e.settings, spec.Settings) || (nodeChanged && tunChanged) {
+		if err := e.Stop(ctx); err != nil {
+			return err
+		}
+		return e.start(ctx, spec)
+	}
+	if nodeChanged {
+		if err := e.swap(ctx, spec.Node); err != nil {
+			return err
+		}
+	}
+	if tunChanged {
+		if spec.Tun {
+			if err := e.tunAdd(); err != nil {
+				return err
+			}
+		} else if err := e.tunRemove(); err != nil {
+			return err
+		}
+	}
+	e.settings = spec.Settings
+	return nil
+}
+
+func (e *Engine) start(ctx context.Context, spec engine.SessionSpec) error {
+	opts, err := Build(ctx, spec.Node, spec.Settings, e.logPath, spec.Tun)
 	if err != nil {
 		return err
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	var before map[string]struct{}
-	if tun && runtime.GOOS == "darwin" {
+	if spec.Tun && runtime.GOOS == "darwin" {
 		before = interfaceNames()
 	}
 
-	inst, err := startBox(*opts)
-	if inst != nil {
-		e.inst, e.node = inst, n
-		if tun && runtime.GOOS == "darwin" {
-			e.name = newInterface(before)
-			if e.name == "" {
-				return errors.Join(errors.New("tun interface name unavailable"), e.Close())
-			}
-		}
-		e.tun = tun
+	inst, err := startBox(e.lifetime, *opts)
+	if err != nil {
+		return err
 	}
-	return err
+	e.inst, e.node = inst, spec.Node
+	e.settings, e.tun = spec.Settings, spec.Tun
+	if spec.Tun && runtime.GOOS == "darwin" {
+		e.name = newInterface(before)
+		if e.name == "" {
+			return errors.Join(errors.New("tun interface name unavailable"), e.Stop(ctx))
+		}
+	}
+	return nil
 }
 
 func rideOutEBusy(op func() error) error {
@@ -72,9 +112,9 @@ func rideOutEBusy(op func() error) error {
 	return err
 }
 
-func startBox(opts option.Options) (*sbox.Box, error) {
+func startBox(ctx context.Context, opts option.Options) (*sbox.Box, error) {
 	for attempt := 0; ; attempt++ {
-		inst, err := sbox.New(sbox.Options{Options: opts, Context: Context(context.Background())})
+		inst, err := sbox.New(sbox.Options{Options: opts, Context: Context(ctx)})
 		if err == nil {
 			err = inst.Start()
 		}
@@ -83,7 +123,7 @@ func startBox(opts option.Options) (*sbox.Box, error) {
 		}
 		if inst != nil {
 			if closeErr := inst.Close(); closeErr != nil {
-				return inst, errors.Join(err, closeErr)
+				err = errors.Join(err, closeErr)
 			}
 		}
 		if !errors.Is(err, syscall.EBUSY) || attempt == 2 {
@@ -94,10 +134,11 @@ func startBox(opts option.Options) (*sbox.Box, error) {
 	}
 }
 
-func (e *Engine) Swap(n domain.Node) error {
-	if err := e.apply(n); err != nil {
-		if rbErr := e.apply(e.node); rbErr != nil {
-			e.inst.LogFactory().NewLogger("outbound/"+Tag).Error("swap rollback failed, instance left without a proxy outbound: ", rbErr)
+func (e *Engine) swap(ctx context.Context, n domain.Node) error {
+	if err := e.apply(ctx, n); err != nil {
+		if rbErr := e.apply(ctx, e.node); rbErr != nil {
+			_ = e.Stop(ctx)
+			return errors.Join(err, fmt.Errorf("swap rollback failed: %w", rbErr))
 		}
 		return err
 	}
@@ -105,13 +146,13 @@ func (e *Engine) Swap(n domain.Node) error {
 	return nil
 }
 
-func (e *Engine) apply(n domain.Node) error {
-	ep, obs, err := Proxy(n, e.settings)
+func (e *Engine) apply(ctx context.Context, n domain.Node) error {
+	ep, obs, err := Proxy(ctx, n, e.settings)
 	if err != nil {
 		return err
 	}
 
-	ctx := e.runtimeCtx()
+	runtimeCtx := e.runtimeCtx()
 	router := e.inst.Router()
 	logger := e.inst.LogFactory().NewLogger("outbound/" + Tag)
 
@@ -119,17 +160,17 @@ func (e *Engine) apply(n domain.Node) error {
 	_ = e.inst.Outbound().Remove(Tag)
 	_ = e.inst.Outbound().Remove(Tag + "-stls")
 	if ep != nil {
-		return e.inst.Endpoint().Create(ctx, router, logger, ep.Tag, ep.Type, ep.Options)
+		return e.inst.Endpoint().Create(runtimeCtx, router, logger, ep.Tag, ep.Type, ep.Options)
 	}
 	for _, ob := range obs {
-		if err := e.inst.Outbound().Create(ctx, router, logger, ob.Tag, ob.Type, ob.Options); err != nil {
+		if err := e.inst.Outbound().Create(runtimeCtx, router, logger, ob.Tag, ob.Type, ob.Options); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (e *Engine) TunAdd() error {
+func (e *Engine) tunAdd() error {
 	var before map[string]struct{}
 	if runtime.GOOS == "darwin" {
 		before = interfaceNames()
@@ -148,7 +189,10 @@ func (e *Engine) TunAdd() error {
 		if runtime.GOOS == "darwin" {
 			e.name = newInterface(before)
 			if e.name == "" {
-				_ = e.inst.Inbound().Remove("tun-in")
+				if rbErr := e.inst.Inbound().Remove("tun-in"); rbErr != nil {
+					_ = e.Stop(context.WithoutCancel(e.lifetime))
+					return errors.Join(errors.New("tun interface name unavailable"), fmt.Errorf("tun rollback failed: %w", rbErr))
+				}
 				return errors.New("tun interface name unavailable")
 			}
 		}
@@ -157,36 +201,46 @@ func (e *Engine) TunAdd() error {
 	return err
 }
 
-func (e *Engine) TunRemove() error {
-	err := e.inst.Inbound().Remove("tun-in")
-	if err != nil {
+func (e *Engine) tunRemove() error {
+	if err := e.inst.Inbound().Remove("tun-in"); err != nil {
 		return err
 	}
+	e.tun = false
 	iface := e.interfaceName()
+	e.name = ""
+	var errs []error
 	if iface == "" {
-		return errors.New("tun interface name unavailable")
-	}
-	if !waitGone(iface) {
+		errs = append(errs, errors.New("tun interface name unavailable"))
+	} else if !waitGone(iface) {
 		link.Delete(iface)
 		if !waitGone(iface) {
-			return fmt.Errorf("%s still up after removing tun-in", iface)
+			errs = append(errs, fmt.Errorf("%s still up after removing tun-in", iface))
 		}
 	}
-	e.tun = false
-	e.name = ""
+	if len(errs) > 0 {
+		_ = e.Stop(context.WithoutCancel(e.lifetime))
+		return errors.Join(errs...)
+	}
 	return nil
 }
 
-func (e *Engine) Close() error {
+func (e *Engine) Stop(_ context.Context) error {
 	if e.inst == nil {
 		return nil
 	}
-	err := e.inst.Close()
+	inst := e.inst
+	tun := e.tun
+	iface := e.interfaceName()
+
+	e.inst = nil
+	e.tun = false
+	e.name = ""
+
+	err := inst.Close()
 	if errors.Is(err, os.ErrClosed) {
 		err = nil
 	}
-	if e.tun {
-		iface := e.interfaceName()
+	if tun {
 		if iface == "" {
 			err = errors.Join(err, errors.New("tun interface name unavailable"))
 		} else if !waitGone(iface) {
@@ -196,11 +250,11 @@ func (e *Engine) Close() error {
 			}
 		}
 	}
-	if err != nil {
-		return err
-	}
-	e.inst, e.tun, e.name = nil, false, ""
-	return nil
+	return err
+}
+
+func (e *Engine) Running() bool {
+	return e.inst != nil
 }
 
 func (e *Engine) interfaceName() string {
@@ -235,7 +289,7 @@ func newInterface(before map[string]struct{}) string {
 }
 
 func (e *Engine) runtimeCtx() context.Context {
-	return service.ContextWith[adapter.NetworkManager](Context(context.Background()), e.inst.Network())
+	return service.ContextWith[adapter.NetworkManager](Context(e.lifetime), e.inst.Network())
 }
 
 func waitGone(iface string) bool {

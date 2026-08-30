@@ -1,4 +1,4 @@
-package connection
+package engine
 
 import (
 	"testing"
@@ -6,7 +6,7 @@ import (
 	"github.com/luynrs/justray/internal/shared/domain"
 )
 
-func TestEngineChanged(t *testing.T) {
+func TestRebuilds(t *testing.T) {
 	base, err := domain.Settings{}.Normalize()
 	if err != nil {
 		t.Fatalf("Normalize: %v", err)
@@ -30,7 +30,7 @@ func TestEngineChanged(t *testing.T) {
 	for name, edit := range rebuilds {
 		next := base
 		edit(&next)
-		if !engineChanged(base, next) {
+		if !Rebuilds(base, next) {
 			t.Errorf("%s: want a rebuild, got none", name)
 		}
 	}
@@ -44,18 +44,18 @@ func TestEngineChanged(t *testing.T) {
 	for name, edit := range live {
 		next := base
 		edit(&next)
-		if engineChanged(base, next) {
+		if Rebuilds(base, next) {
 			t.Errorf("%s: want no rebuild, got one", name)
 		}
 	}
 
-	if engineChanged(base, base) {
+	if Rebuilds(base, base) {
 		t.Error("identical settings asked for a rebuild")
 	}
 
 	empty := base
 	empty.Except, empty.Blocked = []string{}, []string{}
-	if engineChanged(base, empty) {
+	if Rebuilds(base, empty) {
 		t.Error("nil and empty lists asked for a rebuild")
 	}
 }

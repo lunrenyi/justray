@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,7 +11,7 @@ import (
 	"github.com/luynrs/justray/internal/shared/rpc"
 )
 
-func (s *Server) handle(conn net.Conn) {
+func (s *Server) handle(conn net.Conn, semHeld *bool) {
 	defer func() { _ = conn.Close() }()
 	_ = conn.SetReadDeadline(time.Now().Add(rpc.IdleTimeout))
 
@@ -20,6 +21,16 @@ func (s *Server) handle(conn net.Conn) {
 		return
 	}
 	if req.Method == "Watch" {
+		select {
+		case s.watchSem <- struct{}{}:
+			defer func() { <-s.watchSem }()
+		case <-s.ctx.Done():
+			return
+		}
+		if semHeld != nil && *semHeld {
+			<-s.sem
+			*semHeld = false
+		}
 		s.watch(conn)
 		return
 	}
@@ -29,64 +40,69 @@ func (s *Server) handle(conn net.Conn) {
 		return
 	}
 	_ = conn.SetDeadline(time.Time{})
-	result, err := s.dispatch(req)
+	ctx, cancel := context.WithCancel(s.ctx)
+	defer cancel()
+	go func() {
+		_, _ = conn.Read(make([]byte, 1))
+		cancel()
+	}()
+	result, err := s.dispatch(ctx, req)
 	_ = conn.SetDeadline(time.Now().Add(rpc.IdleTimeout))
 	reply(conn, result, err)
 }
 
-func (s *Server) dispatch(req rpc.Req) (any, error) {
+func (s *Server) dispatch(ctx context.Context, req rpc.Req) (any, error) {
 	a := req.Args
 	switch req.Method {
 	case "Ping":
 		return "pong", nil
-	case "Status":
-		return s.conn.Status(), nil
-	case "Active":
-		return s.conn.ActiveRef()
-	case "Subs":
-		return s.subs.List()
+	case "Snapshot":
+		return s.core.Snapshot(), nil
 	case "AddSub":
-		return s.subs.Add(s.ctx, a.URL)
+		_, err := s.core.AddSubscription(ctx, a.URL)
+		return s.mutation(err)
 	case "RemoveSub":
-		return nil, s.removeSub(a.ID)
+		return s.mutation(s.core.RemoveSubscription(a.ID))
 	case "MoveSub":
-		return nil, s.subs.MoveSub(a.ID, a.Dir)
+		return s.mutation(s.core.MoveSubscription(a.ID, a.Dir))
 	case "RefreshAll":
-		return s.subs.RefreshAll(s.ctx)
+		_, err := s.core.RefreshSubscriptions(ctx)
+		return s.mutation(err)
 	case "Refresh":
-		return s.subs.Refresh(s.ctx, a.ID)
-	case "Nodes":
-		return s.conn.Nodes()
+		_, err := s.core.RefreshSubscription(ctx, a.ID)
+		return s.mutation(err)
 	case "Probe":
-		return s.conn.Probe(s.ctx, a.Sub, a.ID)
+		if err := s.core.Probe(ctx, a.Sub, a.ID); err != nil {
+			return nil, err
+		}
+		return s.core.Snapshot(), nil
 	case "Connect":
-		return s.conn.Connect(a.ID, a.Sub)
+		_, err := s.core.Connect(ctx, a.ID, a.Sub)
+		return s.mutation(err)
 	case "Disconnect":
-		return s.conn.Disconnect()
+		_, err := s.core.Disconnect(ctx)
+		return s.mutation(err)
 	case "SetTun":
-		return s.conn.SetTun(a.Tun)
-	case "Settings":
-		return s.conn.Settings(), nil
+		_, err := s.core.SetTun(ctx, a.Tun)
+		return s.mutation(err)
 	case "SetSettings":
-		return s.conn.SetSettings(a.Settings)
+		_, err := s.core.SetSettings(ctx, a.Settings)
+		return s.mutation(err)
 	}
 	return nil, fmt.Errorf("unknown method %q", req.Method)
 }
 
-// removeSub drops the live connection when the deleted sub owned it
-func (s *Server) removeSub(id string) error {
-	sub, err := s.subs.Remove(id)
+func (s *Server) mutation(err error) (any, error) {
 	if err != nil {
-		return err
+		return nil, err
 	}
-	s.conn.ForgetIfRemoved(sub.ID, sub.Nodes)
-	return nil
+	return s.core.Snapshot(), nil
 }
 
 func (s *Server) watch(conn net.Conn) {
 	_ = conn.SetDeadline(time.Time{}) // stays open
 
-	initial, ch, cancel := s.conn.Watch()
+	initial, ch, cancel := s.core.Watch()
 	defer cancel()
 
 	gone := make(chan struct{})
@@ -105,8 +121,8 @@ func (s *Server) watch(conn net.Conn) {
 			return
 		case <-gone:
 			return
-		case st := <-ch:
-			if err := enc.Encode(st); err != nil {
+		case changed := <-ch:
+			if err := enc.Encode(changed); err != nil {
 				return
 			}
 		}

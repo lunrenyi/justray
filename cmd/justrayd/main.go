@@ -3,6 +3,7 @@ package main
 // DAEMON ENTRYPOINT
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -10,8 +11,10 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/luynrs/justray/internal/daemon/connection"
+	"github.com/luynrs/justray/internal/daemon/core"
 	"github.com/luynrs/justray/internal/daemon/engine/singbox"
 	"github.com/luynrs/justray/internal/daemon/platform/elevate"
 	"github.com/luynrs/justray/internal/daemon/server"
@@ -22,6 +25,8 @@ import (
 )
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	dir, err := rpc.Dir()
 	if err != nil {
 		die("resolve config dir:", err)
@@ -63,17 +68,19 @@ func main() {
 	logger.Printf("justrayd %s listening on %s", version.String(), socket)
 
 	st := store.Disk{Dir: dir}
-	conn := connection.New(dir, st, singbox.New, singbox.Probe, logger)
-	subs := subscription.New(st, logger)
-	srv := server.New(logger, conn, subs)
-	conn.Restore()
+	conn := connection.New(ctx, dir, singbox.New, singbox.Probe, logger)
+	subs := subscription.New(ctx, logger)
+	app, err := core.New(st, conn, subs, logger)
+	if err != nil {
+		die("initialize core:", err)
+	}
+	srv := server.New(ctx, logger, app)
+	app.Restore()
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 
-	done := make(chan struct{})
-	defer close(done)
-	go srv.AutoRefresh(done)
+	go srv.AutoRefresh()
 
 	served := make(chan error, 1)
 	go func() { served <- srv.Serve(ln) }()
@@ -82,7 +89,7 @@ func main() {
 	select {
 	case s := <-sig:
 		logger.Printf("shutting down (%s)", s)
-	case <-conn.RestartRequested():
+	case <-app.RestartRequested():
 		restart = true
 		logger.Print("shutting down for elevated restart")
 	case <-srv.ShutdownRequested():
@@ -90,14 +97,19 @@ func main() {
 	case err := <-served:
 		logger.Printf("shutting down (%v)", err)
 	}
+	cancel()
 
 	cleaned := make(chan struct{})
 	go func() {
 		srv.Shutdown()
-		conn.Shutdown()
+		app.Shutdown()
 		close(cleaned)
 	}()
-	<-cleaned
+	select {
+	case <-cleaned:
+	case <-time.After(5 * time.Second):
+		logger.Print("shutdown timed out, exiting")
+	}
 	if restart {
 		unlock()
 		unlock = nil
