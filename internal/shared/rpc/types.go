@@ -62,7 +62,6 @@ type Status struct {
 	NodeRef   domain.NodeRef
 	NodeName  string
 	Uptime    int64 // seconds
-	LastErr   string
 	Port      int
 	Tun       bool
 }
