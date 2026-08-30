@@ -85,6 +85,11 @@ If `justray` is installed via a script or packet manager the `jray` alias is ava
 - `remove`: remove a subscription or node by ID
 - `list`: list subscriptions and nodes
 
+#### Options
+
+- `-h`, `--help`: show help
+- `-v`, `--version`: show the current version
+
 ### Keybinds
 
 | Key | Action | Key | Action |
@@ -96,11 +101,6 @@ If `justray` is installed via a script or packet manager the `jray` alias is ava
 | `a` | Add subscription | `d` | Delete subscription / rule |
 | `o` | Open settings | `esc` | Back, cancel or clear |
 | `tab` | Switch tab | `q` / `ctrl+c` | Quit |
-
-#### Options
-
-- `-h`, `--help`: show help
-- `-v`, `--version`: show the current version
 
 ### License
 
