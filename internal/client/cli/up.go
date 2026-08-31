@@ -40,7 +40,7 @@ func (a *app) up(cmd *cobra.Command, args []string) error {
 		if mode != nil {
 			return a.switchMode(st, *mode)
 		}
-		a.report("Already "+state(st), st)
+		a.report(upperFirst(state(st)), st)
 		return nil
 	}
 
@@ -138,7 +138,7 @@ func awaitElevate(status func() (rpc.Status, error), want *bool, timeout time.Du
 
 func (a *app) switchMode(st rpc.Status, tun bool) error {
 	if st.Tun == tun {
-		a.report("Already "+state(st), st)
+		a.report(upperFirst(state(st)), st)
 		return nil
 	}
 	next, err := a.runOp("Switching to "+strings.ToUpper(modeWord(tun)), func() (rpc.Snapshot, error) {

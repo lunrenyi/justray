@@ -88,6 +88,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.snapshot.Revision < m.revision {
 			return m, nil
 		}
+		selected, selectedOK := m.at()
 		m.revision = msg.snapshot.Revision
 		m.subs, m.nodes = msg.snapshot.Subscriptions, msg.snapshot.Nodes
 		m.status = msg.snapshot.Status
@@ -99,6 +100,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if msg.op == "refresh" || msg.op == "sync" || msg.op == "" {
 			m.refreshing = nil
+		}
+		if selectedOK && selected.Kind == tree.Header {
+			m.toHeader(selected.Sub.ID)
 		}
 		m.clamp()
 
@@ -130,8 +134,7 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case m.confirmID != "":
 		id := m.confirmID
 		m.confirmQ, m.confirmID = "", ""
-		yes := k == "y"
-		if yes {
+		if k == "y" {
 			return m, act(func() (rpc.Snapshot, error) { return m.client.RemoveSub(id) })
 		}
 		return m, nil
@@ -193,9 +196,12 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "/":
 		return m, m.startFiltering()
 	case "d":
-		if r, ok := m.at(); ok && r.SubID() != tree.Default {
-			name := tree.Data{Subs: m.subs}.SubName(r.SubID())
-			m.confirmQ, m.confirmID = "delete "+name+"?", r.SubID()
+		if r, ok := m.at(); ok {
+			id, name := r.SubID(), r.Sub.Name
+			if r.Kind == tree.Node {
+				name = tree.Data{Subs: m.subs}.SubName(id)
+			}
+			m.confirmQ, m.confirmID = "delete "+name+"?", id
 		}
 	case "q":
 		return m.quit()

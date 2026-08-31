@@ -16,6 +16,7 @@ import (
 	"github.com/luynrs/justray/internal/daemon/store"
 	"github.com/luynrs/justray/internal/daemon/subscription"
 	"github.com/luynrs/justray/internal/shared/domain"
+	"github.com/luynrs/justray/internal/shared/parser"
 	"github.com/luynrs/justray/internal/shared/rpc"
 )
 
@@ -155,14 +156,27 @@ func (c *Core) RemoveSubscription(id string) error {
 	c.opMu.Lock()
 	defer c.opMu.Unlock()
 	next := c.current()
-	i := slices.IndexFunc(next.Subscriptions, func(sub store.Subscription) bool { return sub.ID == id })
-	if i < 0 {
+	var removed []store.Subscription
+	match := func(s store.Subscription) bool {
+		return (id == "default" && parser.IsLink(s.URL)) || s.ID == id
+	}
+	next.Subscriptions = slices.DeleteFunc(next.Subscriptions, func(s store.Subscription) bool {
+		if match(s) {
+			removed = append(removed, s)
+			return true
+		}
+		return false
+	})
+	if len(removed) == 0 {
+		if id == "default" {
+			return nil
+		}
 		return fmt.Errorf("subscription %q not found", id)
 	}
-	removed := next.Subscriptions[i]
-	next.Subscriptions = slices.Delete(next.Subscriptions, i, i+1)
 	belongs := func(ref domain.NodeRef) bool {
-		return ref.NodeID != "" && (ref.SubscriptionID == id || ref.SubscriptionID == "" && slices.ContainsFunc(removed.Nodes, func(n domain.Node) bool { return n.ID == ref.NodeID }))
+		return ref.NodeID != "" && slices.ContainsFunc(removed, func(sub store.Subscription) bool {
+			return ref.SubscriptionID == sub.ID || ref.SubscriptionID == "" && slices.ContainsFunc(sub.Nodes, func(n domain.Node) bool { return n.ID == ref.NodeID })
+		})
 	}
 	if belongs(next.Active) {
 		next.Active = domain.NodeRef{}
@@ -173,7 +187,10 @@ func (c *Core) RemoveSubscription(id string) error {
 	if err := c.commit(next); err != nil {
 		return err
 	}
-	cleanupErr := c.conn.ForgetIfRemoved(id)
+	var cleanupErr error
+	for _, sub := range removed {
+		cleanupErr = errors.Join(cleanupErr, c.conn.ForgetIfRemoved(sub.ID))
+	}
 	c.publish()
 	return cleanupErr
 }
@@ -199,7 +216,10 @@ func (c *Core) MoveSubscription(id string, dir int) error {
 }
 
 func (c *Core) RefreshSubscriptions(ctx context.Context) ([]rpc.Sub, error) {
-	subs := c.current().Subscriptions
+	subs := slices.DeleteFunc(c.current().Subscriptions, func(sub store.Subscription) bool { return parser.IsLink(sub.URL) })
+	if len(subs) == 0 {
+		return nil, nil
+	}
 	out, updated, refreshErr := c.subs.RefreshAll(ctx, subs, c.refresh)
 	c.opMu.Lock()
 	defer c.opMu.Unlock()
@@ -225,6 +245,9 @@ func (c *Core) RefreshSubscription(ctx context.Context, id string) (rpc.Sub, err
 	i := slices.IndexFunc(state.Subscriptions, func(sub store.Subscription) bool { return sub.ID == id })
 	if i < 0 {
 		return rpc.Sub{}, fmt.Errorf("subscription %q not found", id)
+	}
+	if parser.IsLink(state.Subscriptions[i].URL) {
+		return subscription.Info(state.Subscriptions[i]), nil
 	}
 	sub, err := c.refresh(ctx, state.Subscriptions[i])
 	if err != nil {

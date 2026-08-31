@@ -62,7 +62,7 @@ func (s *Server) AutoRefresh() {
 func stale(list []rpc.Sub, every time.Duration) []string {
 	var out []string
 	for _, sub := range list {
-		if time.Since(sub.UpdatedAt) >= every {
+		if !sub.Direct && time.Since(sub.UpdatedAt) >= every {
 			out = append(out, sub.ID)
 		}
 	}
