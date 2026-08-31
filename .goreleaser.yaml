@@ -31,8 +31,9 @@ archives:
 checksum:
   name_template: checksums.txt
 
-brews:
+homebrew_casks:
   - name: justray
+    binaries: [justray, justrayd]
     repository:
       owner: luynrs
       name: homebrew-tap
@@ -42,12 +43,15 @@ brews:
     description: A modern VPN client that lives in your terminal
     license: GPL-3.0-only
     skip_upload: "{{ .IsSnapshot }}"
-    install: |
-      bin.install "justray"
-      bin.install "justrayd"
-      bin.install_symlink "justray" => "jray"
-    test: |
-      system "#{bin}/justray", "--version"
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/justray", "#{staged_path}/justrayd"]
+          end
+          FileUtils.ln_sf "#{HOMEBREW_PREFIX}/bin/justray", "#{HOMEBREW_PREFIX}/bin/jray"
+        uninstall: |
+          FileUtils.rm_f "#{HOMEBREW_PREFIX}/bin/jray"
 
 winget:
   - name: justray
@@ -75,7 +79,7 @@ aurs:
     homepage: https://github.com/luynrs/justray
     description: A modern VPN client that lives in your terminal
     license: GPL-3.0-only
-    private_key: "{{ .Env.AUR_KEY_PATH }}"
+    private_key: "{{ .Env.AUR_KEY }}"
     git_url: ssh://aur@aur.archlinux.org/justray-bin.git
     url_template: https://github.com/luynrs/justray/releases/download/{{ .Tag }}/{{ .ArtifactName }}
     skip_upload: "{{ .IsSnapshot }}"
@@ -90,4 +94,3 @@ release:
   name_template: "{{ .Version }}"
   draft: false
   mode: replace
-  replace_existing_artifacts: true

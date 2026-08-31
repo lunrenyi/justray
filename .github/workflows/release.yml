@@ -7,6 +7,9 @@ on:
 permissions:
   contents: write
 
+env:
+  GOFLAGS: -tags=with_quic,with_utls,with_gvisor,with_grpc
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -17,17 +20,19 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - name: Prepare AUR key
-        env:
-          AUR_KEY: ${{ secrets.AUR_KEY }}
+      - name: Verify
         run: |
-          printf '%s\n' "$AUR_KEY" > "$RUNNER_TEMP/aur_key"
-          chmod 600 "$RUNNER_TEMP/aur_key"
-      - uses: goreleaser/goreleaser-action@v7
+          version=$(awk -F '"' '/^var Version = / { print $2 }' internal/shared/version/version.go)
+          test -n "$version"
+          test "$GITHUB_REF_NAME" = "v$version"
+          go vet ./...
+          go test ./...
+      - name: Publish
+        uses: goreleaser/goreleaser-action@v7
         with:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TOKEN: ${{ secrets.HOMEBREW_TOKEN }}
           WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
-          AUR_KEY_PATH: ${{ runner.temp }}/aur_key
+          AUR_KEY: ${{ secrets.AUR_KEY }}

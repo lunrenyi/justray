@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -16,9 +19,21 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - run: go vet ./...
-      - run: go test ./...
+      - name: Verify
+        run: |
+          go vet ./...
+          go test ./...
       - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.12.2
           args: --build-tags with_quic,with_utls,with_gvisor,with_grpc
+      - name: Build Linux
+        run: go build ./...
+      - name: Build MacOS
+        run: GOOS=darwin GOARCH=amd64 go build ./...
+      - name: Build Windows
+        run: GOOS=windows GOARCH=amd64 go build ./...
+      - name: GoReleaser
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          args: check
