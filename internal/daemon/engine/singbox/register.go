@@ -74,6 +74,7 @@ func dnsTransportRegistry() *dns.TransportRegistry {
 	registry := dns.NewTransportRegistry()
 	transport.RegisterUDP(registry)
 	transport.RegisterTCP(registry)
+	transport.RegisterHTTPS(registry)
 	local.RegisterTransport(registry)
 	return registry
 }

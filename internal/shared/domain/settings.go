@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -85,8 +86,8 @@ func (s Settings) Normalize() (Settings, error) {
 		one("local networks", &s.BypassLocal, "on", Toggle),
 		one("autostart", &s.Autostart, "off", Toggle),
 		one("emoji", &s.Emoji, "off", Toggle),
-		text("dns", &s.DNS, DefaultDNS, "an ip address", isAddr),
-		text("probe url", &s.ProbeURL, DefaultProbeURL, "an https url", isHTTPSURL),
+		text("dns", &s.DNS, DefaultDNS, "an IP address or an HTTPS URL", isDNS),
+		text("probe url", &s.ProbeURL, DefaultProbeURL, "a url", isURL),
 		canon(&s.Except),
 		canon(&s.Blocked),
 	} {
@@ -155,9 +156,24 @@ func isAddr(v string) bool {
 	return err == nil
 }
 
-func isHTTPSURL(v string) bool {
+func isURL(v string) bool {
 	u, err := url.Parse(v)
-	return err == nil && u.Host != "" && u.Scheme == "https"
+	return err == nil && u.Host != "" && (u.Scheme == "http" || u.Scheme == "https")
+}
+
+func isDNS(v string) bool {
+	if isAddr(v) {
+		return true
+	}
+	u, err := url.Parse(v)
+	if err != nil || u.Scheme != "https" || u.Hostname() == "" || strings.HasSuffix(u.Host, ":") || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+		return false
+	}
+	if u.Port() != "" {
+		port, parseErr := strconv.ParseUint(u.Port(), 10, 16)
+		return parseErr == nil && port != 0
+	}
+	return true
 }
 
 // ParseRule canonicalises a network, domain or program rule

@@ -50,7 +50,7 @@ func resolved(ctx context.Context, n domain.Node, s domain.Settings) (domain.Nod
 	return n, nil
 }
 
-func dnsKey(host string, s domain.Settings) string { return s.DNS + ":" + s.IPVersion + ":" + host }
+func dnsKey(host string, s domain.Settings) string { return s.IPVersion + ":" + host }
 
 func forget(host string, s domain.Settings) {
 	dnsMu.Lock()
@@ -73,13 +73,7 @@ func lookup(ctx context.Context, host string, s domain.Settings) (string, error)
 
 	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
-	resolver := net.Resolver{
-		PreferGo: true,
-		Dial: func(ctx context.Context, _, _ string) (net.Conn, error) {
-			return (&net.Dialer{}).DialContext(ctx, "tcp", net.JoinHostPort(s.DNS, "53"))
-		},
-	}
-	ips, err := resolver.LookupNetIP(ctx, network(s), host)
+	ips, err := net.DefaultResolver.LookupNetIP(ctx, network(s), host)
 	switch {
 	case err != nil:
 		return "", fmt.Errorf("could not resolve %s: %w", host, err)

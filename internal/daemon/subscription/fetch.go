@@ -37,8 +37,11 @@ func (s *Service) fetch(ctx context.Context, rawURL string) ([]domain.Node, stri
 	client := http.Client{
 		Timeout: 20 * time.Second,
 		CheckRedirect: func(r *http.Request, via []*http.Request) error {
-			if r.URL.Scheme != "https" {
-				return fmt.Errorf("subscription redirect must use https")
+			if r.URL.Scheme != "https" && r.URL.Scheme != "http" {
+				return fmt.Errorf("subscription redirect must use http or https")
+			}
+			if via[len(via)-1].URL.Scheme == "https" && r.URL.Scheme == "http" {
+				return fmt.Errorf("subscription redirect must not downgrade to http")
 			}
 			if len(via) >= 10 {
 				return fmt.Errorf("stopped after 10 redirects")

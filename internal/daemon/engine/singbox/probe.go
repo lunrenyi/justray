@@ -73,9 +73,15 @@ func Probe(ctx context.Context, nodes []domain.Node, s domain.Settings, logPath 
 func delay(ctx context.Context, dialer N.Dialer, url string) (int, error) {
 	client := &http.Client{
 		Timeout: 5 * time.Second,
-		CheckRedirect: func(r *http.Request, _ []*http.Request) error {
-			if r.URL.Scheme != "https" {
-				return fmt.Errorf("probe redirect must use https")
+		CheckRedirect: func(r *http.Request, via []*http.Request) error {
+			if r.URL.Scheme != "https" && r.URL.Scheme != "http" {
+				return fmt.Errorf("probe redirect must use http or https")
+			}
+			if via[len(via)-1].URL.Scheme == "https" && r.URL.Scheme == "http" {
+				return fmt.Errorf("probe redirect must not downgrade to http")
+			}
+			if len(via) >= 10 {
+				return fmt.Errorf("stopped after 10 redirects")
 			}
 			return nil
 		},

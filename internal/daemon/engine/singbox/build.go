@@ -3,6 +3,7 @@ package singbox
 import (
 	"context"
 	"net/netip"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -50,14 +51,8 @@ func Build(ctx context.Context, n domain.Node, s domain.Settings, logPath string
 		},
 		DNS: &option.DNSOptions{RawDNSOptions: option.RawDNSOptions{
 			DNSClientOptions: option.DNSClientOptions{Strategy: dnsStrategy[s.IPVersion]},
-			Servers: []option.DNSServerOptions{
-				{Type: C.DNSTypeTCP, Tag: "remote", Options: &option.RemoteDNSServerOptions{
-					RawLocalDNSServerOptions: option.RawLocalDNSServerOptions{
-						DialerOptions: option.DialerOptions{Detour: strings.TrimPrefix(final(s), "direct")}, // a detour to a bare direct outbound is rejected by sing-box
-					},
-					DNSServerAddressOptions: option.DNSServerAddressOptions{Server: s.DNS},
-				}},
-			}}},
+			Servers:          []option.DNSServerOptions{dnsServer(s)},
+		}},
 		Route: &option.RouteOptions{
 			Final:               final(s),
 			AutoDetectInterface: true,
@@ -132,4 +127,28 @@ func attach(opts *option.Options, ep *option.Endpoint, obs []option.Outbound) {
 		opts.Endpoints = append(opts.Endpoints, *ep)
 	}
 	opts.Outbounds = append(opts.Outbounds, obs...)
+}
+
+func dnsServer(s domain.Settings) option.DNSServerOptions {
+	detour := strings.TrimPrefix(final(s), "direct")
+	remote := option.RemoteDNSServerOptions{
+		RawLocalDNSServerOptions: option.RawLocalDNSServerOptions{
+			DialerOptions: option.DialerOptions{Detour: detour},
+		},
+		DNSServerAddressOptions: option.DNSServerAddressOptions{Server: s.DNS},
+	}
+	if !strings.HasPrefix(s.DNS, "https://") {
+		return option.DNSServerOptions{Type: C.DNSTypeTCP, Tag: "remote", Options: &remote}
+	}
+
+	u, _ := url.Parse(s.DNS) // Settings.Normalize validates the URL
+	remote.Server = u.Hostname()
+	if u.Port() != "" {
+		port, _ := strconv.ParseUint(u.Port(), 10, 16)
+		remote.ServerPort = uint16(port)
+	}
+	return option.DNSServerOptions{Type: C.DNSTypeHTTPS, Tag: "remote", Options: &option.RemoteHTTPSDNSServerOptions{
+		RemoteTLSDNSServerOptions: option.RemoteTLSDNSServerOptions{RemoteDNSServerOptions: remote},
+		Path:                      u.EscapedPath(),
+	}}
 }
