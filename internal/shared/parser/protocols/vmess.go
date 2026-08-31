@@ -5,6 +5,7 @@ package protocols
 import (
 	"cmp"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -39,11 +40,11 @@ func ParseVMess(uri string) (domain.Node, error) {
 
 	data, err := Unbase64(payload)
 	if err != nil {
-		return domain.Node{}, fmt.Errorf("vmess: base64: %w", err)
+		return domain.Node{}, errors.New("invalid vmess base64")
 	}
 	var vm vmessLink
 	if err := json.Unmarshal(data, &vm); err != nil {
-		return domain.Node{}, fmt.Errorf("vmess: json: %w", err)
+		return domain.Node{}, errors.New("invalid vmess json")
 	}
 	if vm.Add == "" || !domain.ValidPort(int(vm.Port)) || vm.ID == "" {
 		return domain.Node{}, fmt.Errorf("vmess: missing add/port/id")

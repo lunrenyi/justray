@@ -39,20 +39,18 @@ func (s *Service) RefreshAll(ctx context.Context, subs []store.Subscription, ref
 
 	out := make([]rpc.Sub, len(subs))
 	updated := make([]store.Subscription, 0, len(subs))
-	var failed error
 	for i, err := range errs {
 		// on failure subs[i] keeps its pre-refresh data
 		out[i] = Info(subs[i])
 		if err != nil {
-			failed = err
 			s.log.Print(err)
 			continue
 		}
 		updated = append(updated, subs[i])
 	}
 
-	if failed != nil {
-		return out, updated, fmt.Errorf("%d of %d subscriptions failed, last: %w", len(subs)-len(updated), len(subs), failed)
+	if failed := len(subs) - len(updated); failed > 0 {
+		return out, updated, fmt.Errorf("subscription refresh failed (%d/%d)", failed, len(subs))
 	}
 	return out, updated, nil
 }

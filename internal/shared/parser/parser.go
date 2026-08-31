@@ -79,7 +79,7 @@ func ParseSubscription(raw []byte) ([]domain.Node, error) {
 	}
 	if len(nodes) == 0 {
 		if bad != nil {
-			return nil, fmt.Errorf("no valid nodes, last error: %w", bad)
+			return nil, bad
 		}
 		return nil, fmt.Errorf("no nodes in subscription")
 	}

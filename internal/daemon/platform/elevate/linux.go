@@ -5,7 +5,6 @@ package elevate
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"syscall"
@@ -27,8 +26,8 @@ func Restart(dir string) error {
 		if _, err := exec.LookPath(elevate); err != nil {
 			elevate = "sudo"
 		}
-		if out, err := exec.Command(elevate, "setcap", "cap_net_admin+ep", target).CombinedOutput(); err != nil {
-			return fmt.Errorf("%v: %s", err, out)
+		if err := exec.Command(elevate, "setcap", "cap_net_admin+ep", target).Run(); err != nil {
+			return errors.New("could not grant permissions")
 		}
 	}
 

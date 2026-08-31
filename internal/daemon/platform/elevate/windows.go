@@ -3,7 +3,7 @@
 package elevate
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"slices"
 	"strings"
@@ -36,7 +36,7 @@ func Restart(_ string) error {
 	file, _ := windows.UTF16PtrFromString(self)
 	args, _ := windows.UTF16PtrFromString(elevatedArg)
 	if err := windows.ShellExecute(0, verb, file, args, nil, windows.SW_HIDE); err != nil {
-		return fmt.Errorf("start elevated daemon: %w", err)
+		return errors.New("could not grant permissions")
 	}
 	return nil
 }

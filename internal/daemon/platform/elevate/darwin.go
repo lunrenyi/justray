@@ -3,7 +3,7 @@
 package elevate
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"os/exec"
 	"strconv"
@@ -27,8 +27,8 @@ func Restart(_ string) error {
 	do shell script "/usr/bin/install -o root -g wheel -m 0755 " & quoted form of source & " ` + helper + `" with administrator privileges`
 		cmd := exec.Command("osascript", "-e", script)
 		cmd.Env = append(os.Environ(), "JUSTRAY_SOURCE="+self)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("%v: %s", err, out)
+		if err := cmd.Run(); err != nil {
+			return errors.New("could not install helper")
 		}
 	}
 	home, err := os.UserHomeDir()

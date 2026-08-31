@@ -3,6 +3,7 @@
 package autostart
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -55,8 +56,8 @@ func Enable() error {
 	if err := os.WriteFile(path, fmt.Appendf(nil, plist, label, bin), 0o600); err != nil {
 		return err
 	}
-	if out, err := exec.Command("launchctl", "load", "-w", path).CombinedOutput(); err != nil {
-		return fmt.Errorf("launchctl load: %v: %s", err, out)
+	if err := exec.Command("launchctl", "load", "-w", path).Run(); err != nil {
+		return errors.New("could not enable autostart")
 	}
 	return nil
 }

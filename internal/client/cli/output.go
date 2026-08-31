@@ -103,7 +103,7 @@ func upperFirst(s string) string {
 }
 
 func Fail(err error) {
-	_, _ = lipgloss.Fprintln(os.Stderr, style.Err.Bold(true).Render("✗"), upperFirst(style.Sanitize(err.Error(), true)))
+	_, _ = lipgloss.Fprintln(os.Stderr, style.Err.Bold(true).Render("✗"), style.Sanitize(err.Error(), true))
 }
 
 func (a *app) clean(s string) string { return style.Sanitize(s, a.emoji) }

@@ -4,6 +4,7 @@ package protocols
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -40,7 +41,7 @@ func ParseShadowsocks(uri string) (domain.Node, error) {
 	} else {
 		decoded, err := Unbase64(rest)
 		if err != nil {
-			return domain.Node{}, fmt.Errorf("ss: base64: %w", err)
+			return domain.Node{}, errors.New("invalid ss base64")
 		}
 		full := string(decoded)
 		at := strings.LastIndexByte(full, '@')

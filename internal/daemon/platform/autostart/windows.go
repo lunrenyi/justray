@@ -3,7 +3,7 @@
 package autostart
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -38,8 +38,8 @@ func Enable() error {
 		return err
 	}
 	cmd := task("/Create", "/F", "/RL", "LIMITED", "/SC", "ONLOGON", "/TN", name, "/TR", `"`+bin+`"`)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("schtasks create: %v: %s", err, out)
+	if err := cmd.Run(); err != nil {
+		return errors.New("could not enable autostart")
 	}
 	return nil
 }

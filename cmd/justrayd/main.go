@@ -72,7 +72,7 @@ func main() {
 	subs := subscription.New(ctx, logger)
 	app, err := core.New(st, conn, subs, logger)
 	if err != nil {
-		die("initialize core:", err)
+		die(err)
 	}
 	srv := server.New(ctx, logger, app)
 	app.Restore()

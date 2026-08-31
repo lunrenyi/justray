@@ -3,6 +3,7 @@
 package autostart
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -69,8 +70,8 @@ func Enable() error {
 	}
 
 	_ = exec.Command("systemctl", "--user", "daemon-reload").Run()
-	if out, err := exec.Command("systemctl", "--user", "enable", "justrayd.service").CombinedOutput(); err != nil {
-		return fmt.Errorf("systemctl enable: %v: %s", err, out)
+	if err := exec.Command("systemctl", "--user", "enable", "justrayd.service").Run(); err != nil {
+		return errors.New("could not enable autostart")
 	}
 	return nil
 }
