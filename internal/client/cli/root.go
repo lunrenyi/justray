@@ -180,14 +180,14 @@ func spawn(dir string) error {
 }
 
 func justrayd() (string, error) {
+	bin, err := exec.LookPath(exeName("justrayd"))
+	if err == nil {
+		return bin, nil
+	}
 	if bin := nextToSelf("justrayd"); bin != "" {
 		return bin, nil
 	}
-	bin, err := exec.LookPath(exeName("justrayd"))
-	if err != nil {
-		return "", fmt.Errorf("justrayd not found next to justray or in PATH; build it with \"go build ./cmd/justrayd\"")
-	}
-	return bin, nil
+	return "", fmt.Errorf("daemon not in PATH or next to client")
 }
 
 func exeName(name string) string {
