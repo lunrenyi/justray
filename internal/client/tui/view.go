@@ -58,7 +58,9 @@ func (m Model) content() string {
 
 func (m Model) titleLine() string {
 	left := style.Title.Render("JustRay") + " " + style.Dim.Render(version.String())
-	if m.settings == nil && (m.filter.Focused() || m.filter.Value() != "") {
+	if m.settings != nil {
+		left += "  " + m.settings.TabBar(max(m.w-lipgloss.Width(left)-2, 10))
+	} else if m.filter.Focused() || m.filter.Value() != "" {
 		left += " " + style.Dim.Render("~ Search:") + " " + m.filter.View()
 	}
 

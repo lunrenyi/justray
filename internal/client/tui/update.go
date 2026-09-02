@@ -40,9 +40,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.mouse(msg)
 
 	case tea.PasteMsg:
-		if m.editor.Focused() {
+		switch {
+		case m.settings != nil:
+			return m.updateSettings(msg)
+		case m.editor.Focused():
 			var cmd tea.Cmd
 			m.editor, cmd = m.editor.Update(msg)
+			return m, cmd
+		case m.filter.Focused():
+			var cmd tea.Cmd
+			m.filter, cmd = m.filter.Update(msg)
+			m.clamp()
 			return m, cmd
 		}
 

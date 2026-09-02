@@ -24,7 +24,7 @@ func Unbase64(s string) ([]byte, error) {
 }
 
 func NodeID(n domain.Node) string {
-	n.ID, n.Name = "", ""
+	n.ID = ""
 	data, _ := json.Marshal(n)
 	return fmt.Sprintf("%016x", xxhash.Sum64(data))
 }

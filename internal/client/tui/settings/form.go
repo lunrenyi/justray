@@ -8,6 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/luynrs/justray/internal/client/tui/style"
+	"github.com/luynrs/justray/internal/shared/version"
 )
 
 func (s *Settings) View(width, height int) string {
@@ -45,7 +46,6 @@ type hit struct {
 func (s *Settings) lines(width, height int) []string {
 	w := max(width-4, 20)
 	s.input.SetWidth(max(w-8, 12))
-	header := []string{style.Indent(s.tabBar(w)), ""}
 
 	rows := s.rows()
 	blocks := make([][]string, len(rows))
@@ -54,17 +54,17 @@ func (s *Settings) lines(width, height int) []string {
 		blocks[i], picks[i] = s.fieldBlock(f, i, w)
 	}
 
-	h := max(height-len(header), 1)
+	h := max(height, 1)
 	s.scrollTo(blocks, h)
 
-	lines := header
+	lines := make([]string, 0, len(rows))
 	hits := map[int]hit{}
 	for i := s.scroll; i < len(blocks); i++ {
-		if len(lines)-len(header)+len(blocks[i]) > h && i > s.scroll {
+		if len(lines)+len(blocks[i]) > h && i > s.scroll {
 			break
 		}
 		for j, line := range blocks[i] {
-			if len(lines)-len(header) >= h {
+			if len(lines) >= h {
 				break
 			}
 			line = style.Clip(line, width)
@@ -97,7 +97,7 @@ func (s *Settings) span(blocks [][]string, from, to int) int {
 	return total
 }
 
-func (s *Settings) tabBar(width int) string {
+func (s *Settings) TabBar(width int) string {
 	var b strings.Builder
 	for i, t := range tabs {
 		b.WriteString(style.Segment(" "+t.name+" ", i == s.tab))
@@ -109,8 +109,7 @@ func (s *Settings) tabBar(width int) string {
 }
 
 func tabAt(x int) (int, bool) {
-	// same segments tabBar renders
-	pos := 2 // style.Indent on the header line
+	pos := lipgloss.Width(style.Title.Render("JustRay")+" "+style.Dim.Render(version.String())) + 2
 	for i, t := range tabs {
 		w := lipgloss.Width(style.Segment(" "+t.name+" ", false))
 		if x >= pos && x < pos+w {

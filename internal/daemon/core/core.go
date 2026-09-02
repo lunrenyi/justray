@@ -540,7 +540,7 @@ func find(subs []store.Subscription, query domain.NodeRef) (domain.Node, domain.
 			if !strings.HasPrefix(n.ID, query.NodeID) {
 				continue
 			}
-			if ref.NodeID != "" {
+			if ref.NodeID != "" && ref.NodeID != n.ID {
 				return domain.Node{}, domain.NodeRef{}, fmt.Errorf("ambiguous node ID %q", query.NodeID)
 			}
 			node, ref = n, domain.NodeRef{SubscriptionID: sub.ID, NodeID: n.ID}

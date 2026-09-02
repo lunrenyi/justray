@@ -259,10 +259,13 @@ func (s *Settings) mouse(msg tea.MouseMsg) tea.Cmd {
 		if mouse.Button != tea.MouseLeft {
 			return nil
 		}
-		if y == 0 {
+		if mouse.Y == 0 {
 			if i, ok := tabAt(mouse.X); ok {
 				s.switchTab(i - s.tab)
 			}
+			return nil
+		}
+		if y < 0 {
 			return nil
 		}
 		h, ok := s.hits[y]
