@@ -18,6 +18,7 @@
 
 - **Modern protocols:** VMess, VLESS, Trojan, Shadowsocks, Hysteria1/2, TUIC, AnyTLS, SOCKS5 and more
 - **Flexible:** subscriptions from raw links or Clash/Mihomo YAML, auto-refreshing and a wide list of settings
+- **Headless:** daemon and embedded sing-box core run independently from the TUI
 - **Lightweight:** up to ~50 MB of RAM on unix-based systems, ~100 MB on Windows
 - **Crossplatform:** runs in every terminal on macOS, Linux and Windows (PowerShell and WSL)
 
