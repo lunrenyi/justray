@@ -43,6 +43,10 @@ function fail($msg) {
 		$msg = $msg.Substring(0, 1).ToUpper() + $msg.Substring(1)
 	}
 	[Console]::Error.WriteLine("✗ $msg")
+	if ($isTty -and -not [Console]::IsInputRedirected) {
+		Write-Host "`nPress Enter to exit..." -NoNewline
+		try { [Console]::ReadLine() | Out-Null } catch {}
+	}
 	exit 1
 }
 
@@ -150,9 +154,9 @@ try {
 	if ($daemons.Count -gt 0) {
 		$restart = $true
 		if (Test-Path "$dir\justray.exe") {
-			& "$dir\justray.exe" down *>$null
+			& "$dir\justray.exe" stop *>$null
 		} elseif (Get-Command jray -ErrorAction SilentlyContinue) {
-			& (Get-Command jray).Source down *>$null
+			& (Get-Command jray).Source stop *>$null
 		}
 
 		$daemons | Stop-Process -ErrorAction SilentlyContinue
@@ -178,7 +182,7 @@ try {
 		Copy-Item "$out\justrayd.exe" "$dir\justrayd.exe" -Force
 		Copy-Item "$out\justray.exe" "$dir\justray.exe" -Force
 	} catch {
-		fail "failed to install binaries"
+		fail "failed to install binaries: $_"
 	}
 
 	$jray = Join-Path $dir "jray.exe"

@@ -145,16 +145,16 @@ func Usage(t domain.Traffic) string {
 	switch {
 	case t.TotalBytes > 0:
 		parts = append(parts, fmt.Sprintf("%s %s %s",
-			Bytes(used),
+			Dim.Render(Bytes(used)),
 			Bar(float64(used)/float64(t.TotalBytes)),
-			Bytes(t.TotalBytes)))
+			Dim.Render(Bytes(t.TotalBytes))))
 	case used > 0:
-		parts = append(parts, Bytes(used)+" used")
+		parts = append(parts, Dim.Render(Bytes(used)+" used"))
 	default:
-		parts = append(parts, "No data")
+		parts = append(parts, Dim.Render("No data"))
 	}
 	if !t.ExpiresAt.IsZero() {
-		parts = append(parts, Expiry(t.ExpiresAt))
+		parts = append(parts, Dim.Render(Expiry(t.ExpiresAt)))
 	}
-	return strings.Join(parts, " · ")
+	return strings.Join(parts, Dim.Render(" · "))
 }

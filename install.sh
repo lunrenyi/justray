@@ -152,9 +152,9 @@ done
 if [ -n "$target_pids" ]; then
 	restart=1
 	if [ -x "$dir/justray" ]; then
-		"$dir/justray" down >/dev/null 2>&1 || true
+		"$dir/justray" stop >/dev/null 2>&1 || true
 	elif command -v jray >/dev/null 2>&1; then
-		jray down >/dev/null 2>&1 || true
+		jray stop >/dev/null 2>&1 || true
 	fi
 
 	for p in $target_pids; do

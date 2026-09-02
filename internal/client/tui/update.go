@@ -184,7 +184,7 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.startFiltering()
 	case "d":
 		if r, ok := m.at(); ok {
-			m.confirmQ, m.confirmID = "delete "+r.Sub.Name+"?", r.Sub.ID
+			m.confirmQ, m.confirmID = "Delete "+r.Sub.Name+"?", r.Sub.ID
 		}
 	case "q":
 		return m.quit()

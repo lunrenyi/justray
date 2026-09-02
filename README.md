@@ -73,8 +73,9 @@ If `justray` is installed via a script or packet manager the `jray` alias is ava
 
 #### Connection
 
-- `jray up <node> [--tun | --proxy]`: start the daemon
-- `jray down`: disconnect and shut down
+- `jray up <node> [--tun | --proxy]`: start the daemon and connect
+- `jray down`: disconnect
+- `jray stop`: shut down the daemon
 - `jray status`: show connection status
 
 #### Subscriptions

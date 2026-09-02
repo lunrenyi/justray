@@ -17,7 +17,7 @@ func (d Data) Render(r Row, selected bool, width int) string {
 	case Gap:
 		return ""
 	case Meta:
-		return style.Flush("    "+style.Dim.Render(style.Usage(r.Sub.Traffic)), subMeta(r.Sub, d.Refreshing[r.Sub.ID], d.Spinner), width)
+		return style.Flush("    "+style.Usage(r.Sub.Traffic), subMeta(r.Sub, d.Refreshing[r.Sub.ID], d.Spinner), width)
 	case Header:
 		return caret + subHeader(r.Sub, d.Collapsed[r.Sub.ID], selected, d.Emoji)
 	}
@@ -81,7 +81,7 @@ func latency(n rpc.Node) string {
 func (d Data) dot(n rpc.Node) string {
 	switch {
 	case d.connected() && d.Status.NodeRef == n.Ref():
-		return style.Strong.Render("●")
+		return style.Alive.Render("●")
 	case d.Probing[n.Ref()]:
 		return style.Pending.Render("○")
 	case !n.Probed:
