@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/luynrs/justray/internal/client/tui/settings"
+	"github.com/luynrs/justray/internal/client/tui/style"
 	"github.com/luynrs/justray/internal/client/tui/tree"
 	"github.com/luynrs/justray/internal/shared/domain"
 	"github.com/luynrs/justray/internal/shared/rpc"
@@ -68,7 +69,7 @@ func New(c *rpc.Client) Model {
 	return Model{
 		client:    c,
 		collapsed: map[string]bool{},
-		spin:      spinner.New(spinner.WithSpinner(spinner.MiniDot)),
+		spin:      spinner.New(spinner.WithSpinner(spinner.MiniDot), spinner.WithStyle(style.Pending)),
 		editor:    editor,
 		filter:    filter,
 		statusCh:  make(chan pushed),

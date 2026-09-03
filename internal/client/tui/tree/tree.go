@@ -153,7 +153,13 @@ func Clamp(rows []Row, cursor, scroll, height int) (int, int) {
 // Point maps a screen line to a cursor position
 func Point(rows []Row, scroll, height, top, y int) (cursor int, ok bool) {
 	i := scroll + y - top
-	if y < top || y >= top+height || i < 0 || i >= len(rows) || !rows[i].Selectable() {
+	if y < top || y >= top+height || i < 0 || i >= len(rows) {
+		return 0, false
+	}
+	if rows[i].Kind == Meta && i > 0 && rows[i-1].Kind == Header {
+		i--
+	}
+	if !rows[i].Selectable() {
 		return 0, false
 	}
 	return len(Selectable(rows[:i])), true

@@ -6,10 +6,10 @@ import (
 )
 
 var (
-	green  = lipgloss.Color("#22c55e")
-	yellow = lipgloss.Color("#f59e0b")
-	red    = lipgloss.Color("#ef4444")
-	gray   = lipgloss.Color("#6b7280")
+	green  = lipgloss.Color("#4ade80")
+	yellow = lipgloss.Color("#facc15")
+	red    = lipgloss.Color("#f87171")
+	gray   = lipgloss.Color("#9ca3af")
 )
 
 var (
@@ -18,9 +18,9 @@ var (
 	Strong = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
 	Name   = lipgloss.NewStyle().Bold(true)
 	Dim    = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
-	Err    = lipgloss.NewStyle().Foreground(red)
+	Err    = lipgloss.NewStyle().Bold(true).Foreground(red)
 
-	pill    = lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Background(lipgloss.Color("4"))
+	pill    = lipgloss.NewStyle().Foreground(lipgloss.Color("0")).Background(lipgloss.Color("4")).Bold(true)
 	pillCap = lipgloss.NewStyle().Foreground(lipgloss.Color("4"))
 
 	Alive   = lipgloss.NewStyle().Foreground(green)

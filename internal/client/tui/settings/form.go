@@ -126,7 +126,7 @@ func (s *Settings) fieldBlock(f field, i, width int) (lines, choices []string) {
 
 	bar := "    "
 	if selected {
-		bar = "  " + style.Accent.Render("┃") + " "
+		bar = "  " + style.Accent.Render("▎") + " "
 	}
 
 	switch {

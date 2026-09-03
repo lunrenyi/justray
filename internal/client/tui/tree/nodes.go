@@ -8,20 +8,20 @@ import (
 )
 
 func (d Data) Render(r Row, selected bool, width int) string {
-	caret := "  "
+	bar := "  "
 	if selected {
-		caret = style.Strong.Render("❯ ")
+		bar = style.Accent.Render("▎ ")
 	}
 
 	switch r.Kind {
 	case Gap:
 		return ""
 	case Meta:
-		return style.Flush("    "+style.Usage(r.Sub.Traffic), subMeta(r.Sub, d.Refreshing[r.Sub.ID], d.Spinner), width)
+		return bar + style.Flush("  "+style.Usage(r.Sub.Traffic), subMeta(r.Sub, d.Refreshing[r.Sub.ID], d.Spinner), width-2)
 	case Header:
-		return caret + subHeader(r.Sub, d.Collapsed[r.Sub.ID], selected, d.Emoji)
+		return bar + subHeader(r.Sub, d.Collapsed[r.Sub.ID], selected, d.Emoji)
 	}
-	return caret + style.Flush(d.node(r.Node, selected), info(r.Node), width-2)
+	return bar + style.Flush(d.node(r.Node, selected), info(r.Node), width-2)
 }
 
 func subHeader(s rpc.Sub, collapsed, selected, emoji bool) string {
@@ -30,11 +30,10 @@ func subHeader(s rpc.Sub, collapsed, selected, emoji bool) string {
 		arrow = "▶"
 	}
 	clean := style.Sanitize(s.Name, emoji)
-	name := style.Name.Render(clean)
 	if selected {
-		name = style.Strong.Render(clean)
+		return style.Strong.Render(arrow + " " + clean)
 	}
-	return arrow + " " + name
+	return arrow + " " + style.Name.Render(clean)
 }
 
 func subMeta(s rpc.Sub, refreshing bool, spinner string) string {

@@ -86,7 +86,9 @@ func (m Model) tree() string {
 			cursor = sel[m.cursor]
 		}
 		for i, r := range rows[m.scroll:min(m.scroll+h, len(rows))] {
-			lines = append(lines, m.clip(data.Render(r, m.scroll+i == cursor, m.w)))
+			idx := m.scroll + i
+			selected := idx == cursor || (r.Kind == tree.Meta && cursor >= 0 && idx == cursor+1 && rows[cursor].Kind == tree.Header)
+			lines = append(lines, m.clip(data.Render(r, selected, m.w)))
 		}
 	case m.filter.Value() != "":
 		lines = append(lines, m.clip("    "+style.Dim.Render(fmt.Sprintf("No matches for %q", m.filter.Value()))))
