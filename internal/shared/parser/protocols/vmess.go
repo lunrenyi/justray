@@ -20,6 +20,7 @@ type vmessLink struct {
 	AID  flexInt    `json:"aid"`
 	SCY  string     `json:"scy"`
 	Net  string     `json:"net"`
+	Type string     `json:"type"`
 	Host string     `json:"host"`
 	Path string     `json:"path"`
 	TLS  flexString `json:"tls"`
@@ -49,6 +50,9 @@ func ParseVMess(uri string) (domain.Node, error) {
 	}
 
 	net := strings.ToLower(cmp.Or(vm.Net, "tcp"))
+	if net == "splithttp" {
+		net = "xhttp"
+	}
 	host0 := strings.TrimSpace(strings.SplitN(vm.Host, ",", 2)[0])
 	n := domain.Node{
 		Name:     cmp.Or(vm.PS, frag, vm.Add),
@@ -64,6 +68,7 @@ func ParseVMess(uri string) (domain.Node, error) {
 			Network: net,
 			Path:    vm.Path,
 			Host:    cmp.Or(host0, vm.SNI),
+			Mode:    vm.Type,
 		},
 	}
 	if net == "grpc" {
