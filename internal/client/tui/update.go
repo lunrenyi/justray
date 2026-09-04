@@ -96,8 +96,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.op == "refresh" || msg.op == "sync" {
 			m.refreshing = nil
 		}
-		if selectedOK && selected.Kind == tree.Header {
-			m.toHeader(selected.Sub.ID)
+		if selectedOK {
+			if selected.Kind == tree.Header {
+				m.toHeader(selected.Sub.ID)
+			} else {
+				rows := m.rows()
+				for i, idx := range tree.Selectable(rows) {
+					if rows[idx].Kind == tree.Node && rows[idx].Node.Ref() == selected.Node.Ref() {
+						m.cursor = i
+						break
+					}
+				}
+			}
 		}
 		m.clamp()
 		if msg.op == "settings" {

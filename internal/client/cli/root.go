@@ -236,10 +236,11 @@ func match[T any](key, noun string, items []T, idName func(T) (id, name string))
 	var names []string
 	for _, it := range items {
 		id, name := idName(it)
-		if id == key {
+		idLower := strings.ToLower(id)
+		if idLower == key {
 			return it, nil
 		}
-		if strings.HasPrefix(id, key) || strings.Contains(strings.ToLower(name), key) {
+		if strings.HasPrefix(idLower, key) || strings.Contains(strings.ToLower(name), key) {
 			hits = append(hits, it)
 			names = append(names, fmt.Sprintf("%s (%s)", style.Sanitize(name, true), displayID(id)))
 		}

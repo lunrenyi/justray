@@ -1,6 +1,11 @@
 package cli
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/luynrs/justray/internal/domain"
+	"github.com/luynrs/justray/internal/ipc"
+)
 
 func TestMatch(t *testing.T) {
 	type item struct{ id, name string }
@@ -15,7 +20,8 @@ func TestMatch(t *testing.T) {
 		key, want string
 	}{
 		{"7e022a3a", "Prague"},
-		{"7e02", "Prague"},
+		{"7E022A3A", "Prague"},
+		{"7E02", "Prague"},
 		{"prague", "Prague"},
 		{"PRAGUE", "Prague"},
 		{"grpc", "Frankfurt am Main gRPC"},
@@ -38,5 +44,22 @@ func TestMatch(t *testing.T) {
 	}
 	if _, err := match("frankfurt", "node", items, idName); err == nil {
 		t.Error("match(frankfurt): want an ambiguity error")
+	}
+}
+
+func TestLookupNode(t *testing.T) {
+	a := &app{}
+	nodes := []ipc.Node{
+		{ID: "node1", Sub: "sub1", Name: "Node 1"},
+		{ID: "node2", Sub: "sub2", Name: "Node 2"},
+	}
+	if n := a.lookupNode(domain.NodeRef{SubscriptionID: "sub1", NodeID: "node1"}, nodes); n.Name != "Node 1" {
+		t.Fatalf("lookupNode = %+v, want Node 1", n)
+	}
+	if n := a.lookupNode(domain.NodeRef{SubscriptionID: "", NodeID: "node2"}, nodes); n.Name != "Node 2" {
+		t.Fatalf("lookupNode without sub = %+v, want Node 2", n)
+	}
+	if n := a.lookupNode(domain.NodeRef{SubscriptionID: "sub1", NodeID: "unknown"}, nodes); n.ID != "" {
+		t.Fatalf("lookupNode unknown = %+v, want empty", n)
 	}
 }
