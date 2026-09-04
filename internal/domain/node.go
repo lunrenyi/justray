@@ -84,6 +84,7 @@ type Transport struct {
 	Host        string
 	ServiceName string // grpc
 	Mode        string // xhttp: auto, packet-up, stream-up, stream-one
+	Extra       string `yaml:"extra,omitempty"`
 }
 
 type TLS struct {

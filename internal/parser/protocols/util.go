@@ -61,13 +61,17 @@ func transport(q url.Values) domain.Transport {
 	if net == "splithttp" {
 		net = "xhttp"
 	}
-	return domain.Transport{
+	t := domain.Transport{
 		Network:     net,
 		Path:        q.Get("path"),
 		Host:        cmp.Or(q.Get("host"), q.Get("sni")),
 		ServiceName: q.Get("serviceName"),
 		Mode:        cmp.Or(q.Get("mode"), q.Get("headerType")),
 	}
+	if net == "xhttp" {
+		t.Extra = q.Get("extra")
+	}
+	return t
 }
 
 func atoi(s string) int {

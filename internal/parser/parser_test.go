@@ -3,6 +3,7 @@ package parser
 import (
 	"encoding/base64"
 	"encoding/json"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -191,6 +192,24 @@ func TestParseSubscriptionRejectsInvalidXray(t *testing.T) {
 			t.Fatalf("accepted invalid xray config: %s", body)
 		}
 	}
+}
+
+func TestParseXHTTPExtra(t *testing.T) {
+	raw := `{"mode":"packet-up","path":"/uploadfiles/","xPaddingKey":"_dc","xPaddingHeader":"X-Cache","xPaddingMethod":"tokenish","uplinkHTTPMethod":"GET","xPaddingObfsMode":true,"xPaddingPlacement":"queryInHeader"}`
+	n, err := ParseURI(xhttpURI(raw))
+	if err != nil {
+		t.Fatalf("ParseURI: %v", err)
+	}
+	if n.Transport.Network != "xhttp" {
+		t.Fatalf("unexpected network: %s", n.Transport.Network)
+	}
+	if n.Transport.Extra != raw {
+		t.Fatalf("unexpected Extra: got %q, want %q", n.Transport.Extra, raw)
+	}
+}
+
+func xhttpURI(extra string) string {
+	return "vless://11111111-1111-1111-1111-111111111111@example.com:443?type=xhttp&extra=" + url.QueryEscape(extra)
 }
 
 func TestParseSubscriptionAllGarbage(t *testing.T) {
