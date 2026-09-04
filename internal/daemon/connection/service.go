@@ -6,10 +6,10 @@ import (
 	"log"
 	"time"
 
-	"github.com/luynrs/justray/internal/daemon/engine"
-	"github.com/luynrs/justray/internal/daemon/platform/elevate"
-	"github.com/luynrs/justray/internal/shared/domain"
-	"github.com/luynrs/justray/internal/shared/rpc"
+	"github.com/luynrs/justray/internal/engine"
+	"github.com/luynrs/justray/internal/domain"
+	"github.com/luynrs/justray/internal/ipc"
+	"github.com/luynrs/justray/internal/platform/elevate"
 )
 
 type session struct {
@@ -23,8 +23,8 @@ type session struct {
 
 type Service struct {
 	ctx       context.Context
-	newEngine engine.New
-	probeAll  engine.Probe
+	newEngine engine.NewFunc
+	probeAll  engine.ProbeFunc
 	log       *log.Logger
 	dir       string
 
@@ -32,7 +32,7 @@ type Service struct {
 	restart chan struct{}
 }
 
-func New(ctx context.Context, dir string, newEngine engine.New, probe engine.Probe, logger *log.Logger) *Service {
+func New(ctx context.Context, dir string, newEngine engine.NewFunc, probe engine.ProbeFunc, logger *log.Logger) *Service {
 	return &Service{
 		ctx:       ctx,
 		newEngine: newEngine,
@@ -83,7 +83,7 @@ func (s *Service) ForgetIfRemoved(subID string) error {
 }
 
 func (s *Service) Probe(ctx context.Context, nodes []domain.Node, settings domain.Settings) (map[string]engine.Result, error) {
-	return s.probeAll(ctx, nodes, settings, rpc.EngineLog(s.dir))
+	return s.probeAll(ctx, nodes, settings, ipc.EngineLog(s.dir))
 }
 
 func (s *Service) RestartRequested() <-chan struct{} { return s.restart }
@@ -94,8 +94,8 @@ func (s *Service) Shutdown() {
 	}
 }
 
-func (s *Service) Status() rpc.Status {
-	st := rpc.Status{}
+func (s *Service) Status() ipc.Status {
+	st := ipc.Status{}
 	if s.session.eng != nil && s.session.eng.Running() {
 		st.Connected = true
 		st.NodeRef, st.NodeName = s.session.ref, s.session.node.Name
@@ -115,10 +115,10 @@ func (s *Service) apply(ctx context.Context, n domain.Node, ref domain.NodeRef, 
 	}
 	eng := s.session.eng
 	if eng == nil {
-		if err = rpc.ClearLog(rpc.EngineLog(s.dir)); err != nil {
+		if err = ipc.ClearLog(ipc.EngineLog(s.dir)); err != nil {
 			s.log.Print(err)
 		}
-		eng = s.newEngine(s.ctx, rpc.EngineLog(s.dir))
+		eng = s.newEngine(s.ctx, ipc.EngineLog(s.dir))
 		if eng == nil {
 			err = errors.New("initialize engine: engine is nil")
 		} else if err = eng.Apply(ctx, engine.SessionSpec{Node: n, Settings: settings, Tun: tun}); err != nil {
@@ -136,7 +136,7 @@ func (s *Service) apply(ctx context.Context, n domain.Node, ref domain.NodeRef, 
 			case s.restart <- struct{}{}:
 			default:
 			}
-			err = rpc.ErrElevate
+			err = ipc.ErrElevate
 		}
 		return err
 	}

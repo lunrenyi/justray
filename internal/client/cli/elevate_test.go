@@ -5,24 +5,24 @@ import (
 	"testing"
 	"time"
 
-	"github.com/luynrs/justray/internal/shared/rpc"
+	"github.com/luynrs/justray/internal/ipc"
 )
 
 func TestAwaitElevate(t *testing.T) {
 	elevatePoll = time.Millisecond
 	tun := true
 
-	replies := func(steps ...any) func() (rpc.Status, error) {
+	replies := func(steps ...any) func() (ipc.Status, error) {
 		i := -1
-		return func() (rpc.Status, error) {
+		return func() (ipc.Status, error) {
 			if i++; i >= len(steps) {
-				return rpc.Status{}, errors.New("socket closed")
+				return ipc.Status{}, errors.New("socket closed")
 			}
 			switch v := steps[i].(type) {
-			case rpc.Status:
+			case ipc.Status:
 				return v, nil
 			case error:
-				return rpc.Status{}, v
+				return ipc.Status{}, v
 			default:
 				panic("unknown reply type")
 			}
@@ -33,7 +33,7 @@ func TestAwaitElevate(t *testing.T) {
 		status := replies(
 			errors.New("connection reset"),         // old daemon, still on its way out
 			errors.New("connection refused"),       // prompt still open
-			rpc.Status{Connected: true, Tun: true}, // restored
+			ipc.Status{Connected: true, Tun: true}, // restored
 		)
 		st, err := awaitElevate(status, &tun, time.Second)
 		if err != nil || !st.Tun {
@@ -42,7 +42,7 @@ func TestAwaitElevate(t *testing.T) {
 	})
 
 	t.Run("times out", func(t *testing.T) {
-		status := func() (rpc.Status, error) { return rpc.Status{}, errors.New("no daemon") }
+		status := func() (ipc.Status, error) { return ipc.Status{}, errors.New("no daemon") }
 		if _, err := awaitElevate(status, &tun, 10*time.Millisecond); err == nil {
 			t.Fatal("want a timeout error")
 		}

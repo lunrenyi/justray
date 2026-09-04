@@ -10,7 +10,7 @@ import (
 
 	"github.com/luynrs/justray/internal/client/tui/style"
 	"github.com/luynrs/justray/internal/client/tui/tree"
-	"github.com/luynrs/justray/internal/shared/version"
+	"github.com/luynrs/justray/internal/version"
 )
 
 const (

@@ -5,7 +5,7 @@ import (
 	"runtime"
 
 	"github.com/luynrs/justray/internal/client/tui/style"
-	"github.com/luynrs/justray/internal/shared/version"
+	"github.com/luynrs/justray/internal/version"
 )
 
 func versionBlock() string {

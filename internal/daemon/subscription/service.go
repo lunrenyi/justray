@@ -8,7 +8,7 @@ import (
 	"net/url"
 
 	"github.com/luynrs/justray/internal/daemon/store"
-	"github.com/luynrs/justray/internal/shared/parser"
+	"github.com/luynrs/justray/internal/parser"
 )
 
 type Service struct {

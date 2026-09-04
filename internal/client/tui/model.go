@@ -13,8 +13,8 @@ import (
 	"github.com/luynrs/justray/internal/client/tui/settings"
 	"github.com/luynrs/justray/internal/client/tui/style"
 	"github.com/luynrs/justray/internal/client/tui/tree"
-	"github.com/luynrs/justray/internal/shared/domain"
-	"github.com/luynrs/justray/internal/shared/rpc"
+	"github.com/luynrs/justray/internal/domain"
+	"github.com/luynrs/justray/internal/ipc"
 )
 
 const (
@@ -23,10 +23,10 @@ const (
 )
 
 type Model struct {
-	client *rpc.Client
+	client *ipc.Client
 
-	subs  []rpc.Sub
-	nodes []rpc.Node
+	subs  []ipc.Sub
+	nodes []ipc.Node
 
 	collapsed  map[string]bool
 	probing    map[domain.NodeRef]bool
@@ -42,7 +42,7 @@ type Model struct {
 	settings  *settings.Settings
 	filter    textinput.Model
 
-	status     rpc.Status
+	status     ipc.Status
 	revision   uint64
 	live       bool
 	emoji      bool
@@ -58,7 +58,7 @@ type Model struct {
 	quitting bool
 }
 
-func New(c *rpc.Client) Model {
+func New(c *ipc.Client) Model {
 	watchCtx, stopWatch := context.WithCancel(context.Background())
 	editor := textinput.New()
 	editor.Prompt = "Add:  "
@@ -119,7 +119,7 @@ func (m Model) quit() (tea.Model, tea.Cmd) {
 	return m, tea.Quit
 }
 
-func Run(c *rpc.Client) error {
+func Run(c *ipc.Client) error {
 	log.SetOutput(io.Discard)
 	m := New(c)
 	_, err := tea.NewProgram(m).Run()

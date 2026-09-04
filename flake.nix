@@ -26,7 +26,7 @@
       systems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
 
-      version = builtins.head (builtins.match ".*Version = \"([^\"]*)\".*" (builtins.readFile ./internal/shared/version/version.go));
+      version = builtins.head (builtins.match ".*Version = \"([^\"]*)\".*" (builtins.readFile ./internal/version/version.go));
 
       justrayFor = system:
         let pkgs = nixpkgs.legacyPackages.${system};
@@ -44,7 +44,7 @@
 
           subPackages = [ "cmd/justray" "cmd/justrayd" ];
           tags = [ "with_quic" "with_utls" "with_gvisor" "with_grpc" "with_xhttp" ];
-          ldflags = [ "-s" "-w" "-X" "github.com/luynrs/justray/internal/shared/version.Version=${version}" ];
+          ldflags = [ "-s" "-w" "-X" "github.com/luynrs/justray/internal/version.Version=${version}" ];
 
           nativeBuildInputs = [ pkgs.installShellFiles ];
 

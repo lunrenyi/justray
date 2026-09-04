@@ -8,14 +8,14 @@ import (
 	"net"
 	"time"
 
-	"github.com/luynrs/justray/internal/shared/rpc"
+	"github.com/luynrs/justray/internal/ipc"
 )
 
 func (s *Server) handle(conn net.Conn, semHeld *bool) {
 	defer func() { _ = conn.Close() }()
-	_ = conn.SetReadDeadline(time.Now().Add(rpc.IdleTimeout))
+	_ = conn.SetReadDeadline(time.Now().Add(ipc.IdleTimeout))
 
-	var req rpc.Req
+	var req ipc.Req
 	if err := json.NewDecoder(io.LimitReader(conn, 1<<20)).Decode(&req); err != nil { // max req size
 		reply(conn, nil, fmt.Errorf("bad request: %w", err))
 		return
@@ -50,11 +50,11 @@ func (s *Server) handle(conn net.Conn, semHeld *bool) {
 		cancel()
 	}()
 	result, err := s.dispatch(ctx, req)
-	_ = conn.SetDeadline(time.Now().Add(rpc.IdleTimeout))
+	_ = conn.SetDeadline(time.Now().Add(ipc.IdleTimeout))
 	reply(conn, result, err)
 }
 
-func (s *Server) dispatch(ctx context.Context, req rpc.Req) (any, error) {
+func (s *Server) dispatch(ctx context.Context, req ipc.Req) (any, error) {
 	a := req.Args
 	switch req.Method {
 	case "Ping":
@@ -123,7 +123,7 @@ func (s *Server) watch(conn net.Conn) {
 }
 
 func reply(conn net.Conn, result any, err error) {
-	resp := rpc.Resp{OK: true}
+	resp := ipc.Resp{OK: true}
 	if err == nil {
 		var raw []byte
 		raw, err = json.Marshal(result)

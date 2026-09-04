@@ -6,8 +6,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/luynrs/justray/internal/client/tui/tree"
-	"github.com/luynrs/justray/internal/shared/domain"
-	"github.com/luynrs/justray/internal/shared/rpc"
+	"github.com/luynrs/justray/internal/domain"
+	"github.com/luynrs/justray/internal/ipc"
 )
 
 func (m Model) activate() (tea.Model, tea.Cmd) {
@@ -28,7 +28,7 @@ func (m Model) activate() (tea.Model, tea.Cmd) {
 	act := m.client.Disconnect
 	if !m.connected() || m.status.NodeRef != r.Node.Ref() {
 		ref := r.Node.Ref()
-		act = func() (rpc.Snapshot, error) { return m.client.Connect(ref) }
+		act = func() (ipc.Snapshot, error) { return m.client.Connect(ref) }
 	}
 	return m, tea.Batch(m.spin.Tick, snapshotCmd("connect", act))
 }
@@ -72,7 +72,7 @@ func (m Model) probe() (tea.Model, tea.Cmd) {
 	m.probing = map[domain.NodeRef]bool{}
 	if r.Kind == tree.Node {
 		m.probing[r.Node.Ref()] = true
-		return m, snapshotCmd("probe", func() (rpc.Snapshot, error) { return m.client.Probe(r.Node.Sub, r.Node.ID) })
+		return m, snapshotCmd("probe", func() (ipc.Snapshot, error) { return m.client.Probe(r.Node.Sub, r.Node.ID) })
 	}
 	if r.Sub.ID == tree.Default {
 		return m, nil
@@ -82,7 +82,7 @@ func (m Model) probe() (tea.Model, tea.Cmd) {
 			m.probing[n.Ref()] = true
 		}
 	}
-	return m, snapshotCmd("probe", func() (rpc.Snapshot, error) { return m.client.Probe(r.Sub.ID, "") })
+	return m, snapshotCmd("probe", func() (ipc.Snapshot, error) { return m.client.Probe(r.Sub.ID, "") })
 }
 
 func (m Model) probeAll() (tea.Model, tea.Cmd) {
@@ -90,7 +90,7 @@ func (m Model) probeAll() (tea.Model, tea.Cmd) {
 	for _, n := range m.nodes {
 		m.probing[n.Ref()] = true
 	}
-	return m, snapshotCmd("probe", func() (rpc.Snapshot, error) { return m.client.Probe("", "") })
+	return m, snapshotCmd("probe", func() (ipc.Snapshot, error) { return m.client.Probe("", "") })
 }
 
 func (m Model) refresh() (tea.Model, tea.Cmd) {
@@ -103,7 +103,7 @@ func (m Model) refresh() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.refreshing = map[string]bool{id: true}
-	return m, tea.Batch(m.spin.Tick, snapshotCmd("refresh", func() (rpc.Snapshot, error) { return m.client.Refresh(id) }))
+	return m, tea.Batch(m.spin.Tick, snapshotCmd("refresh", func() (ipc.Snapshot, error) { return m.client.Refresh(id) }))
 }
 
 func (m Model) refreshAll() (tea.Model, tea.Cmd) {
@@ -120,12 +120,12 @@ func (m Model) moveSub(dir int) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	id := r.Sub.ID
-	i := slices.IndexFunc(m.subs, func(s rpc.Sub) bool { return s.ID == id })
+	i := slices.IndexFunc(m.subs, func(s ipc.Sub) bool { return s.ID == id })
 	j := i + dir
 	if i < 0 || j < 0 || j >= len(m.subs) {
 		return m, nil
 	}
-	return m, snapshotCmd("mutation", func() (rpc.Snapshot, error) { return m.client.MoveSub(id, dir) })
+	return m, snapshotCmd("mutation", func() (ipc.Snapshot, error) { return m.client.MoveSub(id, dir) })
 }
 
 func (m Model) setTun(enable bool) (tea.Model, tea.Cmd) {
@@ -133,5 +133,5 @@ func (m Model) setTun(enable bool) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.connecting = true
-	return m, tea.Batch(m.spin.Tick, snapshotCmd("connect", func() (rpc.Snapshot, error) { return m.client.SetTun(enable) }))
+	return m, tea.Batch(m.spin.Tick, snapshotCmd("connect", func() (ipc.Snapshot, error) { return m.client.SetTun(enable) }))
 }

@@ -10,7 +10,7 @@ import (
 
 	"github.com/luynrs/justray/internal/client/tui/settings"
 	"github.com/luynrs/justray/internal/client/tui/tree"
-	"github.com/luynrs/justray/internal/shared/rpc"
+	"github.com/luynrs/justray/internal/ipc"
 )
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -125,7 +125,7 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		id := m.confirmID
 		m.confirmQ, m.confirmID = "", ""
 		if k == "y" {
-			return m, snapshotCmd("mutation", func() (rpc.Snapshot, error) { return m.client.RemoveSub(id) })
+			return m, snapshotCmd("mutation", func() (ipc.Snapshot, error) { return m.client.RemoveSub(id) })
 		}
 		return m, nil
 
@@ -140,7 +140,7 @@ func (m Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			if url == "" {
 				return m, nil
 			}
-			return m, snapshotCmd("mutation", func() (rpc.Snapshot, error) { return m.client.AddSub(url) })
+			return m, snapshotCmd("mutation", func() (ipc.Snapshot, error) { return m.client.AddSub(url) })
 		}
 		var cmd tea.Cmd
 		m.editor, cmd = m.editor.Update(msg)
@@ -292,5 +292,5 @@ func (m Model) closeSettings() (Model, tea.Cmd) {
 	}
 	m.emoji = next.Emoji == "on"
 	m.connecting = true
-	return m, tea.Batch(m.spin.Tick, snapshotCmd("connect", func() (rpc.Snapshot, error) { return m.client.SetSettings(next) }))
+	return m, tea.Batch(m.spin.Tick, snapshotCmd("connect", func() (ipc.Snapshot, error) { return m.client.SetSettings(next) }))
 }

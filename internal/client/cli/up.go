@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/luynrs/justray/internal/shared/rpc"
+	"github.com/luynrs/justray/internal/ipc"
 )
 
 var upTunFlag, upProxyFlag bool
@@ -79,14 +79,14 @@ func (a *app) connectNode(key string, mode *bool) error {
 	return a.connect(n, mode)
 }
 
-func (a *app) connect(n rpc.Node, mode *bool) error {
+func (a *app) connect(n ipc.Node, mode *bool) error {
 	spinText := "Connecting to " + a.clean(n.Name)
 	if mode != nil {
-		if _, err := a.runOp(spinText, func() (rpc.Snapshot, error) { return a.client.SetTun(*mode) }, mode); err != nil {
+		if _, err := a.runOp(spinText, func() (ipc.Snapshot, error) { return a.client.SetTun(*mode) }, mode); err != nil {
 			return err
 		}
 	}
-	st, err := a.runOp(spinText, func() (rpc.Snapshot, error) {
+	st, err := a.runOp(spinText, func() (ipc.Snapshot, error) {
 		return a.client.Connect(n.Ref())
 	}, mode)
 	if err != nil {
@@ -97,16 +97,16 @@ func (a *app) connect(n rpc.Node, mode *bool) error {
 }
 
 // runOp waits out the daemon re-execing itself with tun caps
-func (a *app) runOp(text string, op func() (rpc.Snapshot, error), want *bool) (rpc.Status, error) {
+func (a *app) runOp(text string, op func() (ipc.Snapshot, error), want *bool) (ipc.Status, error) {
 	stop := spin(text)
 	snapshot, err := op()
 	stop()
-	if err == nil || err.Error() != rpc.ErrElevate.Error() {
+	if err == nil || err.Error() != ipc.ErrElevate.Error() {
 		return snapshot.Status, err
 	}
 	stop = spin("Granting permissions")
 	defer stop()
-	st, err := awaitElevate(func() (rpc.Status, error) {
+	st, err := awaitElevate(func() (ipc.Status, error) {
 		snapshot, err := a.client.Snapshot()
 		return snapshot.Status, err
 	}, want, 3*time.Minute)
@@ -119,7 +119,7 @@ func (a *app) runOp(text string, op func() (rpc.Snapshot, error), want *bool) (r
 
 var elevatePoll = 500 * time.Millisecond
 
-func awaitElevate(status func() (rpc.Status, error), want *bool, timeout time.Duration) (rpc.Status, error) {
+func awaitElevate(status func() (ipc.Status, error), want *bool, timeout time.Duration) (ipc.Status, error) {
 	pending := false
 	for deadline := time.Now().Add(timeout); time.Now().Before(deadline); {
 		time.Sleep(elevatePoll)
@@ -133,15 +133,15 @@ func awaitElevate(status func() (rpc.Status, error), want *bool, timeout time.Du
 			return st, nil
 		}
 	}
-	return rpc.Status{}, errors.New("timed out waiting for permissions")
+	return ipc.Status{}, errors.New("timed out waiting for permissions")
 }
 
-func (a *app) switchMode(st rpc.Status, tun bool) error {
+func (a *app) switchMode(st ipc.Status, tun bool) error {
 	if st.Tun == tun {
 		a.report(upperFirst(state(st)), st)
 		return nil
 	}
-	next, err := a.runOp("Switching to "+strings.ToUpper(modeWord(tun)), func() (rpc.Snapshot, error) {
+	next, err := a.runOp("Switching to "+strings.ToUpper(modeWord(tun)), func() (ipc.Snapshot, error) {
 		return a.client.SetTun(tun)
 	}, &tun)
 	if err != nil {
@@ -151,21 +151,21 @@ func (a *app) switchMode(st rpc.Status, tun bool) error {
 	return nil
 }
 
-func (a *app) report(headline string, st rpc.Status) {
+func (a *app) report(headline string, st ipc.Status) {
 	done(headline)
 	a.nodeDetails(st)
 }
 
-func (a *app) resolveNode(key, sub string) (rpc.Node, error) {
+func (a *app) resolveNode(key, sub string) (ipc.Node, error) {
 	snapshot, err := a.client.Snapshot()
 	if err != nil {
-		return rpc.Node{}, err
+		return ipc.Node{}, err
 	}
 	nodes := snapshot.Nodes
 	if sub != "" {
-		nodes = slices.DeleteFunc(nodes, func(n rpc.Node) bool { return n.Sub != sub })
+		nodes = slices.DeleteFunc(nodes, func(n ipc.Node) bool { return n.Sub != sub })
 	}
-	return match(key, "node", nodes, func(n rpc.Node) (string, string) { return n.ID, n.Name })
+	return match(key, "node", nodes, func(n ipc.Node) (string, string) { return n.ID, n.Name })
 }
 
 func (a *app) completeNode(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -177,5 +177,5 @@ func (a *app) completeNode(cmd *cobra.Command, args []string, toComplete string)
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 	snapshot, err := c.Snapshot()
-	return completeNames(snapshot.Nodes, err, func(n rpc.Node) string { return n.Name })
+	return completeNames(snapshot.Nodes, err, func(n ipc.Node) string { return n.Name })
 }

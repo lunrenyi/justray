@@ -8,7 +8,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"github.com/luynrs/justray/internal/shared/domain"
+	"github.com/luynrs/justray/internal/domain"
 )
 
 func Clip(s string, width int) string {

@@ -11,7 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/luynrs/justray/internal/client/tui/style"
-	"github.com/luynrs/justray/internal/shared/domain"
+	"github.com/luynrs/justray/internal/domain"
 )
 
 type field struct {

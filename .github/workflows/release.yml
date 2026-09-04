@@ -22,7 +22,7 @@ jobs:
           go-version-file: go.mod
       - name: Verify
         run: |
-          version=$(awk -F '"' '/^var Version = / { print $2 }' internal/shared/version/version.go)
+          version=$(awk -F '"' '/^var Version = / { print $2 }' internal/version/version.go)
           test -n "$version"
           test "$GITHUB_REF_NAME" = "v$version"
           go vet ./...

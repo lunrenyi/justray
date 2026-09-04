@@ -15,28 +15,28 @@ import (
 
 	"github.com/luynrs/justray/internal/daemon/connection"
 	"github.com/luynrs/justray/internal/daemon/core"
-	"github.com/luynrs/justray/internal/daemon/engine/singbox"
-	"github.com/luynrs/justray/internal/daemon/platform/elevate"
+	"github.com/luynrs/justray/internal/engine"
 	"github.com/luynrs/justray/internal/daemon/server"
 	"github.com/luynrs/justray/internal/daemon/store"
 	"github.com/luynrs/justray/internal/daemon/subscription"
-	"github.com/luynrs/justray/internal/shared/rpc"
-	"github.com/luynrs/justray/internal/shared/version"
+	"github.com/luynrs/justray/internal/ipc"
+	"github.com/luynrs/justray/internal/platform/elevate"
+	"github.com/luynrs/justray/internal/version"
 )
 
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	dir, err := rpc.Dir()
+	dir, err := ipc.Dir()
 	if err != nil {
 		die("resolve config dir:", err)
 	}
-	if err := rpc.EnsureDir(dir); err != nil {
+	if err := ipc.EnsureDir(dir); err != nil {
 		die("create config dir:", err)
 	}
-	socket := rpc.Socket(dir)
+	socket := ipc.Socket(dir)
 
-	logFile, err := os.OpenFile(rpc.DaemonLog(dir), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	logFile, err := os.OpenFile(ipc.DaemonLog(dir), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		die("open log file:", err)
 	}
@@ -48,7 +48,7 @@ func main() {
 	}
 	logger := log.New(out, "justrayd: ", log.LstdFlags)
 
-	if err := rpc.ClearLog(rpc.EngineLog(dir)); err != nil {
+	if err := ipc.ClearLog(ipc.EngineLog(dir)); err != nil {
 		logger.Print(err)
 	}
 
@@ -68,7 +68,7 @@ func main() {
 	logger.Printf("justrayd %s listening on %s", version.String(), socket)
 
 	st := store.Disk{Dir: dir}
-	conn := connection.New(ctx, dir, singbox.New, singbox.Probe, logger)
+	conn := connection.New(ctx, dir, engine.New, engine.Probe, logger)
 	subs := subscription.New(ctx, logger)
 	app, err := core.New(st, conn, subs)
 	if err != nil {

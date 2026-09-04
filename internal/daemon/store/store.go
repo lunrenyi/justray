@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/luynrs/justray/internal/daemon/platform/owner"
-	"github.com/luynrs/justray/internal/shared/domain"
-	"github.com/luynrs/justray/internal/shared/rpc"
+	"github.com/luynrs/justray/internal/domain"
+	"github.com/luynrs/justray/internal/ipc"
+	"github.com/luynrs/justray/internal/platform/owner"
 	"gopkg.in/yaml.v3"
 )
 
@@ -45,7 +45,7 @@ type file struct {
 
 func (d Disk) Load() (PersistentState, error) {
 	state := PersistentState{Settings: domain.Settings{General: domain.General{RefreshEvery: domain.DefaultRefresh}}}
-	data, err := os.ReadFile(rpc.Configuration(d.Dir))
+	data, err := os.ReadFile(ipc.Configuration(d.Dir))
 	if err != nil {
 		if err := skipMissing(err); err != nil {
 			return state, err
@@ -67,7 +67,7 @@ func (d Disk) Load() (PersistentState, error) {
 }
 
 func (d Disk) loadSubscriptions(state PersistentState) (PersistentState, error) {
-	data, err := os.ReadFile(rpc.Subscriptions(d.Dir))
+	data, err := os.ReadFile(ipc.Subscriptions(d.Dir))
 	if err != nil {
 		return state, skipMissing(err)
 	}
@@ -98,10 +98,10 @@ func (d Disk) Save(state PersistentState) error {
 	if err != nil {
 		return err
 	}
-	if err := write(rpc.Configuration(d.Dir), data); err != nil {
+	if err := write(ipc.Configuration(d.Dir), data); err != nil {
 		return err
 	}
-	_ = os.Remove(rpc.Subscriptions(d.Dir))
+	_ = os.Remove(ipc.Subscriptions(d.Dir))
 	return nil
 }
 

@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/luynrs/justray/internal/daemon/platform/device"
-	"github.com/luynrs/justray/internal/shared/version"
+	"github.com/luynrs/justray/internal/platform/device"
+	"github.com/luynrs/justray/internal/version"
 )
 
 func deviceHeaders(ctx context.Context) (http.Header, error) {

@@ -8,7 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/luynrs/justray/internal/client/tui/style"
-	"github.com/luynrs/justray/internal/shared/version"
+	"github.com/luynrs/justray/internal/version"
 )
 
 func (s *Settings) View(width, height int) string {

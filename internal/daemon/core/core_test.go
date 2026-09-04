@@ -15,10 +15,10 @@ import (
 	"time"
 
 	"github.com/luynrs/justray/internal/daemon/connection"
-	"github.com/luynrs/justray/internal/daemon/engine"
+	"github.com/luynrs/justray/internal/engine"
 	"github.com/luynrs/justray/internal/daemon/store"
 	"github.com/luynrs/justray/internal/daemon/subscription"
-	"github.com/luynrs/justray/internal/shared/domain"
+	"github.com/luynrs/justray/internal/domain"
 )
 
 func TestRefreshRunsOutsideMutationLockAndJoins(t *testing.T) {

@@ -15,7 +15,7 @@ import (
 	"github.com/luynrs/justray/internal/daemon/core"
 	"github.com/luynrs/justray/internal/daemon/store"
 	"github.com/luynrs/justray/internal/daemon/subscription"
-	"github.com/luynrs/justray/internal/shared/rpc"
+	"github.com/luynrs/justray/internal/ipc"
 )
 
 func TestListenDoesNotWaitForLock(t *testing.T) {
@@ -55,11 +55,11 @@ func TestShutdownClosesWatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = client.Close() }()
-	if err := json.NewEncoder(client).Encode(rpc.Req{Method: "Watch"}); err != nil {
+	if err := json.NewEncoder(client).Encode(ipc.Req{Method: "Watch"}); err != nil {
 		t.Fatal(err)
 	}
 	_ = client.SetReadDeadline(time.Now().Add(time.Second))
-	if err := json.NewDecoder(client).Decode(&rpc.Changed{}); err != nil {
+	if err := json.NewDecoder(client).Decode(&ipc.Changed{}); err != nil {
 		t.Fatalf("initial Watch revision: %v", err)
 	}
 

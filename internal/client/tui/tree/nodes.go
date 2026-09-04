@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/luynrs/justray/internal/client/tui/style"
-	"github.com/luynrs/justray/internal/shared/rpc"
+	"github.com/luynrs/justray/internal/ipc"
 )
 
 func (d Data) Render(r Row, selected bool, width int) string {
@@ -24,7 +24,7 @@ func (d Data) Render(r Row, selected bool, width int) string {
 	return bar + style.Flush(d.node(r.Node, selected), info(r.Node), width-2)
 }
 
-func subHeader(s rpc.Sub, collapsed, selected, emoji bool) string {
+func subHeader(s ipc.Sub, collapsed, selected, emoji bool) string {
 	arrow := "▼"
 	if collapsed {
 		arrow = "▶"
@@ -36,7 +36,7 @@ func subHeader(s rpc.Sub, collapsed, selected, emoji bool) string {
 	return arrow + " " + style.Name.Render(clean)
 }
 
-func subMeta(s rpc.Sub, refreshing bool, spinner string) string {
+func subMeta(s ipc.Sub, refreshing bool, spinner string) string {
 	age := "never updated"
 	switch {
 	case refreshing:
@@ -51,7 +51,7 @@ func subMeta(s rpc.Sub, refreshing bool, spinner string) string {
 	return style.Dim.Render(fmt.Sprintf("%d node%s · %s", s.Nodes, plural, age))
 }
 
-func (d Data) node(n rpc.Node, selected bool) string {
+func (d Data) node(n ipc.Node, selected bool) string {
 	name := style.Sanitize(n.Name, d.Emoji)
 	if selected {
 		name = style.Accent.Render(name)
@@ -63,11 +63,11 @@ func (d Data) node(n rpc.Node, selected bool) string {
 	return line
 }
 
-func info(n rpc.Node) string {
+func info(n ipc.Node) string {
 	return style.Dim.Render(fmt.Sprintf("%s:%d · %s", style.Sanitize(n.Server, true), n.Port, n.Protocol))
 }
 
-func latency(n rpc.Node) string {
+func latency(n ipc.Node) string {
 	switch {
 	case !n.Probed:
 		return ""
@@ -77,7 +77,7 @@ func latency(n rpc.Node) string {
 	return "timeout"
 }
 
-func (d Data) dot(n rpc.Node) string {
+func (d Data) dot(n ipc.Node) string {
 	switch {
 	case d.connected() && d.Status.NodeRef == n.Ref():
 		return style.Alive.Render("●")

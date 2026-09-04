@@ -16,13 +16,13 @@ import (
 	"github.com/luynrs/justray/internal/client/cli/detach"
 	"github.com/luynrs/justray/internal/client/tui"
 	"github.com/luynrs/justray/internal/client/tui/style"
-	"github.com/luynrs/justray/internal/shared/rpc"
-	"github.com/luynrs/justray/internal/shared/version"
+	"github.com/luynrs/justray/internal/ipc"
+	"github.com/luynrs/justray/internal/version"
 )
 
 // per-run CLI state
 type app struct {
-	client *rpc.Client
+	client *ipc.Client
 	emoji  bool
 }
 
@@ -126,15 +126,15 @@ func setHelpText(c *cobra.Command) {
 }
 
 func (a *app) connectDaemon() error {
-	dir, err := rpc.Dir()
+	dir, err := ipc.Dir()
 	if err != nil {
 		return fmt.Errorf("resolve config dir: %w", err)
 	}
-	if err := rpc.EnsureDir(dir); err != nil {
+	if err := ipc.EnsureDir(dir); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
 	}
 
-	a.client = rpc.NewClient(rpc.Socket(dir))
+	a.client = ipc.NewClient(ipc.Socket(dir))
 	if a.client.Ping() != nil {
 		if err := spawn(dir); err != nil {
 			return fmt.Errorf("start daemon: %w", err)
@@ -143,7 +143,7 @@ func (a *app) connectDaemon() error {
 		err = wait(a.client, 10*time.Second)
 		stop()
 		if err != nil {
-			return fmt.Errorf("daemon did not start, see %s", rpc.DaemonLog(dir))
+			return fmt.Errorf("daemon did not start, see %s", ipc.DaemonLog(dir))
 		}
 	}
 	if snapshot, err := a.client.Snapshot(); err == nil {
@@ -164,7 +164,7 @@ func spawn(dir string) error {
 	defer func() { _ = devNull.Close() }()
 
 	// a panic writes straight to stderr, past the logger — keep it in the log
-	errLog, err := os.OpenFile(rpc.DaemonLog(dir), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	errLog, err := os.OpenFile(ipc.DaemonLog(dir), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return err
 	}
@@ -210,7 +210,7 @@ func nextToSelf(name string) string {
 	return p
 }
 
-func wait(c *rpc.Client, timeout time.Duration) error {
+func wait(c *ipc.Client, timeout time.Duration) error {
 	for deadline := time.Now().Add(timeout); time.Now().Before(deadline); {
 		if c.Ping() == nil {
 			return nil
@@ -221,10 +221,10 @@ func wait(c *rpc.Client, timeout time.Duration) error {
 }
 
 // daemon dials silently, for completions — no spawn, no error reporting
-func (a *app) daemon() *rpc.Client {
+func (a *app) daemon() *ipc.Client {
 	if a.client == nil {
-		if d, err := rpc.Dir(); err == nil {
-			a.client = rpc.NewClient(rpc.Socket(d))
+		if d, err := ipc.Dir(); err == nil {
+			a.client = ipc.NewClient(ipc.Socket(d))
 		}
 	}
 	return a.client

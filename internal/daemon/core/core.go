@@ -10,13 +10,13 @@ import (
 	"sync/atomic"
 
 	"github.com/luynrs/justray/internal/daemon/connection"
-	"github.com/luynrs/justray/internal/daemon/engine"
-	"github.com/luynrs/justray/internal/daemon/platform/autostart"
+	"github.com/luynrs/justray/internal/engine"
 	"github.com/luynrs/justray/internal/daemon/store"
 	"github.com/luynrs/justray/internal/daemon/subscription"
-	"github.com/luynrs/justray/internal/shared/domain"
-	"github.com/luynrs/justray/internal/shared/parser"
-	"github.com/luynrs/justray/internal/shared/rpc"
+	"github.com/luynrs/justray/internal/domain"
+	"github.com/luynrs/justray/internal/ipc"
+	"github.com/luynrs/justray/internal/parser"
+	"github.com/luynrs/justray/internal/platform/autostart"
 )
 
 type Core struct {
@@ -33,9 +33,9 @@ type Core struct {
 	refreshes map[string]*refreshCall
 
 	revision atomic.Uint64
-	snapshot atomic.Pointer[rpc.Snapshot]
+	snapshot atomic.Pointer[ipc.Snapshot]
 	watchMu  sync.Mutex
-	watchers map[chan rpc.Changed]struct{}
+	watchers map[chan ipc.Changed]struct{}
 }
 
 func New(st store.Disk, conn *connection.Service, subs *subscription.Service) (*Core, error) {
@@ -51,7 +51,7 @@ func New(st store.Disk, conn *connection.Service, subs *subscription.Service) (*
 		settings.Autostart = "on"
 	}
 	state.Settings = settings
-	c := &Core{store: st, state: state, probes: map[domain.NodeRef]engine.Result{}, conn: conn, subs: subs, refreshes: map[string]*refreshCall{}, watchers: map[chan rpc.Changed]struct{}{}}
+	c := &Core{store: st, state: state, probes: map[domain.NodeRef]engine.Result{}, conn: conn, subs: subs, refreshes: map[string]*refreshCall{}, watchers: map[chan ipc.Changed]struct{}{}}
 	c.publish()
 	return c, nil
 }
@@ -84,15 +84,15 @@ func (c *Core) Shutdown() {
 	c.publish()
 }
 
-func (c *Core) Snapshot() rpc.Snapshot            { return cloneSnapshot(*c.snapshot.Load()) }
+func (c *Core) Snapshot() ipc.Snapshot            { return cloneSnapshot(*c.snapshot.Load()) }
 func (c *Core) RestartRequested() <-chan struct{} { return c.conn.RestartRequested() }
 
-func (c *Core) Watch() (rpc.Changed, <-chan rpc.Changed, func()) {
-	ch := make(chan rpc.Changed, 1)
+func (c *Core) Watch() (ipc.Changed, <-chan ipc.Changed, func()) {
+	ch := make(chan ipc.Changed, 1)
 	c.watchMu.Lock()
 	c.watchers[ch] = struct{}{}
 	c.watchMu.Unlock()
-	return rpc.Changed{Revision: c.Snapshot().Revision}, ch, func() {
+	return ipc.Changed{Revision: c.Snapshot().Revision}, ch, func() {
 		c.watchMu.Lock()
 		delete(c.watchers, ch)
 		c.watchMu.Unlock()
@@ -423,15 +423,15 @@ func (c *Core) commit(state store.PersistentState) error {
 
 func (c *Core) publish() {
 	state := c.current()
-	subs := make([]rpc.Sub, len(state.Subscriptions))
+	subs := make([]ipc.Sub, len(state.Subscriptions))
 	for i, sub := range state.Subscriptions {
-		subs[i] = rpc.Sub{ID: sub.ID, Name: sub.Name, Nodes: len(sub.Nodes), UpdatedAt: sub.UpdatedAt, Traffic: sub.Traffic, Direct: parser.IsLink(sub.URL)}
+		subs[i] = ipc.Sub{ID: sub.ID, Name: sub.Name, Nodes: len(sub.Nodes), UpdatedAt: sub.UpdatedAt, Traffic: sub.Traffic, Direct: parser.IsLink(sub.URL)}
 	}
 	active := state.Active
 	if active.NodeID == "" {
 		active = state.Last
 	}
-	snapshot := &rpc.Snapshot{
+	snapshot := &ipc.Snapshot{
 		Revision:      c.revision.Add(1),
 		Settings:      cloneSettings(state.Settings),
 		Subscriptions: subs,
@@ -443,7 +443,7 @@ func (c *Core) publish() {
 	c.watchMu.Lock()
 	for ch := range c.watchers {
 		select {
-		case ch <- rpc.Changed{Revision: snapshot.Revision}:
+		case ch <- ipc.Changed{Revision: snapshot.Revision}:
 		default:
 		}
 	}
@@ -461,7 +461,7 @@ func (c *Core) apply(ctx context.Context, state store.PersistentState) error {
 	return c.conn.Apply(ctx, node, ref, state.Settings, state.Tun)
 }
 
-func (c *Core) status(state store.PersistentState) rpc.Status {
+func (c *Core) status(state store.PersistentState) ipc.Status {
 	status := c.conn.Status()
 	if !status.Connected {
 		status.Port = state.Settings.Port
@@ -470,14 +470,14 @@ func (c *Core) status(state store.PersistentState) rpc.Status {
 	return status
 }
 
-func (c *Core) nodes(subscriptions []store.Subscription) []rpc.Node {
+func (c *Core) nodes(subscriptions []store.Subscription) []ipc.Node {
 	live := map[domain.NodeRef]bool{}
-	out := []rpc.Node{}
+	out := []ipc.Node{}
 	for _, subscription := range subscriptions {
 		for _, node := range subscription.Nodes {
 			ref := domain.NodeRef{SubscriptionID: subscription.ID, NodeID: node.ID}
 			live[ref] = true
-			item := rpc.Node{ID: node.ID, Name: node.Name, Protocol: string(node.Protocol), Server: node.Server, Port: node.Port, Sub: subscription.ID}
+			item := ipc.Node{ID: node.ID, Name: node.Name, Protocol: string(node.Protocol), Server: node.Server, Port: node.Port, Sub: subscription.ID}
 			if result, ok := c.probes[ref]; ok {
 				item.Probed, item.Alive, item.MS = true, result.Alive, result.MS
 			}
@@ -513,7 +513,7 @@ func probeTargets(subscriptions []store.Subscription, subID, nodeID string) ([]d
 	return refs, nodes, nil
 }
 
-func cloneSnapshot(snapshot rpc.Snapshot) rpc.Snapshot {
+func cloneSnapshot(snapshot ipc.Snapshot) ipc.Snapshot {
 	snapshot.Settings = cloneSettings(snapshot.Settings)
 	snapshot.Subscriptions = slices.Clone(snapshot.Subscriptions)
 	snapshot.Nodes = slices.Clone(snapshot.Nodes)

@@ -9,7 +9,7 @@ import (
 
 	"github.com/luynrs/justray/internal/client/tui/style"
 	"github.com/luynrs/justray/internal/client/tui/tree"
-	"github.com/luynrs/justray/internal/shared/rpc"
+	"github.com/luynrs/justray/internal/ipc"
 )
 
 var subCmd = &cobra.Command{
@@ -87,12 +87,12 @@ func init() {
 	subCmd.AddCommand(subAddCmd, subRemoveCmd, subListCmd)
 }
 
-func (a *app) resolveSub(key string) (rpc.Sub, error) {
+func (a *app) resolveSub(key string) (ipc.Sub, error) {
 	snapshot, err := a.client.Snapshot()
 	if err != nil {
-		return rpc.Sub{}, err
+		return ipc.Sub{}, err
 	}
-	return match(key, "subscription", snapshot.Subscriptions, func(s rpc.Sub) (string, string) { return s.ID, s.Name })
+	return match(key, "subscription", snapshot.Subscriptions, func(s ipc.Sub) (string, string) { return s.ID, s.Name })
 }
 
 func (a *app) completeSub(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -104,10 +104,10 @@ func (a *app) completeSub(cmd *cobra.Command, args []string, toComplete string) 
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 	snapshot, err := c.Snapshot()
-	return completeNames(snapshot.Subscriptions, err, func(s rpc.Sub) string { return s.Name })
+	return completeNames(snapshot.Subscriptions, err, func(s ipc.Sub) string { return s.Name })
 }
 
-func (a *app) showTree(subs []rpc.Sub, nodes []rpc.Node) {
+func (a *app) showTree(subs []ipc.Sub, nodes []ipc.Node) {
 	groups := (tree.Data{Subs: subs, Nodes: nodes}).Groups()
 	for i, g := range groups {
 		if i > 0 {
@@ -135,13 +135,13 @@ func (a *app) showTree(subs []rpc.Sub, nodes []rpc.Node) {
 	}
 }
 
-func (a *app) nodeLine(n rpc.Node, branch string, nameW, infoW int) string {
+func (a *app) nodeLine(n ipc.Node, branch string, nameW, infoW int) string {
 	name := style.Pad(a.nodeName(n.Name, ""), nameW)
 	info := style.Dim.Render(style.Pad(a.serverProto(n), infoW))
 	id := style.Dim.Render(displayID(n.ID))
 	return fmt.Sprintf("%s %s  %s  %s", style.Dim.Render(branch), name, info, id)
 }
 
-func (a *app) serverProto(n rpc.Node) string {
+func (a *app) serverProto(n ipc.Node) string {
 	return fmt.Sprintf("%s:%d · %s", a.clean(n.Server), n.Port, n.Protocol)
 }

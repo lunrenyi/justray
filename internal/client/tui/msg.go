@@ -6,11 +6,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/luynrs/justray/internal/shared/rpc"
+	"github.com/luynrs/justray/internal/ipc"
 )
 
 type loaded struct {
-	snapshot rpc.Snapshot
+	snapshot ipc.Snapshot
 	op       string
 	err      error
 }
@@ -20,7 +20,7 @@ type pushed struct {
 	live     bool
 }
 
-func snapshotCmd(op string, fn func() (rpc.Snapshot, error)) tea.Cmd {
+func snapshotCmd(op string, fn func() (ipc.Snapshot, error)) tea.Cmd {
 	return func() tea.Msg {
 		snapshot, err := fn()
 		return loaded{snapshot: snapshot, op: op, err: err}
@@ -29,7 +29,7 @@ func snapshotCmd(op string, fn func() (rpc.Snapshot, error)) tea.Cmd {
 
 type tick struct{}
 
-func watch(ctx context.Context, c *rpc.Client, ch chan<- pushed) tea.Cmd {
+func watch(ctx context.Context, c *ipc.Client, ch chan<- pushed) tea.Cmd {
 	return func() tea.Msg {
 		go func() {
 			backoff := time.Second
@@ -37,7 +37,7 @@ func watch(ctx context.Context, c *rpc.Client, ch chan<- pushed) tea.Cmd {
 				if ctx.Err() != nil {
 					return
 				}
-				_ = c.Watch(ctx, func(changed rpc.Changed) {
+				_ = c.Watch(ctx, func(changed ipc.Changed) {
 					select {
 					case ch <- pushed{revision: changed.Revision, live: true}:
 					case <-ctx.Done():

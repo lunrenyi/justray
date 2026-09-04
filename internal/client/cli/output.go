@@ -12,7 +12,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/luynrs/justray/internal/client/tui/style"
-	"github.com/luynrs/justray/internal/shared/rpc"
+	"github.com/luynrs/justray/internal/ipc"
 )
 
 func out(s string) { _, _ = lipgloss.Println(s) }
@@ -33,7 +33,7 @@ func fieldLines(pairs ...[2]string) string {
 	return strings.Join(lines, "\n")
 }
 
-func state(st rpc.Status) string {
+func state(st ipc.Status) string {
 	if st.Connected {
 		text := "connected via " + strings.ToUpper(modeWord(st.Tun))
 		if st.Uptime > 0 {
@@ -44,7 +44,7 @@ func state(st rpc.Status) string {
 	return "disconnected"
 }
 
-func stateHeadline(st rpc.Status) {
+func stateHeadline(st ipc.Status) {
 	text := state(st)
 	if st.Connected {
 		done(upperFirst(text))
@@ -53,12 +53,12 @@ func stateHeadline(st rpc.Status) {
 	out(style.Dim.Render("·") + " " + upperFirst(text))
 }
 
-func (a *app) nodeDetails(st rpc.Status) {
+func (a *app) nodeDetails(st ipc.Status) {
 	n, _ := a.resolveNode(st.NodeRef.NodeID, st.NodeRef.SubscriptionID)
 	fields(append([][2]string{{"Node", a.nodeName(st.NodeName, st.NodeRef.NodeID)}}, a.nodeFields(n)...)...)
 }
 
-func (a *app) nodeFields(n rpc.Node) [][2]string {
+func (a *app) nodeFields(n ipc.Node) [][2]string {
 	if n.Server == "" {
 		return nil
 	}

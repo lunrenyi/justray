@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/luynrs/justray/internal/daemon/store"
-	"github.com/luynrs/justray/internal/shared/domain"
-	"github.com/luynrs/justray/internal/shared/parser"
+	"github.com/luynrs/justray/internal/domain"
+	"github.com/luynrs/justray/internal/parser"
 )
 
 func (s *Service) RefreshAll(ctx context.Context, subs []store.Subscription, refresh func(context.Context, store.Subscription) (store.Subscription, error)) ([]store.Subscription, error) {

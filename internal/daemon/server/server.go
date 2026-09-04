@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/luynrs/justray/internal/daemon/core"
-	"github.com/luynrs/justray/internal/daemon/platform/lock"
-	"github.com/luynrs/justray/internal/daemon/platform/owner"
+	"github.com/luynrs/justray/internal/platform/lock"
+	"github.com/luynrs/justray/internal/platform/owner"
 )
 
 type Server struct {
@@ -53,8 +53,8 @@ func Listen(socket string) (net.Listener, func(), error) {
 		unlock()
 		return nil, nil, fmt.Errorf("another justrayd is already listening on %s", socket)
 	}
-	_ = os.Remove(socket)
 
+	_ = os.Remove(socket)
 	ln, err := net.Listen("unix", socket)
 	if err != nil {
 		unlock()

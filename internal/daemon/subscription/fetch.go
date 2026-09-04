@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/luynrs/justray/internal/shared/domain"
-	"github.com/luynrs/justray/internal/shared/parser"
+	"github.com/luynrs/justray/internal/domain"
+	"github.com/luynrs/justray/internal/parser"
 )
 
 func (s *Service) fetch(ctx context.Context, rawURL string) ([]domain.Node, string, domain.Traffic, error) {
