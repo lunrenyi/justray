@@ -71,6 +71,7 @@ fi
 
 mkdir -p "$dir" 2>/dev/null || fail "cannot create directory $dir"
 [ -w "$dir" ] || fail "cannot write to $dir"
+dir=$(cd "$dir" && pwd -P)
 
 tmp=$(mktemp -d)
 restart=0
@@ -130,39 +131,27 @@ tar -xzf "$tmp/$archive" -C "$tmp/out" 2>/dev/null || fail "failed to extract ar
 
 step "Installing..."
 
-pids=""
-if command -v pgrep >/dev/null 2>&1; then
-	pids=$(pgrep -u "$(id -u)" -x justrayd 2>/dev/null || true)
-fi
-
 target_pids=""
-for p in $pids; do
-	exe=""
-	if [ -f "/proc/$p/exe" ]; then
-		exe=$(readlink -f "/proc/$p/exe" 2>/dev/null || true)
-	elif command -v lsof >/dev/null 2>&1; then
-		exe=$(lsof -p "$p" -a -d txt -Fn 2>/dev/null | sed -n 's/^n//p' || true)
-	fi
-
-	if [ -z "$exe" ] || [ "$exe" = "$dir/justrayd" ]; then
-		target_pids="$target_pids $p"
-	fi
-done
+if command -v pgrep >/dev/null 2>&1; then
+	for p in $(pgrep -u "$(id -u)" -x justrayd 2>/dev/null || true); do
+		exe=""
+		if [ -e "/proc/$p/exe" ]; then
+			exe=$(readlink -f "/proc/$p/exe" 2>/dev/null || true)
+		elif command -v lsof >/dev/null 2>&1; then
+			exe=$(lsof -p "$p" -a -d txt -Fn 2>/dev/null | sed -n 's/^n//p' || true)
+		fi
+		case "$exe" in
+			"$dir/justrayd") target_pids="$target_pids $p" ;;
+		esac
+	done
+fi
 
 if [ -n "$target_pids" ]; then
 	restart=1
-	if [ -x "$dir/justray" ]; then
-		"$dir/justray" stop >/dev/null 2>&1 || true
-	elif command -v jray >/dev/null 2>&1; then
-		jray stop >/dev/null 2>&1 || true
-	fi
-
-	for p in $target_pids; do
-		kill -TERM "$p" 2>/dev/null || true
-	done
+	for p in $target_pids; do kill -TERM "$p" 2>/dev/null || true; done
 
 	t=0
-	while [ "$t" -lt 30 ]; do
+	while [ "$t" -lt 70 ]; do
 		alive=0
 		for p in $target_pids; do
 			kill -0 "$p" 2>/dev/null && alive=1 && break
@@ -173,19 +162,13 @@ if [ -n "$target_pids" ]; then
 	done
 
 	for p in $target_pids; do
-		if kill -0 "$p" 2>/dev/null; then
-			kill -KILL "$p" 2>/dev/null || true
-		fi
+		kill -KILL "$p" 2>/dev/null || true
 	done
 fi
 
-install -m 755 "$tmp/out/justrayd" "$dir/justrayd" 2>/dev/null || cp -f "$tmp/out/justrayd" "$dir/justrayd" 2>/dev/null || fail "failed to install justrayd"
-chmod 755 "$dir/justrayd" 2>/dev/null || true
-
-install -m 755 "$tmp/out/justray" "$dir/justray" 2>/dev/null || cp -f "$tmp/out/justray" "$dir/justray" 2>/dev/null || fail "failed to install justray"
-chmod 755 "$dir/justray" 2>/dev/null || true
-
-ln -sf justray "$dir/jray" 2>/dev/null || cp -f "$dir/justray" "$dir/jray" 2>/dev/null || fail "failed to link jray"
+install -m 755 "$tmp/out/justrayd" "$dir/justrayd" || fail "failed to install justrayd"
+install -m 755 "$tmp/out/justray" "$dir/justray" || fail "failed to install justray"
+ln -sf justray "$dir/jray" || fail "failed to link jray"
 
 done_msg "Installed to $dir"
 
