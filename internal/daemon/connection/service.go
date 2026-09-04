@@ -89,8 +89,8 @@ func (s *Service) ForgetIfRemoved(subID string) error {
 	return nil
 }
 
-func (s *Service) Probe(ctx context.Context, nodes []domain.Node, settings domain.Settings) (map[string]engine.Result, error) {
-	return s.probeAll(ctx, nodes, settings, ipc.EngineLog(s.dir))
+func (s *Service) Probe(ctx context.Context, nodes []domain.Node, settings domain.Settings, onResult func(string, engine.Result)) (map[string]engine.Result, error) {
+	return s.probeAll(ctx, nodes, settings, ipc.EngineLog(s.dir), onResult)
 }
 
 func (s *Service) RestartRequested() <-chan struct{} { return s.restart }

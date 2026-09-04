@@ -90,11 +90,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.since = time.Now().Add(-time.Duration(m.status.Uptime) * time.Second)
 		m.emoji = msg.snapshot.Settings.Emoji == "on"
 		m.live = true
-		if msg.op == "probe" || msg.op == "sync" {
+		if msg.op == "probe" {
 			m.probing = nil
+		} else if len(m.probing) > 0 {
+			for _, n := range m.nodes {
+				if n.Probed {
+					delete(m.probing, n.Ref())
+				}
+			}
 		}
-		if msg.op == "refresh" || msg.op == "sync" {
+		if msg.op == "refresh" {
 			m.refreshing = nil
+		} else if len(m.refreshing) > 0 {
+			for _, sub := range msg.snapshot.Subscriptions {
+				if time.Since(sub.UpdatedAt) < 10*time.Second {
+					delete(m.refreshing, sub.ID)
+				}
+			}
 		}
 		if selectedOK {
 			if selected.Kind == tree.Header {

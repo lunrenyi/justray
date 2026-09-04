@@ -112,28 +112,24 @@ func (c *Core) Probe(ctx context.Context, sub, id string) error {
 	if err != nil {
 		return err
 	}
-	results, err := c.conn.Probe(ctx, nodes, state.Settings)
-	if err != nil {
-		return err
-	}
-	c.opMu.Lock()
-	defer c.opMu.Unlock()
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	live := map[domain.NodeRef]bool{}
-	for _, subscription := range c.current().Subscriptions {
-		for _, node := range subscription.Nodes {
-			live[domain.NodeRef{SubscriptionID: subscription.ID, NodeID: node.ID}] = true
-		}
-	}
+	refMap := make(map[string]domain.NodeRef, len(refs))
 	for _, ref := range refs {
-		if result, ok := results[ref.NodeID]; ok && live[ref] {
-			c.probes[ref] = result
-		}
+		refMap[ref.NodeID] = ref
 	}
-	c.publish()
-	return nil
+
+	onResult := func(nodeID string, res engine.Result) {
+		ref, ok := refMap[nodeID]
+		if !ok {
+			return
+		}
+		c.opMu.Lock()
+		c.probes[ref] = res
+		c.opMu.Unlock()
+		c.publish()
+	}
+
+	_, err = c.conn.Probe(ctx, nodes, state.Settings, onResult)
+	return err
 }
 
 func (c *Core) AddSubscription(ctx context.Context, rawURL string) error {
@@ -220,7 +216,20 @@ func (c *Core) RefreshSubscriptions(ctx context.Context) error {
 	if len(subs) == 0 {
 		return nil
 	}
-	updated, refreshErr := c.subs.RefreshAll(ctx, subs, c.refresh)
+	onUpdated := func(sub store.Subscription) {
+		c.opMu.Lock()
+		defer c.opMu.Unlock()
+		if ctx.Err() != nil {
+			return
+		}
+		next := c.current()
+		if i := slices.IndexFunc(next.Subscriptions, func(s store.Subscription) bool { return s.ID == sub.ID }); i >= 0 {
+			next.Subscriptions[i] = sub
+			dropConn := c.sanitizeRefs(&next, sub)
+			_ = c.syncAfterRefresh(ctx, next, dropConn)
+		}
+	}
+	updated, refreshErr := c.subs.RefreshAll(ctx, subs, c.refresh, onUpdated)
 	c.opMu.Lock()
 	defer c.opMu.Unlock()
 	if err := ctx.Err(); err != nil {

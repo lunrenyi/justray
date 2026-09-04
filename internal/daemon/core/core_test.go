@@ -174,8 +174,12 @@ func TestProbePublishesCoreOwnedResults(t *testing.T) {
 		t.Fatal(err)
 	}
 	logger := log.New(io.Discard, "", 0)
-	probe := func(context.Context, []domain.Node, domain.Settings, string) (map[string]engine.Result, error) {
-		return map[string]engine.Result{"node": {Alive: true, MS: 12}}, nil
+	probe := func(_ context.Context, _ []domain.Node, _ domain.Settings, _ string, onResult func(string, engine.Result)) (map[string]engine.Result, error) {
+		res := map[string]engine.Result{"node": {Alive: true, MS: 12}}
+		if onResult != nil {
+			onResult("node", res["node"])
+		}
+		return res, nil
 	}
 	app, err := New(disk, connection.New(context.Background(), "", nil, probe, logger), subscription.New(context.Background(), logger))
 	if err != nil {

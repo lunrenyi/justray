@@ -115,7 +115,9 @@ func xhttpOptions(t domain.Transport) option.V2RayXHTTPOptions {
 			opts.UplinkDataKey = cmp.Or(e.UplinkDataKey, e.UplinkDataKeySnake)
 			opts.UplinkChunkSize = cmp.Or(e.UplinkChunkSize, e.UplinkChunkSizeSnake)
 			opts.UplinkHTTPMethod = cmp.Or(e.UplinkHTTPMethod, e.UplinkHTTPMethodSnake)
-			opts.XPaddingBytes = cmp.Or(e.XPaddingBytes, e.XPaddingBytesSnake)
+			if pad := cmp.Or(e.XPaddingBytes, e.XPaddingBytesSnake); pad != "" && pad != "0-0" && pad != "0" {
+				opts.XPaddingBytes = pad
+			}
 			opts.XPaddingObfsMode = e.XPaddingObfsMode || e.XPaddingObfsModeSnake
 			opts.XPaddingKey = cmp.Or(e.XPaddingKey, e.XPaddingKeySnake)
 			opts.XPaddingHeader = cmp.Or(e.XPaddingHeader, e.XPaddingHeaderSnake)

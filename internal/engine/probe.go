@@ -15,7 +15,7 @@ import (
 	"github.com/luynrs/justray/internal/domain"
 )
 
-func Probe(ctx context.Context, nodes []domain.Node, s domain.Settings, logPath string) (map[string]Result, error) {
+func Probe(ctx context.Context, nodes []domain.Node, s domain.Settings, logPath string, onResult func(string, Result)) (map[string]Result, error) {
 	if len(nodes) > maxProbeNodes {
 		return nil, fmt.Errorf("too many nodes to probe: %d (maximum %d)", len(nodes), maxProbeNodes)
 	}
@@ -40,9 +40,13 @@ func Probe(ctx context.Context, nodes []domain.Node, s domain.Settings, logPath 
 	for i, n := range nodes {
 		dialer, ok := inst.Outbound().Outbound(ProbeTag(i))
 		if !ok {
+			res := Result{}
 			mu.Lock()
-			out[n.ID] = Result{}
+			out[n.ID] = res
 			mu.Unlock()
+			if onResult != nil {
+				onResult(n.ID, res)
+			}
 			continue
 		}
 		select {
@@ -58,9 +62,13 @@ func Probe(ctx context.Context, nodes []domain.Node, s domain.Settings, logPath 
 			if err != nil {
 				forget(n.Server, s)
 			}
+			res := Result{Alive: err == nil, MS: ms}
 			mu.Lock()
-			out[n.ID] = Result{Alive: err == nil, MS: ms}
+			out[n.ID] = res
 			mu.Unlock()
+			if onResult != nil {
+				onResult(n.ID, res)
+			}
 		})
 	}
 	wg.Wait()

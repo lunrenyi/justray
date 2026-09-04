@@ -14,8 +14,8 @@ func TestXHTTPOptions(t *testing.T) {
 	}
 
 	zeroPad := xhttpOptions(domain.Transport{Extra: `{"xPaddingBytes":"0-0"}`})
-	if zeroPad.XPaddingBytes != "0-0" {
-		t.Fatalf("expected 0-0 XPaddingBytes, got %q", zeroPad.XPaddingBytes)
+	if zeroPad.XPaddingBytes != "" {
+		t.Fatalf("expected empty XPaddingBytes for 0-0, got %q", zeroPad.XPaddingBytes)
 	}
 
 	snake := xhttpOptions(domain.Transport{Extra: `{"mode":"packet-up","session_placement":"header","session_key":"hdr_sid","x_padding_bytes":"200-400","headers":{"Custom":"val"}}`})
