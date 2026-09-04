@@ -13,9 +13,9 @@ import (
 	"github.com/sagernet/sing/common"
 	"github.com/sagernet/sing/common/json/badoption"
 
+	"github.com/luynrs/justray/internal/domain"
 	"github.com/luynrs/justray/internal/engine/outbound"
 	"github.com/luynrs/justray/internal/engine/resolvers"
-	"github.com/luynrs/justray/internal/domain"
 )
 
 const (

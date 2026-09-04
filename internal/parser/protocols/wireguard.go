@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/luynrs/justray/internal/domain"
@@ -52,9 +53,35 @@ func ParseWireGuard(uri string) (domain.Node, error) {
 			PeerPublicKey: peerKey,
 			PreSharedKey:  rawQuery(u, "presharedkey"),
 			Address:       address,
+			Reserved:      parseReserved(rawQuery(u, "reserved")),
 			MTU:           uint32(atoi(q.Get("mtu"))),
 		},
 	}, nil
+}
+
+func parseReserved(s string) []uint8 {
+	if s == "" {
+		return nil
+	}
+	s = strings.Trim(s, "[]")
+	if strings.Contains(s, ",") {
+		parts := strings.Split(s, ",")
+		if len(parts) == 3 {
+			res := make([]uint8, 3)
+			for i, p := range parts {
+				n, err := strconv.Atoi(strings.TrimSpace(p))
+				if err != nil || n < 0 || n > 255 {
+					return nil
+				}
+				res[i] = uint8(n)
+			}
+			return res
+		}
+	}
+	if b, err := Unbase64(s); err == nil && len(b) == 3 {
+		return b
+	}
+	return nil
 }
 
 func encodeUserinfoSlash(uri string) string {

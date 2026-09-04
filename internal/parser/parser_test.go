@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
@@ -208,8 +209,52 @@ func TestParseXHTTPExtra(t *testing.T) {
 	}
 }
 
+func TestParseVMessXHTTPExtra(t *testing.T) {
+	raw := `{"mode":"packet-up","uplinkHTTPMethod":"GET"}`
+	vm := `{"add":"example.com","port":"443","id":"11111111-1111-1111-1111-111111111111","net":"xhttp","extra":"` + strings.ReplaceAll(raw, `"`, `\"`) + `"}`
+	n, err := ParseURI("vmess://" + base64.StdEncoding.EncodeToString([]byte(vm)))
+	if err != nil {
+		t.Fatalf("ParseURI vmess: %v", err)
+	}
+	if n.Transport.Network != "xhttp" || n.Transport.Extra != raw {
+		t.Fatalf("unexpected transport: %+v", n.Transport)
+	}
+}
+
 func xhttpURI(extra string) string {
 	return "vless://11111111-1111-1111-1111-111111111111@example.com:443?type=xhttp&extra=" + url.QueryEscape(extra)
+}
+
+func TestParseHysteria2Obfs(t *testing.T) {
+	n, err := ParseURI("hy2://secret@example.com:443?obfs-param=xyz")
+	if err != nil || n.Obfs != "salamander" || n.ObfsPassword != "xyz" {
+		t.Fatalf("unexpected hy2: err=%v, obfs=%q, pw=%q", err, n.Obfs, n.ObfsPassword)
+	}
+}
+
+func TestParseWireGuardReserved(t *testing.T) {
+	n, err := ParseURI("wg://private@example.com:51820?publickey=public&address=10.0.0.2/32&reserved=1,2,3")
+	if err != nil || len(n.WireGuard.Reserved) != 3 || n.WireGuard.Reserved[0] != 1 || n.WireGuard.Reserved[1] != 2 || n.WireGuard.Reserved[2] != 3 {
+		t.Fatalf("unexpected wg: err=%v, reserved=%v", err, n.WireGuard.Reserved)
+	}
+	n, err = ParseURI("wg://private@example.com:51820?publickey=public&address=10.0.0.2/32&reserved=+wAA")
+	if err != nil || !slices.Equal(n.WireGuard.Reserved, []byte{251, 0, 0}) {
+		t.Fatalf("unexpected base64 reserved: err=%v, reserved=%v", err, n.WireGuard.Reserved)
+	}
+}
+
+func TestParseVLessImplicitReality(t *testing.T) {
+	n, err := ParseURI("vless://11111111-1111-1111-1111-111111111111@example.com:443?pbk=publickey&sid=1234&sni=example.com")
+	if err != nil || n.Reality == nil || n.Reality.PublicKey != "publickey" || n.Reality.ShortID != "1234" || n.TLS == nil {
+		t.Fatalf("unexpected implicit reality: err=%v, reality=%+v, tls=%+v", err, n.Reality, n.TLS)
+	}
+}
+
+func TestParseTUICCongestion(t *testing.T) {
+	n, err := ParseURI("tuic://11111111-1111-1111-1111-111111111111:pass@example.com:443?congestion-control=cubic&udp-relay-mode=quic")
+	if err != nil || n.Congestion != "cubic" || n.UDPRelayMode != "quic" || n.TLS == nil || n.TLS.ALPN[0] != "h3" {
+		t.Fatalf("unexpected tuic: err=%v, congestion=%q, udp=%q, tls=%+v", err, n.Congestion, n.UDPRelayMode, n.TLS)
+	}
 }
 
 func TestParseSubscriptionAllGarbage(t *testing.T) {

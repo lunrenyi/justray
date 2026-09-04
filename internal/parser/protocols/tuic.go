@@ -20,19 +20,19 @@ func ParseTUIC(uri string) (domain.Node, error) {
 
 	q := u.Query()
 	password, _ := u.User.Password()
+	tls := tlsFrom(q, host)
+	if len(tls.ALPN) == 0 {
+		tls.ALPN = []string{"h3"}
+	}
 	n := domain.Node{
-		Name:     cmp.Or(u.Fragment, host),
-		Protocol: domain.TUIC,
-		Server:   host,
-		Port:     port,
-		Auth:     domain.Auth{UUID: u.User.Username(), Password: cmp.Or(password, q.Get("password"))},
-		TLS: &domain.TLS{
-			SNI:      cmp.Or(q.Get("sni"), host),
-			ALPN:     splitComma(cmp.Or(q.Get("alpn"), "h3")),
-			Insecure: insecureFlag(q),
-		},
-		Congestion:   cmp.Or(q.Get("congestion_control"), "bbr"),
-		UDPRelayMode: cmp.Or(q.Get("udp_relay_mode"), "native"),
+		Name:         cmp.Or(u.Fragment, host),
+		Protocol:     domain.TUIC,
+		Server:       host,
+		Port:         port,
+		Auth:         domain.Auth{UUID: u.User.Username(), Password: cmp.Or(password, q.Get("password"))},
+		TLS:          tls,
+		Congestion:   cmp.Or(q.Get("congestion_control"), q.Get("congestion-control"), q.Get("congestion"), "bbr"),
+		UDPRelayMode: cmp.Or(q.Get("udp_relay_mode"), q.Get("udp-relay-mode"), "native"),
 	}
 	return n, nil
 }

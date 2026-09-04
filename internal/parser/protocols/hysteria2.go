@@ -26,18 +26,19 @@ func ParseHysteria2(uri string) (domain.Node, error) {
 	}
 
 	q := u.Query()
-	n := domain.Node{
-		Name:     cmp.Or(u.Fragment, host),
-		Protocol: domain.HY2,
-		Server:   host,
-		Port:     port,
-		Auth:     domain.Auth{Password: auth},
-		TLS: &domain.TLS{
-			SNI:      cmp.Or(q.Get("sni"), q.Get("peer"), host),
-			Insecure: insecureFlag(q),
-		},
-		Obfs:         q.Get("obfs"),
-		ObfsPassword: q.Get("obfs-password"),
+	obfsPw := cmp.Or(q.Get("obfs-password"), q.Get("obfs_password"), q.Get("obfs-param"), q.Get("obfsparam"))
+	obfs := q.Get("obfs")
+	if obfs == "" && obfsPw != "" {
+		obfs = "salamander"
 	}
-	return n, nil
+	return domain.Node{
+		Name:         cmp.Or(u.Fragment, host),
+		Protocol:     domain.HY2,
+		Server:       host,
+		Port:         port,
+		Auth:         domain.Auth{Password: auth},
+		TLS:          tlsFrom(q, host),
+		Obfs:         obfs,
+		ObfsPassword: obfsPw,
+	}, nil
 }

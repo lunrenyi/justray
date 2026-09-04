@@ -13,20 +13,21 @@ import (
 
 // v2rayn schema
 type vmessLink struct {
-	PS   string     `json:"ps"`
-	Add  string     `json:"add"`
-	Port flexInt    `json:"port"`
-	ID   string     `json:"id"`
-	AID  flexInt    `json:"aid"`
-	SCY  string     `json:"scy"`
-	Net  string     `json:"net"`
-	Type string     `json:"type"`
-	Host string     `json:"host"`
-	Path string     `json:"path"`
-	TLS  flexString `json:"tls"`
-	SNI  string     `json:"sni"`
-	ALPN flexString `json:"alpn"`
-	FP   string     `json:"fp"`
+	PS    string     `json:"ps"`
+	Add   string     `json:"add"`
+	Port  flexInt    `json:"port"`
+	ID    string     `json:"id"`
+	AID   flexInt    `json:"aid"`
+	SCY   string     `json:"scy"`
+	Net   string     `json:"net"`
+	Type  string     `json:"type"`
+	Host  string     `json:"host"`
+	Path  string     `json:"path"`
+	TLS   flexString `json:"tls"`
+	SNI   string     `json:"sni"`
+	ALPN  flexString `json:"alpn"`
+	FP    string     `json:"fp"`
+	Extra string     `json:"extra"`
 }
 
 // vmess://<base64 json>
@@ -73,6 +74,9 @@ func ParseVMess(uri string) (domain.Node, error) {
 	}
 	if net == "grpc" {
 		n.Transport.ServiceName = vm.Path // grpc exports reuse "path" as name
+	}
+	if net == "xhttp" {
+		n.Transport.Extra = vm.Extra
 	}
 	if tls := strings.ToLower(string(vm.TLS)); tls == "tls" || tls == "reality" || tls == "xtls" {
 		n.TLS = &domain.TLS{

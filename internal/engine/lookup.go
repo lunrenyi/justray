@@ -11,8 +11,8 @@ import (
 	C "github.com/sagernet/sing-box/constant"
 	"github.com/sagernet/sing-box/option"
 
-	"github.com/luynrs/justray/internal/engine/outbound"
 	"github.com/luynrs/justray/internal/domain"
+	"github.com/luynrs/justray/internal/engine/outbound"
 )
 
 var (
