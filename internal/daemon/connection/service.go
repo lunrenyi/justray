@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"log"
+	"sync"
 	"time"
 
-	"github.com/luynrs/justray/internal/engine"
 	"github.com/luynrs/justray/internal/domain"
+	"github.com/luynrs/justray/internal/engine"
 	"github.com/luynrs/justray/internal/ipc"
 	"github.com/luynrs/justray/internal/platform/elevate"
 )
@@ -28,6 +29,7 @@ type Service struct {
 	log       *log.Logger
 	dir       string
 
+	mu      sync.RWMutex
 	session session
 	restart chan struct{}
 }
@@ -55,7 +57,9 @@ func (s *Service) Disconnect(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	s.mu.RLock()
 	name := s.session.node.Name
+	s.mu.RUnlock()
 	if err := s.stop(); err != nil {
 		return err
 	}
@@ -72,7 +76,10 @@ func (s *Service) Restore(n domain.Node, ref domain.NodeRef, settings domain.Set
 }
 
 func (s *Service) ForgetIfRemoved(subID string) error {
-	if s.session.ref.SubscriptionID != subID {
+	s.mu.RLock()
+	sub := s.session.ref.SubscriptionID
+	s.mu.RUnlock()
+	if sub != subID {
 		return nil
 	}
 	if err := s.Disconnect(context.Background()); err != nil {
@@ -95,6 +102,8 @@ func (s *Service) Shutdown() {
 }
 
 func (s *Service) Status() ipc.Status {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	st := ipc.Status{}
 	if s.session.eng != nil && s.session.eng.Running() {
 		st.Connected = true
@@ -113,7 +122,10 @@ func (s *Service) apply(ctx context.Context, n domain.Node, ref domain.NodeRef, 
 	if n.TLS != nil && n.TLS.Insecure {
 		return errors.New("insecure TLS node is not allowed")
 	}
+	s.mu.RLock()
 	eng := s.session.eng
+	started := s.session.started
+	s.mu.RUnlock()
 	if eng == nil {
 		if err = ipc.ClearLog(ipc.EngineLog(s.dir)); err != nil {
 			s.log.Print(err)
@@ -129,7 +141,9 @@ func (s *Service) apply(ctx context.Context, n domain.Node, ref domain.NodeRef, 
 	}
 	if err != nil {
 		if eng != nil && !eng.Running() {
+			s.mu.Lock()
 			s.session = session{}
+			s.mu.Unlock()
 		}
 		if tun && elevate.Needed(err) {
 			select {
@@ -141,18 +155,22 @@ func (s *Service) apply(ctx context.Context, n domain.Node, ref domain.NodeRef, 
 		return err
 	}
 
-	started := s.session.started
 	if resetStarted || started.IsZero() {
 		started = time.Now()
 	}
+	s.mu.Lock()
 	s.session = session{eng: eng, node: n, ref: ref, started: started, tun: tun, port: settings.Port}
+	s.mu.Unlock()
 	s.log.Printf("connected to %s (%s %s:%d)", n.Name, n.Protocol, n.Server, n.Port)
 	return nil
 }
 
 func (s *Service) stop() error {
-	if eng := s.session.eng; eng != nil {
-		s.session = session{}
+	s.mu.Lock()
+	eng := s.session.eng
+	s.session = session{}
+	s.mu.Unlock()
+	if eng != nil {
 		return eng.Stop()
 	}
 	return nil

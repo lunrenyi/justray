@@ -10,10 +10,10 @@ import (
 	"sync/atomic"
 
 	"github.com/luynrs/justray/internal/daemon/connection"
-	"github.com/luynrs/justray/internal/engine"
 	"github.com/luynrs/justray/internal/daemon/store"
 	"github.com/luynrs/justray/internal/daemon/subscription"
 	"github.com/luynrs/justray/internal/domain"
+	"github.com/luynrs/justray/internal/engine"
 	"github.com/luynrs/justray/internal/ipc"
 	"github.com/luynrs/justray/internal/parser"
 	"github.com/luynrs/justray/internal/platform/autostart"
@@ -84,7 +84,11 @@ func (c *Core) Shutdown() {
 	c.publish()
 }
 
-func (c *Core) Snapshot() ipc.Snapshot            { return cloneSnapshot(*c.snapshot.Load()) }
+func (c *Core) Snapshot() ipc.Snapshot {
+	snap := cloneSnapshot(*c.snapshot.Load())
+	snap.Status = c.status(c.current())
+	return snap
+}
 func (c *Core) RestartRequested() <-chan struct{} { return c.conn.RestartRequested() }
 
 func (c *Core) Watch() (ipc.Changed, <-chan ipc.Changed, func()) {

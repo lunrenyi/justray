@@ -7,8 +7,8 @@ import (
 	"log"
 	"testing"
 
-	"github.com/luynrs/justray/internal/engine"
 	"github.com/luynrs/justray/internal/domain"
+	"github.com/luynrs/justray/internal/engine"
 )
 
 type fakeEngine struct {

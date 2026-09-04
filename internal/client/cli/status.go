@@ -18,7 +18,7 @@ func (a *app) status(cmd *cobra.Command, args []string) error {
 	stateHeadline(st)
 
 	if st.Connected {
-		a.nodeDetails(st)
+		a.nodeDetails(st, snapshot.Nodes)
 		return nil
 	}
 
@@ -26,8 +26,8 @@ func (a *app) status(cmd *cobra.Command, args []string) error {
 	if ref.NodeID == "" {
 		return nil
 	}
-	n, err := a.resolveNode(ref.NodeID, ref.SubscriptionID)
-	if err != nil || n.ID == "" {
+	n := a.lookupNode(ref, snapshot.Nodes)
+	if n.ID == "" {
 		return nil
 	}
 	last := [][2]string{{"Last node", a.nodeName(n.Name, n.ID)}}

@@ -15,10 +15,10 @@ import (
 	"time"
 
 	"github.com/luynrs/justray/internal/daemon/connection"
-	"github.com/luynrs/justray/internal/engine"
 	"github.com/luynrs/justray/internal/daemon/store"
 	"github.com/luynrs/justray/internal/daemon/subscription"
 	"github.com/luynrs/justray/internal/domain"
+	"github.com/luynrs/justray/internal/engine"
 )
 
 func TestRefreshRunsOutsideMutationLockAndJoins(t *testing.T) {
@@ -321,5 +321,25 @@ func TestNewFailsOnMalformedConfig(t *testing.T) {
 	subs := subscription.New(context.Background(), logger)
 	if _, err := New(store.Disk{Dir: dir}, conn, subs); err == nil {
 		t.Fatal("want error on malformed YAML configuration")
+	}
+}
+
+func TestSnapshotRefreshesStatusUptime(t *testing.T) {
+	settings, _ := domain.Settings{}.Normalize()
+	app := testCore(t, &fakeEngine{}, store.PersistentState{
+		Settings:      settings,
+		Subscriptions: []store.Subscription{{ID: "sub", Nodes: []domain.Node{{ID: "n1"}}}},
+	})
+	if err := app.Connect(context.Background(), "n1", "sub"); err != nil {
+		t.Fatal(err)
+	}
+	snap1 := app.Snapshot()
+	if !snap1.Status.Connected {
+		t.Fatal("expected connected status")
+	}
+	time.Sleep(1100 * time.Millisecond)
+	snap2 := app.Snapshot()
+	if snap2.Status.Uptime <= snap1.Status.Uptime {
+		t.Fatalf("expected snap2 uptime (%d) > snap1 uptime (%d)", snap2.Status.Uptime, snap1.Status.Uptime)
 	}
 }

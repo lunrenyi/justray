@@ -15,10 +15,10 @@ import (
 
 	"github.com/luynrs/justray/internal/daemon/connection"
 	"github.com/luynrs/justray/internal/daemon/core"
-	"github.com/luynrs/justray/internal/engine"
 	"github.com/luynrs/justray/internal/daemon/server"
 	"github.com/luynrs/justray/internal/daemon/store"
 	"github.com/luynrs/justray/internal/daemon/subscription"
+	"github.com/luynrs/justray/internal/engine"
 	"github.com/luynrs/justray/internal/ipc"
 	"github.com/luynrs/justray/internal/platform/elevate"
 	"github.com/luynrs/justray/internal/version"

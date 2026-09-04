@@ -12,6 +12,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/luynrs/justray/internal/client/tui/style"
+	"github.com/luynrs/justray/internal/domain"
 	"github.com/luynrs/justray/internal/ipc"
 )
 
@@ -36,7 +37,7 @@ func fieldLines(pairs ...[2]string) string {
 func state(st ipc.Status) string {
 	if st.Connected {
 		text := "connected via " + strings.ToUpper(modeWord(st.Tun))
-		if st.Uptime > 0 {
+		if st.Uptime >= 0 {
 			text += " for " + style.Uptime(time.Duration(st.Uptime)*time.Second)
 		}
 		return text
@@ -53,9 +54,27 @@ func stateHeadline(st ipc.Status) {
 	out(style.Dim.Render("·") + " " + upperFirst(text))
 }
 
-func (a *app) nodeDetails(st ipc.Status) {
-	n, _ := a.resolveNode(st.NodeRef.NodeID, st.NodeRef.SubscriptionID)
-	fields(append([][2]string{{"Node", a.nodeName(st.NodeName, st.NodeRef.NodeID)}}, a.nodeFields(n)...)...)
+func (a *app) nodeDetails(st ipc.Status, nodes []ipc.Node) {
+	if nodes == nil {
+		if snap, err := a.client.Snapshot(); err == nil {
+			nodes = snap.Nodes
+		}
+	}
+	n := a.lookupNode(st.NodeRef, nodes)
+	pairs := [][2]string{{"Node", a.nodeName(st.NodeName, st.NodeRef.NodeID)}}
+	if !st.Tun && st.Port > 0 {
+		pairs = append(pairs, [2]string{"Proxy", fmt.Sprintf("127.0.0.1:%d", st.Port)})
+	}
+	fields(append(pairs, a.nodeFields(n)...)...)
+}
+
+func (a *app) lookupNode(ref domain.NodeRef, nodes []ipc.Node) ipc.Node {
+	for _, n := range nodes {
+		if n.ID == ref.NodeID && (ref.SubscriptionID == "" || n.Sub == ref.SubscriptionID) {
+			return n
+		}
+	}
+	return ipc.Node{}
 }
 
 func (a *app) nodeFields(n ipc.Node) [][2]string {

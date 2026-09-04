@@ -153,7 +153,7 @@ func (a *app) switchMode(st ipc.Status, tun bool) error {
 
 func (a *app) report(headline string, st ipc.Status) {
 	done(headline)
-	a.nodeDetails(st)
+	a.nodeDetails(st, nil)
 }
 
 func (a *app) resolveNode(key, sub string) (ipc.Node, error) {

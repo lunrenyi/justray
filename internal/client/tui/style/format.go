@@ -103,10 +103,13 @@ func Bytes(b int64) string {
 func Since(t time.Time) string { return span(time.Since(t)) + " ago" }
 
 func Uptime(d time.Duration) string {
-	d = d.Round(time.Second)
-	h, m, s := d/time.Hour, d/time.Minute%60, d/time.Second%60
+	d = max(0, d.Round(time.Second))
+	days := d / (24 * time.Hour)
+	h, m, s := (d/time.Hour)%24, (d/time.Minute)%60, (d/time.Second)%60
 
 	switch {
+	case days > 0:
+		return fmt.Sprintf("%dd %dh %dm", days, h, m)
 	case h > 0:
 		return fmt.Sprintf("%dh %dm %ds", h, m, s)
 	case m > 0:
