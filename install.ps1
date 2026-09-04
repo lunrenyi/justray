@@ -2,6 +2,7 @@
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
+try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch {}
 
 $repo = "https://github.com/luynrs/justray"
 $version = if ($env:JUSTRAY_VERSION) { $env:JUSTRAY_VERSION } else { "latest" }
@@ -86,7 +87,6 @@ function download($uri, $out) {
 
 $tmp = Join-Path ([IO.Path]::GetTempPath()) ("justray-" + [guid]::NewGuid())
 $restart = $false
-$restartPath = $null
 
 New-Item -ItemType Directory -Path $tmp | Out-Null
 
@@ -148,63 +148,26 @@ try {
 	step "Installing..."
 
 	New-Item -ItemType Directory -Force -Path $dir | Out-Null
-	$daemonExe = [IO.Path]::GetFullPath((Join-Path $dir "justrayd.exe"))
-	$daemons = @(Get-Process justrayd -ErrorAction SilentlyContinue | Where-Object {
-		try { [IO.Path]::GetFullPath($_.Path).Equals($daemonExe, [StringComparison]::OrdinalIgnoreCase) } catch { $false }
-	})
 
-	$oldClient = Join-Path $dir "justray.exe"
-	$lockFile = Join-Path $env:APPDATA "justray\ipc\justrayd.sock.lock"
-	if (Test-Path $lockFile -PathType Leaf) {
-		$lockData = @(Get-Content $lockFile)
-		$ownerPid = 0
-		try {
-			if ($lockData.Count -ge 2 -and [int]::TryParse($lockData[0], [ref]$ownerPid) -and [IO.Path]::GetFullPath($lockData[1]).Equals($daemonExe, [StringComparison]::OrdinalIgnoreCase)) {
-				$owner = Get-Process -Id $ownerPid -ErrorAction SilentlyContinue
-				if ($owner -and $owner.ProcessName -eq "justrayd" -and $daemons.Id -notcontains $owner.Id) { $daemons += $owner }
-			}
-		} catch {}
+	$restart = (Get-Process justrayd -ErrorAction SilentlyContinue) -ne $null
+	if (Test-Path "$dir\justray.exe") {
+		try { & "$dir\justray.exe" stop *>$null } catch {}
 	}
-	$restart = $daemons.Count -gt 0
-	if ($daemons.Count -gt 0 -and (Test-Path $oldClient -PathType Leaf)) {
-		try { & $oldClient stop *>$null } catch {}
-	}
+	Stop-Process -Name justrayd, justray, jray -ErrorAction SilentlyContinue
 
-	$daemons | Wait-Process -Timeout 7 -ErrorAction SilentlyContinue
-	$daemons = @($daemons | Where-Object { Get-Process -Id $_.Id -ErrorAction SilentlyContinue })
-	if ($daemons.Count -gt 0) {
-		$daemons | Stop-Process -ErrorAction SilentlyContinue
-		Start-Sleep -Milliseconds 500
-	}
-	$daemons = @($daemons | Where-Object { Get-Process -Id $_.Id -ErrorAction SilentlyContinue })
+	# Windows allows renaming running binaries away, but forbids overwriting them in place
+	Get-ChildItem $dir -Filter *.old* -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
 
-	$needElevation = $daemons.Count -gt 0
-	if (Test-Path $daemonExe) {
-		try { Remove-Item $daemonExe -Force -ErrorAction Stop } catch { $needElevation = $true }
-	}
-	if ($needElevation) {
-		$escaped = $daemonExe.Replace("'", "''")
-		$elevated = "`$ErrorActionPreference='Stop'; `$path='$escaped'; Get-Process justrayd -ErrorAction SilentlyContinue | Where-Object { try { [IO.Path]::GetFullPath(`$_.Path).Equals(`$path, [StringComparison]::OrdinalIgnoreCase) } catch { `$false } } | Stop-Process -Force -ErrorAction Stop"
-		$encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($elevated))
-		try {
-			$proc = Start-Process powershell.exe -Verb RunAs -Wait -PassThru -ArgumentList "-NoProfile", "-EncodedCommand", $encoded
-			if ($proc.ExitCode -ne 0) { fail "administrator permission was not granted" }
-		} catch {
-			fail "administrator permission is required to stop the elevated daemon"
+	function install_file($src, $dst) {
+		if (Test-Path $dst) {
+			Move-Item $dst ("$dst.old." + [guid]::NewGuid().ToString("N")) -Force -ErrorAction SilentlyContinue
 		}
-		if ($daemons | Where-Object { Get-Process -Id $_.Id -ErrorAction SilentlyContinue }) {
-			fail "another installation owns the running daemon"
-		}
+		Copy-Item $src $dst -Force
 	}
-	if ($restart) { $restartPath = $daemonExe }
 
-	try {
-		Copy-Item "$out\justrayd.exe" $daemonExe -Force
-		Copy-Item "$out\justray.exe" "$dir\justray.exe" -Force
-		Copy-Item "$out\justray.exe" "$dir\jray.exe" -Force
-	} catch {
-		fail "failed to install binaries: $_"
-	}
+	install_file "$out\justray.exe" "$dir\justray.exe"
+	install_file "$out\justray.exe" "$dir\jray.exe"
+	install_file "$out\justrayd.exe" "$dir\justrayd.exe"
 
 	$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
 	if ($null -eq $userPath) {
@@ -225,8 +188,9 @@ try {
 }
 finally {
 	Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
+	Get-ChildItem $dir -Filter *.old* -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
 
-	if ($restartPath -and (Test-Path $restartPath)) {
-		Start-Process $restartPath -WindowStyle Hidden
+	if ($restart -and (Test-Path "$dir\justrayd.exe")) {
+		Start-Process "$dir\justrayd.exe" -WindowStyle Hidden
 	}
 }
