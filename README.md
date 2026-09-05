@@ -38,6 +38,12 @@ yay -S justray-bin
 
 ```
 
+Or via [x-cmd](https://www.x-cmd.com/mod/eget):
+
+```bash
+x eget use luynrs/justray
+```
+
 Or via script:
 
 ```bash
