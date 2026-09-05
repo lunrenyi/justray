@@ -31,12 +31,13 @@ type Resp struct {
 }
 
 type Sub struct {
-	ID        string
-	Name      string
-	Nodes     int
-	UpdatedAt time.Time
-	Traffic   domain.Traffic
-	Direct    bool // a bare share link
+	ID         string
+	Name       string
+	Nodes      int
+	UpdatedAt  time.Time
+	Traffic    domain.Traffic
+	Direct     bool // a bare share link
+	Refreshing bool
 }
 
 type Node struct {
@@ -48,9 +49,10 @@ type Node struct {
 	Sub      string
 
 	// false until Probe has run
-	Probed bool
-	Alive  bool
-	MS     int
+	Probed  bool
+	Alive   bool
+	MS      int
+	Probing bool
 }
 
 func (n Node) Ref() domain.NodeRef {

@@ -27,24 +27,21 @@ type Model struct {
 	subs  []ipc.Sub
 	nodes []ipc.Node
 
-	collapsed  map[string]bool
-	probing    map[domain.NodeRef]bool
-	refreshing map[string]bool
-	spin       spinner.Model
-	cursor     int
-	scroll     int
-	wheel      time.Time
+	collapsed map[string]bool
+	spin      spinner.Model
+	cursor    int
+	scroll    int
+	wheel     time.Time
 
-	editor    textinput.Model
-	confirmQ  string
-	confirmID string
-	settings  *settings.Settings
-	filter    textinput.Model
+	editor     textinput.Model
+	confirmSub ipc.Sub
+	dialog     *settings.Settings
+	filter     textinput.Model
 
 	status     ipc.Status
 	revision   uint64
 	live       bool
-	emoji      bool
+	cfg        domain.Settings
 	since      time.Time
 	statusCh   chan pushed
 	watchCtx   context.Context
@@ -83,16 +80,14 @@ func (m Model) Init() tea.Cmd {
 
 func (m Model) data() tree.Data {
 	return tree.Data{
-		Subs:       m.subs,
-		Nodes:      m.nodes,
-		Collapsed:  m.collapsed,
-		Probing:    m.probing,
-		Refreshing: m.refreshing,
-		Query:      m.filter.Value(),
-		Status:     m.status,
-		Live:       m.live,
-		Emoji:      m.emoji,
-		Spinner:    m.spin.View(),
+		Subs:      m.subs,
+		Nodes:     m.nodes,
+		Collapsed: m.collapsed,
+		Query:     m.filter.Value(),
+		Status:    m.status,
+		Live:      m.live,
+		Emoji:     m.cfg.Emoji == "on",
+		Spinner:   m.spin.View(),
 	}
 }
 

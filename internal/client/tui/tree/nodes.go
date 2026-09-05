@@ -1,6 +1,7 @@
 package tree
 
 import (
+	"cmp"
 	"fmt"
 
 	"github.com/luynrs/justray/internal/client/tui/style"
@@ -17,7 +18,7 @@ func (d Data) Render(r Row, selected bool, width int) string {
 	case Gap:
 		return ""
 	case Meta:
-		return bar + style.Flush("  "+style.Usage(r.Sub.Traffic), subMeta(r.Sub, d.Refreshing[r.Sub.ID], d.Spinner), width-2)
+		return bar + style.Flush("  "+style.Usage(r.Sub.Traffic), subMeta(r.Sub, d.Spinner), width-2)
 	case Header:
 		return bar + subHeader(r.Sub, d.Collapsed[r.Sub.ID], selected, d.Emoji)
 	}
@@ -36,10 +37,10 @@ func subHeader(s ipc.Sub, collapsed, selected, emoji bool) string {
 	return arrow + " " + style.Name.Render(clean)
 }
 
-func subMeta(s ipc.Sub, refreshing bool, spinner string) string {
+func subMeta(s ipc.Sub, spinner string) string {
 	age := "never updated"
 	switch {
-	case refreshing:
+	case s.Refreshing:
 		age = "updated " + spinner + " ago"
 	case !s.UpdatedAt.IsZero():
 		age = "updated " + style.Since(s.UpdatedAt)
@@ -69,20 +70,20 @@ func info(n ipc.Node) string {
 
 func latency(n ipc.Node) string {
 	switch {
-	case !n.Probed:
+	case n.Probing || !n.Probed:
 		return ""
 	case n.Alive:
 		return fmt.Sprintf("%dms", n.MS)
 	}
-	return "timeout"
+	return "fail"
 }
 
 func (d Data) dot(n ipc.Node) string {
 	switch {
 	case d.connected() && d.Status.NodeRef == n.Ref():
 		return style.Alive.Render("●")
-	case d.Probing[n.Ref()]:
-		return style.Pending.Render("○")
+	case n.Probing:
+		return style.Pending.Render(cmp.Or(d.Spinner, "○"))
 	case !n.Probed:
 		return style.Unknown.Render("○")
 	case n.Alive:
